@@ -9,6 +9,22 @@ coverage/
 # パッケージマネージャ生成物
 pnpm-lock.yaml
 
+# Rust (Tauri) 生成物 + Cargo.lock (テキストだが自動生成)
+**/target/
+**/gen/
+Cargo.lock
+
+# 画像 / バイナリ
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.ico
+*.icns
+*.wav
+*.ogg
+*.mp3
+
 # OSS 配布物
 LICENSE
 
