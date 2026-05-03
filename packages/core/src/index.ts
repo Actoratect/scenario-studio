@@ -13,3 +13,6 @@ export type {
 
 // AI Provider 抽象 (PoC-F)
 export * from './ai/index.js';
+
+// Domain models (PoC-E から本格化)
+export * from './domain/index.js';
