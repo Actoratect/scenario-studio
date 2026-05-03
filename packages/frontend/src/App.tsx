@@ -2,6 +2,7 @@ import { Show, Suspense } from 'solid-js';
 import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
+import { Toaster } from './global/Toaster';
 import { ProjectService } from './services/ProjectService';
 
 // 既存の `index.ts` が再エクスポートしている VERSION 識別子を保持。
@@ -12,10 +13,13 @@ export const FRONTEND_VERSION = '0.0.0';
 // 詳細: ../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M1
 export const App: Component = () => {
   return (
-    <Suspense fallback={<div class="app-loading">Loading…</div>}>
-      <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
-        <WorkspaceShell />
-      </Show>
-    </Suspense>
+    <>
+      <Suspense fallback={<div class="app-loading">Loading…</div>}>
+        <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
+          <WorkspaceShell />
+        </Show>
+      </Suspense>
+      <Toaster />
+    </>
   );
 };

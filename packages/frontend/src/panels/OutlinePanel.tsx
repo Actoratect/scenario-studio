@@ -13,6 +13,7 @@ import {
 import { LoadingOverlay } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
+import { Toast } from '../services/Toast';
 
 // M4 Outliner: 章 / シーン階層 (Scenario) と Nodes 一覧の 2 セクション構成。
 // 真の TanStack Virtual / ドラッグ並べ替え は M5+ または Phase 1 後半。
@@ -61,6 +62,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       Object.assign(ctx.project, { scenario: nextScenario });
     } catch (e) {
       console.error('addChapter failed', e);
+      Toast.error(`章の追加に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -88,6 +90,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       });
     } catch (e) {
       console.error('addScene failed', e);
+      Toast.error(`シーンの追加に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -108,6 +111,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       SelectionContext.selectNode(node.id);
     } catch (e) {
       console.error('addNode failed', e);
+      Toast.error(`ノードの追加に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { Spinner } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
+import { Toast } from '../services/Toast';
 
 // プロジェクト全体の synopsis (Scenarios/synopsis.md) を編集する panel。
 // MVP は textarea ベース。CodeMirror Markdown は M6 (脚本エディタ拡張時) に
@@ -40,6 +41,7 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
       Object.assign(ctx.project, { scenario: next });
     } catch (e) {
       console.error('synopsis save failed', e);
+      Toast.error(`Synopsis 保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSaving(false);
     }

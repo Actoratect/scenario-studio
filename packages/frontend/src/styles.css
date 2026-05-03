@@ -169,6 +169,121 @@ button {
   border-color: var(--ss-accent-vermillion);
 }
 
+.ss-save-status-error-detail {
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.85;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Toaster (PR-D) ===== */
+
+.ss-toaster {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2000;
+  max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none; /* 各 toast でのみ pointer-events を有効に */
+}
+
+.ss-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-left-width: 4px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  color: var(--ss-text);
+  pointer-events: auto;
+  animation: ss-toast-in 0.18s ease-out;
+}
+
+@keyframes ss-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.ss-toast[data-kind='info'] {
+  border-left-color: var(--ss-accent-sky);
+  background: var(--ss-bg-info);
+}
+
+.ss-toast[data-kind='success'] {
+  border-left-color: var(--ss-accent-green);
+  background: var(--ss-bg-success);
+}
+
+.ss-toast[data-kind='warning'] {
+  border-left-color: var(--ss-accent-orange);
+  background: var(--ss-bg-warning);
+}
+
+.ss-toast[data-kind='error'] {
+  border-left-color: var(--ss-accent-vermillion);
+  background: var(--ss-bg-error);
+}
+
+.ss-toast-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ss-toast[data-kind='info'] .ss-toast-icon {
+  color: var(--ss-accent-blue);
+}
+.ss-toast[data-kind='success'] .ss-toast-icon {
+  color: var(--ss-accent-green);
+}
+.ss-toast[data-kind='warning'] .ss-toast-icon {
+  color: var(--ss-accent-orange);
+}
+.ss-toast[data-kind='error'] .ss-toast-icon {
+  color: var(--ss-accent-vermillion);
+}
+
+.ss-toast-message {
+  flex: 1;
+  min-width: 0;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+.ss-toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--ss-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.ss-toast-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ss-text);
+}
+
 #root {
   display: flex;
   flex-direction: column;
