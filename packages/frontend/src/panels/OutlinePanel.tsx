@@ -65,6 +65,33 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  async function addScene(chapterSlug: string): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const chapter = ctx.project.scenario.chapters.find((c) => c.slug === chapterSlug);
+    if (!chapter) return;
+    setBusy(true);
+    try {
+      const idx = chapter.scenes.length + 1;
+      const slug = `s${String(idx).padStart(2, '0')}_${Date.now().toString(36)}`;
+      const scene = await ctx.scenarioRepository.addScene({
+        chapterSlug,
+        sceneSlug: slug,
+        title: `Scene ${idx}`,
+      });
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === chapterSlug ? { ...c, scenes: [...c.scenes, scene] } : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+    } catch (e) {
+      console.error('addScene failed', e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addNode(template: TemplateDefinition): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -101,6 +128,14 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
               <li class="panel-outline-chapter">
                 <span class="panel-outline-chapter-title">
                   📖 {chapter.title} <span class="panel-outline-chapter-slug">{chapter.slug}</span>
+                  <button
+                    class="panel-outline-add-scene"
+                    disabled={busy()}
+                    onClick={() => void addScene(chapter.slug)}
+                    title="この章にシーンを追加"
+                  >
+                    + Scene
+                  </button>
                 </span>
                 <Show when={chapter.scenes.length > 0}>
                   <ul class="panel-outline-scenes">

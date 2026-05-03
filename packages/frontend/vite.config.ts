@@ -1,6 +1,24 @@
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import solid from 'vite-plugin-solid';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// production build 時にだけ strict CSP meta を注入する。
+// dev 時に注入すると HMR の WebSocket (ws://localhost:*) が 'self' に含まれず HMR が壊れる。
+// 詳細: ../../Documentation/ScenarioEditor/16_security.md §2.2
+const PROD_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.anthropic.com https://api.openai.com http://localhost:11434; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'none';";
+
+function cspPlugin(): Plugin {
+  return {
+    name: 'scenario-studio:csp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      const tag = `<meta http-equiv="Content-Security-Policy" content="${PROD_CSP}">`;
+      return html.replace('</head>', `  ${tag}\n  </head>`);
+    },
+  };
+}
 
 // SolidJS + Vite + PWA。
 // M8: 本格的なキャッシュ戦略 — JS/CSS は SWR (新版を即座に学習しつつ古版で起動高速化)、
@@ -10,6 +28,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   plugins: [
     solid(),
+    cspPlugin(),
     VitePWA({
       registerType: 'prompt',
       // 開発時に SW をオフ (HMR 干渉回避)。本番ビルドのみ有効。

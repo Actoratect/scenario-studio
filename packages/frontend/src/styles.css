@@ -960,6 +960,20 @@ body,
   cursor: pointer;
 }
 
+.panel-outline-add-scene {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #eef;
+  border: 1px solid #aac;
+  border-radius: 3px;
+}
+
+.panel-outline-add-scene:hover:not(:disabled) {
+  background: #dde;
+}
+
 /* ===== AI Panel (M8) ===== */
 
 .panel-ai {
