@@ -52,7 +52,8 @@ describe('computeRelationshipLens', () => {
     expect(lens.edges.length).toBe(1);
     expect(lens.edges[0]!.source).toBe(tarou.id);
     expect(lens.edges[0]!.target).toBe(fac.id);
-    expect(lens.edges[0]!.fieldId).toBe('faction');
+    expect(lens.edges[0]!.label).toBe('faction');
+    expect(lens.edges[0]!.kind).toBe('implicit');
     expect(lens.edges[0]!.id).toContain('faction');
   });
 
@@ -94,7 +95,57 @@ describe('computeRelationshipLens', () => {
     const facWithLeader = { ...fac, fields: { ...fac.fields, leader: tarou.id } };
     const lens = computeRelationshipLens(nodeMap([tarou, facWithLeader]), tmpl);
     expect(lens.edges.length).toBe(2);
-    const fields = lens.edges.map((e) => e.fieldId).sort();
+    const fields = lens.edges.map((e) => e.label).sort();
     expect(fields).toEqual(['faction', 'leader']);
+  });
+
+  it('merges explicit Relation entities with type label (PR-E)', () => {
+    const tmpl = new TemplateRegistry();
+    const a = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'a',
+      fields: { display_name: 'A' },
+    });
+    const b = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'b',
+      fields: { display_name: 'B' },
+    });
+    const lens = computeRelationshipLens(nodeMap([a, b]), tmpl, [
+      {
+        id: 'rel.x' as never,
+        source: a.id,
+        target: b.id,
+        type: 'friend',
+      },
+    ]);
+    expect(lens.edges.length).toBe(1);
+    expect(lens.edges[0]!.kind).toBe('explicit');
+    expect(lens.edges[0]!.label).toBe('友人'); // RELATION_TYPES.friend.label
+    expect(lens.edges[0]!.relationType).toBe('friend');
+  });
+
+  it('explicit Relation custom label overrides type label', () => {
+    const tmpl = new TemplateRegistry();
+    const a = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'a',
+      fields: { display_name: 'A' },
+    });
+    const b = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'b',
+      fields: { display_name: 'B' },
+    });
+    const lens = computeRelationshipLens(nodeMap([a, b]), tmpl, [
+      {
+        id: 'rel.x' as never,
+        source: a.id,
+        target: b.id,
+        type: 'friend',
+        label: '幼馴染',
+      },
+    ]);
+    expect(lens.edges[0]!.label).toBe('幼馴染');
   });
 });

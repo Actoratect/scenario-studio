@@ -2,10 +2,11 @@ import type { EraIndex } from '../domain/era.js';
 import type { ScenarioNode } from '../domain/node.js';
 import type { ScenarioStructure } from '../domain/scenario.js';
 import type { GlossaryTerm } from '../domain/GlossaryRepository.js';
+import type { Relation } from '../domain/Relation.js';
 import type { ProjectSettings } from './ProjectSettings.js';
 import type { NodeId } from '../domain/era.js';
 
-// プロジェクトのインメモリ表現。M1 で skeleton、M2 で nodes、M4 で eras / scenarios、M7 で glossary。
+// プロジェクトのインメモリ表現。
 // 詳細: ../../../../Documentation/ScenarioEditor/12_architecture.md §1, §5,
 //       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M1, M2, M4, M7
 
@@ -20,6 +21,8 @@ export interface ProjectModel {
   scenario: ScenarioStructure;
   /** 用語集 (M7、Glossary/terms.yaml hydrate)。 */
   glossary: readonly GlossaryTerm[];
+  /** 明示的なノード間関係 (PR-E、Relations/relations.yaml hydrate)。 */
+  relations: readonly Relation[];
 }
 
 /**
@@ -39,6 +42,7 @@ export const PROJECT_DIRS: readonly string[] = [
   'Glossary',
   'Localization',
   'Media',
+  'Relations',
 ];
 
 /**

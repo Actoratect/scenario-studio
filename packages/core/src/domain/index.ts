@@ -43,3 +43,8 @@ export { getRelationType, RELATION_TYPES } from './relations.js';
 // Glossary repository (M7)
 export type { GlossaryTerm } from './GlossaryRepository.js';
 export { FsGlossaryRepository } from './GlossaryRepository.js';
+
+// Explicit Relations (PR-E) — 暗黙の node_ref 関係と並ぶ第 2 系統
+export type { Relation, RelationId } from './Relation.js';
+export { relationId } from './Relation.js';
+export { createRelation, FsRelationsRepository } from './RelationsRepository.js';
