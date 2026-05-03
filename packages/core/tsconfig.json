@@ -6,7 +6,10 @@
     "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // ES2022 + WebWorker で WebCrypto / btoa / atob / Crypto 型を入れる。
+    // DOM は core では使わない (frontend が DOM を持つ)。
+    "lib": ["ES2022", "WebWorker"]
   },
   "include": ["src/**/*"]
 }

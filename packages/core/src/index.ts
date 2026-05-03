@@ -30,3 +30,6 @@ export * from './project/index.js';
 
 // Graph (M5) — Relationship Lens + 初期レイアウト
 export * from './graph/index.js';
+
+// Lint (M7) — engine + 5 builtin rules
+export * from './lint/index.js';

@@ -808,3 +808,154 @@ body,
 .lens-node--selected .lens-node-label {
   font-weight: 700;
 }
+
+/* Console Panel (M7) */
+.panel-console {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  height: 100%;
+}
+
+.panel-console-header {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #e0e0e3;
+  display: flex;
+  justify-content: space-between;
+  color: #555;
+}
+
+.panel-console-stats {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.panel-console-list {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.panel-console-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.panel-console-empty {
+  padding: 16px;
+  color: #888;
+  font-style: italic;
+}
+
+.panel-console-issue-button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.panel-console-issue-button:hover:not(:disabled) {
+  background: #f0f0f3;
+}
+
+.panel-console-issue-button:disabled {
+  cursor: default;
+}
+
+.panel-console-issue-rule {
+  font-family: monospace;
+  font-size: 11px;
+  color: #888;
+}
+
+.panel-console-issue--error .panel-console-issue-msg {
+  color: #a33;
+}
+
+.panel-console-issue--warning .panel-console-issue-msg {
+  color: #a76900;
+}
+
+.panel-console-issue--info .panel-console-issue-msg {
+  color: #555;
+}
+
+/* Glossary Panel (M7) */
+.panel-glossary {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  height: 100%;
+}
+
+.panel-glossary-header {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #e0e0e3;
+  color: #555;
+}
+
+.panel-glossary-list {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 12px;
+}
+
+.panel-glossary-empty {
+  padding: 16px;
+  color: #888;
+  font-style: italic;
+}
+
+.panel-glossary table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.panel-glossary th {
+  text-align: left;
+  border-bottom: 1px solid #e0e0e3;
+  padding: 4px 6px;
+  color: #555;
+  font-weight: 600;
+}
+
+.panel-glossary td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #f0f0f3;
+}
+
+.panel-glossary-forbidden {
+  color: #a33;
+}
+
+.panel-glossary-form {
+  border-top: 1px solid #e0e0e3;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) auto;
+  gap: 4px;
+}
+
+.panel-glossary-form input {
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.panel-glossary-form button {
+  grid-column: 3;
+  padding: 3px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}

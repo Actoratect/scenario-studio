@@ -39,3 +39,7 @@ export { FsScenarioRepository } from './ScenarioRepository.js';
 // Relation types (M4)
 export type { RelationType, RelationTypeDefinition } from './relations.js';
 export { getRelationType, RELATION_TYPES } from './relations.js';
+
+// Glossary repository (M7)
+export type { GlossaryTerm } from './GlossaryRepository.js';
+export { FsGlossaryRepository } from './GlossaryRepository.js';
