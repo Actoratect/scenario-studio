@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Scenario Studio main window 用 capability。PoC-G はファイル系コマンドの custom 実装のみで、Tauri builtin plugin (fs, dialog 等) は使っていない。Phase 3 で dialog / shell / updater を追加。",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:window:default", "core:webview:default"]
+}

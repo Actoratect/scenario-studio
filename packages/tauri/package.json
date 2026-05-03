@@ -1,0 +1,16 @@
+{
+  "name": "@scenario-studio/tauri",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tauri 2 desktop wrapper. cargo / Rust toolchain + WebView2 (Win) / WebKit (mac/Linux) が必要。詳細: ../../Documentation/ScenarioEditor/12_architecture.md §2.3",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "rust:check": "cargo check",
+    "rust:test": "cargo test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

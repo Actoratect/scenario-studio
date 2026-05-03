@@ -8,8 +8,11 @@ build/
 out/
 *.tsbuildinfo
 
-# Tauri (Rust)
+# Tauri (Rust) — target/ と gen/ は生成物なので無視。Cargo.lock は app crate として
+# 再現可能ビルドのため commit する。
 **/src-tauri/target/
+packages/tauri/target/
+packages/tauri/gen/
 
 # Editor / IDE
 .vscode/*
