@@ -110,6 +110,23 @@ export const AiPanel: Component<GroupPanelPartInitParameters> = (params) => {
         {(err) => <div class="panel-ai-error">{err().message}</div>}
       </Show>
 
+      <Show when={AiService.status().kind === 'unlocked'}>
+        <div class="panel-ai-section">
+          <label class="panel-ai-inline-toggle">
+            <input
+              type="checkbox"
+              checked={AiService.inlineEnabled()}
+              onChange={(e) => AiService.setInlineEnabled(e.currentTarget.checked)}
+            />
+            <strong>脚本 inline 続き提案</strong>
+            <span class="panel-ai-hint">
+              ON にすると Script パネル編集中に 1 行の続き候補を ghost 表示。
+              <kbd>Tab</kbd> で確定、<kbd>Esc</kbd> で破棄。800ms デバウンス。
+            </span>
+          </label>
+        </div>
+      </Show>
+
       <Switch>
         <Match when={AiService.status().kind === 'no-key'}>
           <div class="panel-ai-section">

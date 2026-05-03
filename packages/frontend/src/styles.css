@@ -437,6 +437,49 @@ button {
   filter: drop-shadow(0 0 4px var(--ss-accent-green));
 }
 
+/* ===== AI inline completion ghost text (PR-F) ===== */
+
+.cm-ss-ghost {
+  color: var(--ss-text-faint);
+  opacity: 0.7;
+  font-style: italic;
+  border-left: 2px solid var(--ss-accent-blue);
+  padding-left: 4px;
+  margin-left: 2px;
+}
+
+.cm-ss-ghost::after {
+  content: ' [Tab]';
+  font-size: 10px;
+  color: var(--ss-accent-blue);
+  opacity: 0.85;
+  font-style: normal;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* AI panel inline-completion toggle */
+.panel-ai-inline-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.panel-ai-inline-toggle input[type='checkbox'] {
+  margin-right: 6px;
+}
+
+.panel-ai-inline-toggle kbd {
+  display: inline-block;
+  padding: 0 4px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
 #root {
   display: flex;
   flex-direction: column;
