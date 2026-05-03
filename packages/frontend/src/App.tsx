@@ -6,6 +6,7 @@ import { SolidPanelView } from './dockview/SolidPanelView';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
+import { ScriptPanel } from './panels/ScriptPanel';
 
 // Dockview の component name と SolidJS Panel のマッピング。
 // 詳細: ../../Documentation/ScenarioEditor/07_window-system.md §3
@@ -13,6 +14,7 @@ const PANEL_REGISTRY = {
   graph: GraphPanel,
   inspector: InspectorPanel,
   outline: OutlinePanel,
+  script: ScriptPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -61,6 +63,13 @@ export const App: Component = () => {
       component: 'outline',
       title: 'Outline',
       position: { referencePanel: 'graph-1', direction: 'below' },
+    });
+    // Script panel は Outline と同じ TabSet にタブとして合流させる (PoC-A の split / PoC-D の追加)。
+    api.addPanel({
+      id: 'script-1',
+      component: 'script',
+      title: 'Script: s01_opening',
+      position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });
 

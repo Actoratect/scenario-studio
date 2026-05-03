@@ -14,11 +14,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-yaml": "^6.1.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
     "@scenario-studio/adapter-browser": "workspace:*",
     "@scenario-studio/adapter-tauri": "workspace:*",
     "@scenario-studio/adapter-unity": "workspace:*",
     "@scenario-studio/core": "workspace:*",
     "@scenario-studio/ui-kit": "workspace:*",
+    "codemirror": "^6.0.1",
     "dockview-core": "^4.5.1",
     "solid-js": "^1.9.3"
   },
