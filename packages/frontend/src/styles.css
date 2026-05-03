@@ -178,3 +178,167 @@ body,
   font-size: 13px;
   text-align: center;
 }
+
+/* App-level loading + workspace shell */
+.app-loading {
+  padding: 32px;
+  font-size: 14px;
+  color: #555;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 13px;
+}
+
+.workspace-title {
+  font-weight: 600;
+}
+
+.workspace-close {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workspace-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ProjectPicker (no project open state) */
+.picker {
+  padding: 32px max(32px, calc((100vw - 720px) / 2));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: 100%;
+  overflow: auto;
+  background: #f8f9fb;
+}
+
+.picker-header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.picker-header p {
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+}
+
+.picker-card {
+  background: #fff;
+  border: 1px solid #e3e3e7;
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+
+.picker-card h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.picker-card p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #555;
+}
+
+.picker-card label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.picker-card label input {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.picker-card button {
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.picker-card button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.picker-warn {
+  border-color: #f0b840;
+  background: #fff7e0;
+}
+
+.picker-empty {
+  color: #888;
+  font-style: italic;
+}
+
+.picker-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.picker-recent li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.picker-recent-open {
+  flex: 1;
+  text-align: left;
+  background: #f4f4f5;
+  border: 1px solid #e3e3e7;
+  border-radius: 4px;
+  padding: 6px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.picker-recent-open:hover:not(:disabled) {
+  background: #ebebee;
+}
+
+.picker-recent-time {
+  color: #888;
+  font-size: 11px;
+}
+
+.picker-recent-forget {
+  width: 24px;
+  padding: 0;
+}
+
+.picker-error {
+  background: #ffe9e9;
+  border: 1px solid #ffb0b0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #a33;
+}

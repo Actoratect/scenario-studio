@@ -1,90 +1,21 @@
-import { onCleanup, onMount } from 'solid-js';
+import { Show, Suspense } from 'solid-js';
 import type { Component } from 'solid-js';
-import { createDockview } from 'dockview-core';
-import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
-import { SolidPanelView } from './dockview/SolidPanelView';
-import { BenchmarkPanel } from './panels/BenchmarkPanel';
-import { GraphPanel } from './panels/GraphPanel';
-import { InspectorPanel } from './panels/InspectorPanel';
-import { OutlinePanel } from './panels/OutlinePanel';
-import { ScriptPanel } from './panels/ScriptPanel';
+import { ProjectPicker } from './panels/ProjectPicker';
+import { WorkspaceShell } from './WorkspaceShell';
+import { ProjectService } from './services/ProjectService';
 
-// Dockview の component name と SolidJS Panel のマッピング。
-// 詳細: ../../Documentation/ScenarioEditor/07_window-system.md §3
-const PANEL_REGISTRY = {
-  graph: GraphPanel,
-  inspector: InspectorPanel,
-  outline: OutlinePanel,
-  script: ScriptPanel,
-  bench: BenchmarkPanel,
-} as const;
-
-type PanelName = keyof typeof PANEL_REGISTRY;
-
-function isPanelName(name: string): name is PanelName {
-  return name in PANEL_REGISTRY;
-}
-
-// 既存の `index.ts` (PoC-I で配置した placeholder) の再エクスポートも保つ。
+// 既存の `index.ts` が再エクスポートしている VERSION 識別子を保持。
 export const FRONTEND_VERSION = '0.0.0';
 
+// プロジェクトが open されているかでルーティング。
+// router (`@solidjs/router`) は M3+ で deep link が必要になった時に導入予定。
+// 詳細: ../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M1
 export const App: Component = () => {
-  let host: HTMLDivElement | undefined;
-  let api: DockviewApi | undefined;
-
-  onMount(() => {
-    if (!host) return;
-
-    api = createDockview(host, {
-      className: 'dockview-theme-light',
-      createComponent: (options: CreateComponentOptions): IContentRenderer => {
-        if (!isPanelName(options.name)) {
-          throw new Error(`Unknown Dockview component: ${options.name}`);
-        }
-        return new SolidPanelView(PANEL_REGISTRY[options.name]);
-      },
-    });
-
-    // 初期レイアウト:
-    //   ┌──────────────┬────────────┐
-    //   │              │            │
-    //   │    Graph     │ Inspector  │
-    //   │              │            │
-    //   ├──────────────┴────────────┤
-    //   │         Outline           │
-    //   └──────────────────────────-┘
-    api.addPanel({ id: 'graph-1', component: 'graph', title: 'Graph' });
-    api.addPanel({
-      id: 'inspector-1',
-      component: 'inspector',
-      title: 'Inspector',
-      position: { referencePanel: 'graph-1', direction: 'right' },
-    });
-    api.addPanel({
-      id: 'outline-1',
-      component: 'outline',
-      title: 'Outline',
-      position: { referencePanel: 'graph-1', direction: 'below' },
-    });
-    // Script panel は Outline と同じ TabSet にタブとして合流させる (PoC-A の split / PoC-D の追加)。
-    api.addPanel({
-      id: 'script-1',
-      component: 'script',
-      title: 'Script: s01_opening',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    // PoC-B 大規模グラフベンチ panel — 同じ TabSet にもう 1 タブ追加。
-    api.addPanel({
-      id: 'bench-1',
-      component: 'bench',
-      title: 'Graph Bench (PoC-B)',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-  });
-
-  onCleanup(() => {
-    api?.dispose();
-  });
-
-  return <div class="app-shell" ref={host} />;
+  return (
+    <Suspense fallback={<div class="app-loading">Loading…</div>}>
+      <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
+        <WorkspaceShell />
+      </Show>
+    </Suspense>
+  );
 };
