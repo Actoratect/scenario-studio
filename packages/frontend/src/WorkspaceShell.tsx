@@ -10,10 +10,12 @@ import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
+import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
+import { Toast } from './services/Toast';
 
 // プロジェクトが open されている時の Dockview ベースのワークスペース。
 // PoC-A の App.tsx 中身を抽出 + ScriptPanel / BenchmarkPanel を lazy() に分割
@@ -55,10 +57,24 @@ export const WorkspaceShell: Component = () => {
   useSaveScheduler();
 
   function onKeydown(e: KeyboardEvent): void {
-    const ctx = ProjectService.currentProject();
-    if (!ctx) return;
     const meta = e.ctrlKey || e.metaKey;
     if (!meta) return;
+    const ctx = ProjectService.currentProject();
+    // Cmd+K: コマンド/検索 palette (project が無くても開けるが候補は空になる)
+    if (e.key === 'k') {
+      e.preventDefault();
+      CommandPalette.toggle();
+      return;
+    }
+    if (!ctx) return;
+    // Cmd+S: 即時 flush
+    if (e.key === 's') {
+      e.preventDefault();
+      const sched = useSaveScheduler();
+      sched.flushAll();
+      Toast.success('保存しました', 1500);
+      return;
+    }
     if (e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
       ctx.history.undo();
