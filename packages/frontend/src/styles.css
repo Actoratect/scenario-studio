@@ -54,3 +54,64 @@ body,
   border-radius: 3px;
   font-size: 12px;
 }
+
+/* Script panel + CodeMirror 6 host */
+.panel-script {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.panel-script-meta {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #e0e0e3;
+  color: #555;
+}
+
+.panel-script-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.panel-script-host .cm-editor {
+  height: 100%;
+}
+
+.panel-script-host .cm-scroller {
+  font-family: 'Menlo', 'Cascadia Code', 'Consolas', 'BIZ UDGothic', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* キャラサムネ — `who: <slug>` の前に挿入される丸ピル */
+.cm-ss-thumb {
+  display: inline-block;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  margin-right: 4px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.75);
+  vertical-align: -3px;
+  cursor: pointer;
+}
+
+/* 感情タグ — `emotion: <tag>` の前に挿入されるバッジ */
+.cm-ss-emotion {
+  display: inline-block;
+  padding: 0 6px;
+  margin-right: 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  vertical-align: -3px;
+  color: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
