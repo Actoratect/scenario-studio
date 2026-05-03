@@ -16,3 +16,6 @@ export * from './ai/index.js';
 
 // Domain models (PoC-E から本格化)
 export * from './domain/index.js';
+
+// ローカル履歴 / Undo-Redo (PoC-H、Phase X SaaS への布石)
+export * from './history/index.js';

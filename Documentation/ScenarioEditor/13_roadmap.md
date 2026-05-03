@@ -51,7 +51,7 @@ Phase X: SaaS 化  [棚上げ]  需要確認・意思決定後に着手
 - [x] **PoC-E: Era Variant 解決** — `@scenario-studio/core` の `domain/` に `EraIndex` (祖先列挙 + 循環検知) と `resolveNode(node, targetEraId, eraIndex)` を実装。Q-B2 の merge 規則 (スカラー上書き / 配列全置換 / レコード shallow merge) を確定。Era 階層が「親 Era の variant が子 Era に継承され、より specific な variant が勝つ」を保証 (16 件の vitest)。Phase 1 で domain ↔ YAML パーサ ↔ Inspector / Era スライダ を配線
 - [x] **PoC-F: マルチ AI プロバイダ抽象** — Claude API / OpenAI / Ollama を 1 抽象で切替。`@scenario-studio/core` の `ai/` に `LlmProvider` + `AgentRunner` interface、`LlmProviderRegistry` + `AgentRunnerRegistry` (用途別 default 切替対応) を配置。Provider 実装は fetch 直叩きで SDK 不要 (Anthropic Messages API + SSE streaming / OpenAI Chat Completions / Ollama /api/chat)。CLI Runner は `adapter-node` に `CliAgentRunner` (claude/codex/aider 互換)。tool use / function calling / structured output は Phase 1 で深掘り
 - [ ] **PoC-G: Tauri ビルドと配布フロー** — code sign、auto update
-- [ ] **PoC-H: Yjs CRDT** (棚上げ Phase X への布石、ローカルでも有用な Undo/Redo として活用)
+- [x] **PoC-H: Yjs CRDT** (棚上げ Phase X への布石、ローカルでも有用な Undo/Redo として活用)。`@scenario-studio/core` の `history/` に `NodeFieldStore` (Y.Doc + Y.Map + UndoManager のラッパ) を実装。set/delete/batch/undo/redo + markUndoBoundary (UI 側で明示的な区切り)、observe (local/remote 区別)、applyUpdate/encodeState (将来の SaaS 同期 / マルチタブ向け)。初期 fields は seedOrigin で投入し undo 対象から除外、起動直後の Ctrl+Z で消える事故を防止 (12 件の vitest)
 - [x] **PoC-I: モノレポ構成** — TS 側 (本リポジトリ) を pnpm workspace で立ち上げ。Unity 側は別リポジトリ (`com.actoratect.editor-tools`) と 2-repo 分離 (詳細: `12_architecture.md` §2)
 
 ### 成果
