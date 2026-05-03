@@ -1,7 +1,8 @@
-// Placeholder. PoC-D 以降で domain models を実装する。
-// 詳細は ../../../Documentation/ScenarioEditor/03_data-model.md
+// @scenario-studio/core エントリ。layer 別にまとめて re-export。
+// 詳細は ../../../Documentation/ScenarioEditor/12_architecture.md §1
 export const VERSION = '0.0.0';
 
+// Platform / Adapter abstractions (PoC-C)
 export { assertSafePath, compileGlob, InvalidPathError } from './platform.js';
 export type {
   FileSystemAdapter,
@@ -14,8 +15,15 @@ export type {
 // AI Provider 抽象 (PoC-F)
 export * from './ai/index.js';
 
-// Domain models (PoC-E から本格化)
+// Domain models (PoC-E)
 export * from './domain/index.js';
 
 // ローカル履歴 / Undo-Redo (PoC-H、Phase X SaaS への布石)
 export * from './history/index.js';
+
+// YAML parse / serialize (M1)
+export type { ParsedYaml, YamlValue } from './yaml/index.js';
+export { parseYaml, serializeYaml, stringifyYaml } from './yaml/index.js';
+
+// Project layer (M1) — settings / model / loader / initializer
+export * from './project/index.js';
