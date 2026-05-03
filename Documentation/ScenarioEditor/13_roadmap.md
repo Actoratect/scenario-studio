@@ -49,7 +49,7 @@ Phase X: SaaS 化  [棚上げ]  需要確認・意思決定後に着手
 - [x] **PoC-C: 3 ターゲット FS Adapter** — Browser/Tauri/Unity + Node 共通インターフェイス。`@scenario-studio/core` に `FileSystemAdapter` interface + path-traversal guard + 自前 glob を配置。Node 実装は完成 (vitest で contract test)、Browser は FS Access API + OPFS fallback を実装、Tauri は PoC-G で Rust コマンド接続予定の skeleton、Unity は HTTP/SSE クライアントを完成 (Bridge サーバ実体は Phase 2)
 - [x] **PoC-D: CodeMirror 6 で脚本エディタ** — サムネ/感情タグの inline widget。`packages/frontend` に `createScriptEditor()` + `scriptInlineWidgets` ViewPlugin を実装。`who: <slug>` をハッシュ色付き丸ピル、`emotion: <tag>` を色付きバッジに置換 (text は保持、widget は side: -1 で前置)。Smart 入力モード / 文字数バッジ / 改訂モードは Phase 1 で追加
 - [ ] **PoC-E: Era Variant 解決**
-- [ ] **PoC-F: マルチ AI プロバイダ抽象** — Claude API / Codex / Ollama を 1 抽象で切替
+- [x] **PoC-F: マルチ AI プロバイダ抽象** — Claude API / OpenAI / Ollama を 1 抽象で切替。`@scenario-studio/core` の `ai/` に `LlmProvider` + `AgentRunner` interface、`LlmProviderRegistry` + `AgentRunnerRegistry` (用途別 default 切替対応) を配置。Provider 実装は fetch 直叩きで SDK 不要 (Anthropic Messages API + SSE streaming / OpenAI Chat Completions / Ollama /api/chat)。CLI Runner は `adapter-node` に `CliAgentRunner` (claude/codex/aider 互換)。tool use / function calling / structured output は Phase 1 で深掘り
 - [ ] **PoC-G: Tauri ビルドと配布フロー** — code sign、auto update
 - [ ] **PoC-H: Yjs CRDT** (棚上げ Phase X への布石、ローカルでも有用な Undo/Redo として活用)
 - [x] **PoC-I: モノレポ構成** — TS 側 (本リポジトリ) を pnpm workspace で立ち上げ。Unity 側は別リポジトリ (`com.actoratect.editor-tools`) と 2-repo 分離 (詳細: `12_architecture.md` §2)

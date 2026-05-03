@@ -10,3 +10,6 @@ export type {
   WatchEventKind,
   WatchHandler,
 } from './platform.js';
+
+// AI Provider 抽象 (PoC-F)
+export * from './ai/index.js';
