@@ -44,7 +44,7 @@ Phase X: SaaS 化  [棚上げ]  需要確認・意思決定後に着手
 - [x] セキュリティ設計 (`16_security.md`)
 - [x] Unity 統合方針 (`18_unity-integration.md`)
 - [x] SaaS 方針 (`17_saas.md`、棚上げ扱い)
-- [ ] **PoC-A: Vite + SolidJS + Dockview** — 3 パネル分割/フロート/タブ
+- [x] **PoC-A: Vite + SolidJS + Dockview** — 3 パネル分割/フロート/タブ。`packages/frontend` に最小実装 (Graph / Inspector / Outline)。Solid と Dockview の橋渡しは自前 `SolidPanelView` adapter (公式は React/Vue のみ)
 - [ ] **PoC-B: 大規模グラフ描画** — SolidFlow → Sigma.js 比較ベンチ
 - [ ] **PoC-C: 3 ターゲット FS Adapter** — Browser/Tauri/Unity 共通インターフェイス
 - [ ] **PoC-D: CodeMirror 6 で脚本エディタ** — サムネ/感情タグの inline widget
