@@ -7,6 +7,7 @@ import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { ProjectService } from './services/ProjectService';
+import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 
 // プロジェクトが open されている時の Dockview ベースのワークスペース。
 // PoC-A の App.tsx 中身を抽出 + ScriptPanel / BenchmarkPanel を lazy() に分割
@@ -40,7 +41,25 @@ export const WorkspaceShell: Component = () => {
   let host: HTMLDivElement | undefined;
   let api: DockviewApi | undefined;
 
+  // 起動時に SaveScheduler を初期化 (lazy 生成だが、close 時に dispose したいので参照を持つ)
+  useSaveScheduler();
+
+  function onKeydown(e: KeyboardEvent): void {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const meta = e.ctrlKey || e.metaKey;
+    if (!meta) return;
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      ctx.history.undo();
+    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      ctx.history.redo();
+    }
+  }
+
   onMount(() => {
+    window.addEventListener('keydown', onKeydown);
     if (!host) return;
     api = createDockview(host, {
       className: 'dockview-theme-light',
@@ -80,6 +99,8 @@ export const WorkspaceShell: Component = () => {
   });
 
   onCleanup(() => {
+    window.removeEventListener('keydown', onKeydown);
+    disposeSaveScheduler();
     api?.dispose();
   });
 
