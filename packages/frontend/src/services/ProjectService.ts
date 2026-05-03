@@ -22,6 +22,7 @@ import {
 } from '@scenario-studio/adapter-browser';
 import { rememberProject, forgetProject, listRecentProjects } from './recent-projects.js';
 import type { RecentProject } from './recent-projects.js';
+import { GraphPositions } from '../graph/graph-positions.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
 // frontend 全体が `currentProject()` シグナルを購読してリレンダ。
@@ -109,6 +110,7 @@ export const ProjectService = {
     if (ctx) ctx.history.destroy();
     setCurrentProject(undefined);
     setLastError(undefined);
+    GraphPositions.clear();
   },
 
   supportsNativeFs(): boolean {
@@ -139,6 +141,7 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     rawDirectoryHandle: picked.rawDirectoryHandle,
   };
   setCurrentProject(ctx);
+  GraphPositions.switchProject(picked.handle.id);
   return rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,

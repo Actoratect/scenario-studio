@@ -949,30 +949,53 @@ button {
 .panel-graph-header {
   padding: 6px 12px;
   font-size: 12px;
-  background: #f4f4f5;
-  border-bottom: 1px solid #e0e0e3;
+  background: var(--ss-bg-soft);
+  border-bottom: 1px solid var(--ss-border-soft);
   display: flex;
-  justify-content: space-between;
-  color: #555;
+  align-items: center;
+  gap: 16px;
+  color: var(--ss-text-muted);
 }
 
 .panel-graph-stats {
   font-size: 11px;
-  color: #888;
+  color: var(--ss-text-faint);
+}
+
+.panel-graph-era-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-graph-era-toggle input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.panel-graph-era-toggle .panel-graph-hint {
+  color: var(--ss-text-faint);
+  font-size: 11px;
 }
 
 .panel-graph-canvas {
   flex: 1;
   min-height: 0;
   position: relative;
-  background: #fafafa;
+  background:
+    linear-gradient(0deg, transparent 95%, rgba(0, 0, 0, 0.04) 95%),
+    linear-gradient(90deg, transparent 95%, rgba(0, 0, 0, 0.04) 95%), var(--ss-bg);
+  background-size: 24px 24px;
   overflow: hidden;
 }
 
 .panel-graph-empty {
   padding: 32px;
   text-align: center;
-  color: #888;
+  color: var(--ss-text-faint);
   font-size: 13px;
 }
 
@@ -983,30 +1006,48 @@ button {
   cursor: grab;
 }
 
-.lens-canvas:active {
+.lens-canvas--dragging {
   cursor: grabbing;
 }
 
 .lens-node {
   cursor: pointer;
+  transition: opacity 0.15s ease-out;
+}
+
+.lens-node:active {
+  cursor: grabbing;
 }
 
 .lens-node-label {
   font-size: 11px;
   text-anchor: middle;
-  fill: #333;
+  fill: var(--ss-text);
+  font-weight: 500;
   pointer-events: none;
+  user-select: none;
+}
+
+.lens-edge {
+  transition: opacity 0.15s ease-out;
 }
 
 .lens-edge-label {
-  font-size: 9px;
-  fill: #888;
-  text-anchor: middle;
+  font-size: 10px;
+  fill: var(--ss-text-muted);
   pointer-events: none;
+  user-select: none;
+  font-family: 'SF Mono', Consolas, Menlo, monospace;
 }
 
 .lens-node--selected .lens-node-label {
   font-weight: 700;
+  fill: var(--ss-accent-blue);
+}
+
+.lens-node--dimmed,
+.lens-edge--dimmed {
+  opacity: 0.25;
 }
 
 /* Console Panel (M7) */
