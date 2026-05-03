@@ -8,6 +8,10 @@ import { RangeSetBuilder } from '@codemirror/state';
 
 const WHO_PATTERN = /who:\s*([A-Za-z0-9_]+)/g;
 const EMOTION_PATTERN = /emotion:\s*([A-Za-z0-9_]+)/g;
+const SFX_PATTERN = /\bkind:\s*sfx\b/g;
+const BGM_PATTERN = /\bkind:\s*bgm\b/g;
+const CHOICE_PATTERN = /\bkind:\s*choice\b/g;
+const ASIDE_PATTERN = /aside:\s*([^\n,}]+)/g;
 
 class CharacterThumbnailWidget extends WidgetType {
   constructor(readonly slug: string) {
@@ -55,20 +59,91 @@ class EmotionTagWidget extends WidgetType {
   }
 }
 
+class IconWidget extends WidgetType {
+  constructor(
+    readonly className: string,
+    readonly icon: string,
+    readonly title: string,
+  ) {
+    super();
+  }
+
+  override eq(other: WidgetType): boolean {
+    return (
+      other instanceof IconWidget &&
+      other.className === this.className &&
+      other.icon === this.icon &&
+      other.title === this.title
+    );
+  }
+
+  toDOM(): HTMLElement {
+    const root = document.createElement('span');
+    root.className = this.className;
+    root.title = this.title;
+    root.textContent = this.icon;
+    return root;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+class AsideWidget extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+
+  override eq(other: WidgetType): boolean {
+    return other instanceof AsideWidget && other.text === this.text;
+  }
+
+  toDOM(): HTMLElement {
+    const root = document.createElement('span');
+    root.className = 'cm-ss-aside';
+    root.textContent = `〈${this.text.trim()}〉`;
+    return root;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
 function buildDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
+  // 各 widget は個別パスで添えて、最後に start position 順にソートして RangeSetBuilder に積む。
+  // (RangeSetBuilder は from の昇順を前提にするので、複数パターンの結果を 1 度に積めない)
+  const additions: Array<{ from: number; widget: WidgetType; side: number }> = [];
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
     collectMatches(text, from, WHO_PATTERN, (slug, pos) =>
-      builder.add(
-        pos,
-        pos,
-        Decoration.widget({ widget: new CharacterThumbnailWidget(slug), side: -1 }),
-      ),
+      additions.push({ from: pos, widget: new CharacterThumbnailWidget(slug), side: -1 }),
     );
     collectMatches(text, from, EMOTION_PATTERN, (tag, pos) =>
-      builder.add(pos, pos, Decoration.widget({ widget: new EmotionTagWidget(tag), side: -1 })),
+      additions.push({ from: pos, widget: new EmotionTagWidget(tag), side: -1 }),
     );
+    collectMatches(text, from, ASIDE_PATTERN, (asideText, pos) =>
+      additions.push({ from: pos, widget: new AsideWidget(asideText), side: -1 }),
+    );
+    collectKindMatches(text, from, SFX_PATTERN, (pos) =>
+      additions.push({ from: pos, widget: new IconWidget('cm-ss-sfx', '🔊', 'sfx'), side: -1 }),
+    );
+    collectKindMatches(text, from, BGM_PATTERN, (pos) =>
+      additions.push({ from: pos, widget: new IconWidget('cm-ss-bgm', '🎵', 'bgm'), side: -1 }),
+    );
+    collectKindMatches(text, from, CHOICE_PATTERN, (pos) =>
+      additions.push({
+        from: pos,
+        widget: new IconWidget('cm-ss-choice', '❓', 'choice'),
+        side: -1,
+      }),
+    );
+  }
+  additions.sort((a, b) => a.from - b.from);
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, widget, side } of additions) {
+    builder.add(from, from, Decoration.widget({ widget, side }));
   }
   return builder.finish();
 }
@@ -84,6 +159,18 @@ function collectMatches(
     const capture = match[1];
     if (capture === undefined || match.index === undefined) continue;
     emit(capture, base + match.index);
+  }
+}
+
+function collectKindMatches(
+  text: string,
+  base: number,
+  pattern: RegExp,
+  emit: (pos: number) => void,
+): void {
+  for (const match of text.matchAll(pattern)) {
+    if (match.index === undefined) continue;
+    emit(base + match.index);
   }
 }
 

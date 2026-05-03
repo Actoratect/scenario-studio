@@ -91,6 +91,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@codemirror/autocomplete':
+        specifier: ^6.18.4
+        version: 6.20.1
       '@codemirror/commands':
         specifier: ^6.7.1
         version: 6.10.3
