@@ -1,0 +1,16 @@
+# 生成物
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.pnpm-store/
+coverage/
+
+# パッケージマネージャ生成物
+pnpm-lock.yaml
+
+# OSS 配布物
+LICENSE
+
+# Markdown は手動管理: Japanese テーブル / 行幅の意図を保つため prettier に触らせない
+*.md
