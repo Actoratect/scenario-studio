@@ -99,6 +99,59 @@ export class FsScenarioRepository {
     return result;
   }
 
+  /**
+   * 章にシーンを 1 つ追加する。`<chapter>/<slug>.scn.yaml` を空のテンプレで作り、
+   * `_scene_index.yaml` の末尾に slug を追記する。
+   */
+  async addScene(input: {
+    chapterSlug: string;
+    sceneSlug: string;
+    title: string;
+  }): Promise<SceneMeta> {
+    const chapterDir = `${SCENARIOS_ROOT}/${input.chapterSlug}`;
+    const indexPath = `${chapterDir}/_index.yaml`;
+    if (!(await this.adapter.exists(this.handle, indexPath))) {
+      throw new Error(`Chapter ${input.chapterSlug} does not exist`);
+    }
+    const filePath = `${chapterDir}/${input.sceneSlug}.scn.yaml`;
+    if (await this.adapter.exists(this.handle, filePath)) {
+      throw new Error(`Scene ${input.sceneSlug} already exists in ${input.chapterSlug}`);
+    }
+    const sceneText = `schemaVersion: 1
+sceneId: scene.${input.sceneSlug}
+plot:
+  title: ${JSON.stringify(input.title)}
+  cast: []
+
+script:
+  - { kind: stage, text: "ここに状況を…" }
+`;
+    await this.adapter.write(this.handle, filePath, sceneText);
+
+    // _scene_index.yaml を読んで slug を append。無ければ新規作成。
+    const sceneIndexPath = `${chapterDir}/_scene_index.yaml`;
+    let order: string[] = [];
+    if (await this.adapter.exists(this.handle, sceneIndexPath)) {
+      const text = await this.adapter.read(this.handle, sceneIndexPath);
+      const { value } = parseYaml(text);
+      const v = expectMapping(value, sceneIndexPath);
+      order = expectStringArray(v, 'scenes');
+    }
+    if (!order.includes(input.sceneSlug)) order.push(input.sceneSlug);
+    await this.adapter.write(
+      this.handle,
+      sceneIndexPath,
+      stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order })),
+    );
+
+    return {
+      id: sceneId(`scene.${input.sceneSlug}`),
+      slug: input.sceneSlug,
+      title: input.title,
+      relativePath: `${input.sceneSlug}.scn.yaml`,
+    };
+  }
+
   private async loadChapter(slug: string): Promise<Chapter | undefined> {
     const dir = `${SCENARIOS_ROOT}/${slug}`;
     const indexPath = `${dir}/_index.yaml`;

@@ -1,6 +1,53 @@
 /* Dockview の style と最低限のレイアウトリセット */
 @import 'dockview-core/dist/styles/dockview.css';
 
+/*
+ * Design tokens — CUDO (カラーユニバーサルデザイン推奨配色) に準拠。
+ * https://jfly.uni-koeln.de/colorset/
+ *
+ * 方針:
+ *   - 赤緑だけで意味を伝えない。アイコン / 形 / テキストで冗長化する
+ *   - 文字コントラストは WCAG AA (4.5:1) 以上を目標
+ *   - ライト基調固定 — OS の dark mode に追従しない
+ *     (Phase 2 で「設定 > テーマ」を入れて任意切替する想定)
+ */
+:root {
+  color-scheme: light;
+
+  /* surface */
+  --ss-bg: #ffffff;
+  --ss-bg-soft: #f5f7fa;
+  --ss-bg-subtle: #fafbfd;
+  --ss-bg-emph: #1f2937;
+  --ss-border: #d4d7dc;
+  --ss-border-soft: #e6e8ec;
+
+  /* text */
+  --ss-text: #1a1d24;
+  --ss-text-muted: #5a6068;
+  --ss-text-faint: #8a8f96;
+  --ss-text-on-emph: #ffffff;
+
+  /* CUDO accent palette (色だけに依存させない、必ずアイコン / 形と併用) */
+  --ss-accent-blue: #0072b2; /* primary action */
+  --ss-accent-sky: #56b4e9; /* info */
+  --ss-accent-green: #009e73; /* success */
+  --ss-accent-orange: #e69f00; /* warning */
+  --ss-accent-vermillion: #d55e00; /* error / danger */
+  --ss-accent-yellow: #f0e442; /* highlight */
+  --ss-accent-purple: #cc79a7;
+
+  /* severity background — accent をそのまま使うとコントラストが厳しいので
+     pastel 化したサーフェスを別途用意 */
+  --ss-bg-info: #e6f3fb;
+  --ss-bg-success: #e2f3ec;
+  --ss-bg-warning: #fdf2dc;
+  --ss-bg-error: #fae0d2;
+
+  /* focus ring (キーボード操作のフォーカス表示) */
+  --ss-focus-ring: 0 0 0 2px var(--ss-accent-blue);
+}
+
 html,
 body,
 #root {
@@ -9,6 +56,8 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background: var(--ss-bg);
+  color: var(--ss-text);
   font-family:
     system-ui,
     -apple-system,
@@ -17,6 +66,107 @@ body,
     'Hiragino Kaku Gothic ProN',
     'Yu Gothic UI',
     sans-serif;
+}
+
+/* OS dark mode の <input>/<textarea> のグレー化を抑止する保険 */
+input,
+textarea,
+select,
+button {
+  color-scheme: light;
+}
+
+/* キーボード操作時のフォーカスを CUDO blue で明示 */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ss-focus-ring);
+}
+
+/* Dockview の panel background を light に固定 (OS dark に引きずられない) */
+.dockview-theme-light {
+  --dv-group-view-background-color: var(--ss-bg);
+  --dv-tabs-and-actions-container-background-color: var(--ss-bg-soft);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--ss-bg);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--ss-bg);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--ss-bg-soft);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--ss-bg-soft);
+  --dv-activegroup-visiblepanel-tab-color: var(--ss-text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--ss-text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--ss-text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--ss-text-faint);
+  --dv-tab-divider-color: var(--ss-border-soft);
+  --dv-separator-border: var(--ss-border-soft);
+  --dv-paneview-active-outline-color: var(--ss-accent-blue);
+}
+
+/* ===== Spinner / Loading (M8 hotfix-A) ===== */
+
+.ss-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ss-border);
+  border-top-color: var(--ss-accent-blue);
+  border-radius: 50%;
+  animation: ss-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+.ss-spinner-lg {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+
+@keyframes ss-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 操作中だけかぶせる薄い半透明 overlay。reading impossible にはしない。 */
+.ss-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ss-text-muted);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.ss-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text-muted);
+  border: 1px solid var(--ss-border-soft);
+}
+
+.ss-status-pill[data-state='busy'] {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-sky);
+}
+
+.ss-status-pill[data-state='ok'] {
+  background: var(--ss-bg-success);
+  color: var(--ss-accent-green);
+  border-color: var(--ss-accent-green);
+}
+
+.ss-status-pill[data-state='error'] {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
 }
 
 #root {
@@ -30,29 +180,79 @@ body,
 }
 
 .panel-content {
+  position: relative; /* LoadingOverlay の inset 配置の基準 */
   padding: 12px 16px;
   font-size: 13px;
   height: 100%;
   box-sizing: border-box;
   overflow: auto;
+  background: var(--ss-bg);
+  color: var(--ss-text);
 }
 
 .panel-content h2 {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
+  color: var(--ss-text);
 }
 
 .panel-content p {
   margin: 4px 0;
-  color: #555;
+  color: var(--ss-text-muted);
 }
 
 .panel-content code {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--ss-bg-soft);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 12px;
+  color: var(--ss-text);
+}
+
+/* form 要素の OS 既定色を打ち消し、トークン色を強制 */
+.panel-content input,
+.panel-content textarea,
+.panel-content select {
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+}
+
+.panel-content input:focus,
+.panel-content textarea:focus,
+.panel-content select:focus {
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-content button {
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-content button:hover:not(:disabled) {
+  background: var(--ss-bg-subtle);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-content button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel-content button[data-variant='primary'] {
+  background: var(--ss-accent-blue);
+  color: var(--ss-text-on-emph);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-content button[data-variant='primary']:hover:not(:disabled) {
+  background: #005a8c;
+  border-color: #005a8c;
 }
 
 /* Script panel + CodeMirror 6 host */
@@ -958,6 +1158,20 @@ body,
   padding: 3px 12px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.panel-outline-add-scene {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #eef;
+  border: 1px solid #aac;
+  border-radius: 3px;
+}
+
+.panel-outline-add-scene:hover:not(:disabled) {
+  background: #dde;
 }
 
 /* ===== AI Panel (M8) ===== */

@@ -1,5 +1,6 @@
 import { createSignal, For, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
+import { Spinner } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 
 // 「未だプロジェクトを開いていない」状態の welcome / picker UI。
@@ -66,8 +67,11 @@ export const ProjectPicker: Component = () => {
               disabled={busy()}
             />
           </label>
-          <button onClick={() => void onCreate()} disabled={busy()}>
-            フォルダを選んで新規作成
+          <button data-variant="primary" onClick={() => void onCreate()} disabled={busy()}>
+            <Show when={busy()}>
+              <Spinner /> 待機中…
+            </Show>
+            <Show when={!busy()}>フォルダを選んで新規作成</Show>
           </button>
         </section>
 
@@ -77,7 +81,10 @@ export const ProjectPicker: Component = () => {
             <code>ProjectSettings.yaml</code> がある既存フォルダを開きます。
           </p>
           <button onClick={() => void onOpen()} disabled={busy()}>
-            フォルダを選んで開く
+            <Show when={busy()}>
+              <Spinner /> 待機中…
+            </Show>
+            <Show when={!busy()}>フォルダを選んで開く</Show>
           </button>
         </section>
 

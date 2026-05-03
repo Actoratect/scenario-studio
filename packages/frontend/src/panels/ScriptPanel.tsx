@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { CHARACTER_TEMPLATE } from '@scenario-studio/core';
+import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { ProjectService } from '../services/ProjectService';
@@ -147,7 +148,9 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           <For each={availableScenes()}>{(s) => <option value={s.path}>{s.label}</option>}</For>
         </select>
         <Show when={saving()}>
-          <span class="panel-script-saving"> saving…</span>
+          <span class="panel-script-saving">
+            <Spinner /> 保存中…
+          </span>
         </Show>
         <span class="panel-script-panel-id">
           · <code>{params.api.id}</code>
