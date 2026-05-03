@@ -4,8 +4,6 @@ export type {
   EnumFieldSchema,
   FieldSchema,
   FieldType,
-  LocalizedString,
-  LocalizedStringFieldSchema,
   MediaRefFieldSchema,
   NodeRefFieldSchema,
   NumericFieldSchema,
@@ -13,7 +11,7 @@ export type {
   TemplateDefinition,
   TemplateId,
 } from './types.js';
-export { templateId } from './types.js';
+export { NAME_FIELDS, templateId } from './types.js';
 export { CHARACTER_TEMPLATE } from './character.js';
 export { FACTION_TEMPLATE } from './faction.js';
 export { ITEM_TEMPLATE } from './item.js';

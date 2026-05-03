@@ -16,12 +16,12 @@ function nodeMap(nodes: ScenarioNode[]): ReadonlyMap<NodeId, ScenarioNode> {
 }
 
 describe('computeRelationshipLens', () => {
-  it('returns lens nodes labeled by display_name (ja preferred)', () => {
+  it('returns lens nodes labeled by display_name', () => {
     const tmpl = new TemplateRegistry();
     const t = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎', en: 'Tarou' } },
+      fields: { display_name: '太郎' },
     });
     const lens = computeRelationshipLens(nodeMap([t]), tmpl);
     expect(lens.nodes.length).toBe(1);
@@ -41,12 +41,12 @@ describe('computeRelationshipLens', () => {
     const fac = createNode(tmpl, {
       templateId: FACTION_TEMPLATE.id,
       slug: 'red_circle',
-      fields: { display_name: { ja: '赤の輪' } },
+      fields: { display_name: '赤の輪' },
     });
     const tarou = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: fac.id },
+      fields: { display_name: '太郎', faction: fac.id },
     });
     const lens = computeRelationshipLens(nodeMap([tarou, fac]), tmpl);
     expect(lens.edges.length).toBe(1);
@@ -61,7 +61,7 @@ describe('computeRelationshipLens', () => {
     const tarou = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: 'node.ghost' },
+      fields: { display_name: '太郎', faction: 'node.ghost' },
     });
     const lens = computeRelationshipLens(nodeMap([tarou]), tmpl);
     expect(lens.edges).toEqual([]); // orphan は edge に出ない (Lint で別途警告)
@@ -72,7 +72,7 @@ describe('computeRelationshipLens', () => {
     const tarou = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: '' },
+      fields: { display_name: '太郎', faction: '' },
     });
     const lens = computeRelationshipLens(nodeMap([tarou]), tmpl);
     expect(lens.edges).toEqual([]);
@@ -83,12 +83,12 @@ describe('computeRelationshipLens', () => {
     const fac = createNode(tmpl, {
       templateId: FACTION_TEMPLATE.id,
       slug: 'red',
-      fields: { display_name: { ja: '赤' } },
+      fields: { display_name: '赤' },
     });
     const tarou = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: fac.id },
+      fields: { display_name: '太郎', faction: fac.id },
     });
     // Faction にも leader: node_ref があるのでこれが 2 本目の edge になる
     const facWithLeader = { ...fac, fields: { ...fac.fields, leader: tarou.id } };

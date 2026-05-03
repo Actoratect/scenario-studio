@@ -7,8 +7,6 @@ export type { EnumSelectProps } from './EnumSelect';
 export { EnumSelect } from './EnumSelect';
 export type { FormFieldProps } from './FormField';
 export { FormField } from './FormField';
-export type { LocalizedStringInputProps } from './LocalizedStringInput';
-export { LocalizedStringInput } from './LocalizedStringInput';
 export type { NodeRefOption, NodeRefPickerProps } from './NodeRefPicker';
 export { NodeRefPicker } from './NodeRefPicker';
 export type { NumberInputProps } from './NumberInput';

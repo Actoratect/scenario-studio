@@ -12,7 +12,7 @@ import type { TemplateRegistry } from '../domain/templates/index.js';
 
 export interface LensNode {
   id: NodeId;
-  /** UI 表示用の slug or display_name (LocalizedString は ja を優先)。 */
+  /** UI 表示用の slug or display_name。 */
   label: string;
   /** テンプレート ID — UI 側で色やアイコンに transform。 */
   templateId: string;
@@ -74,11 +74,8 @@ export function computeRelationshipLens(
 }
 
 function pickLabel(node: ScenarioNode): string {
-  const display = node.fields['display_name'] ?? node.fields['full_name'];
-  if (typeof display === 'object' && display !== null && !Array.isArray(display)) {
-    const localized = display as { [k: string]: unknown };
-    if (typeof localized['ja'] === 'string') return localized['ja'];
-    if (typeof localized['en'] === 'string') return localized['en'];
-  }
+  // PR-B 後: display_name は plain string (LocalizedString は廃止)
+  const display = node.fields['display_name'];
+  if (typeof display === 'string' && display !== '') return display;
   return node.slug;
 }

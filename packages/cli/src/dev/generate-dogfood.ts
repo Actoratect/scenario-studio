@@ -68,7 +68,9 @@ export async function generateDogfoodProject(opts: GenOptions): Promise<void> {
         templateId: CHARACTER_TEMPLATE.id,
         slug,
         fields: {
-          full_name: { ja: `キャラ${i}`, en: `Character ${i}` },
+          display_name: `キャラ${i}`,
+          reading: `きゃら${i}`,
+          dev_name: `Character${i}`,
           birth_year: 1990 + i,
           gender: i % 2 === 0 ? 'female' : 'male',
         },
@@ -81,7 +83,7 @@ export async function generateDogfoodProject(opts: GenOptions): Promise<void> {
         templateId: LOCATION_TEMPLATE.id,
         slug: `loc_${pad(i)}`,
         fields: {
-          display_name: { ja: `場所${i}`, en: `Location ${i}` },
+          display_name: `場所${i}`,
           region: 'East Region',
           climate: 'temperate',
         },
@@ -94,7 +96,7 @@ export async function generateDogfoodProject(opts: GenOptions): Promise<void> {
         templateId: ITEM_TEMPLATE.id,
         slug: `item_${pad(i)}`,
         fields: {
-          display_name: { ja: `アイテム${i}`, en: `Item ${i}` },
+          display_name: `アイテム${i}`,
           category: 'weapon',
           rarity: 'common',
         },
@@ -107,7 +109,7 @@ export async function generateDogfoodProject(opts: GenOptions): Promise<void> {
         templateId: FACTION_TEMPLATE.id,
         slug: `faction_${pad(i)}`,
         fields: {
-          display_name: { ja: `勢力${i}`, en: `Faction ${i}` },
+          display_name: `勢力${i}`,
           founded_year: 1700 + i * 10,
         },
       }),

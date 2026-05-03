@@ -1,9 +1,10 @@
 import * as nodePath from 'node:path';
 import { NodeFileSystemAdapter } from '@scenario-studio/adapter-node';
 import { loadProject } from '@scenario-studio/core';
-import type { LocalizedString, ScenarioNode } from '@scenario-studio/core';
+import type { ScenarioNode } from '@scenario-studio/core';
 
-// `scenario stats <project-path>` — ノード数 / 文字数 / 未訳キー数。
+// `scenario stats <project-path>` — ノード数 / 文字数 / シーン数。
+// PR-B 後: LocalizedString 廃止に伴い untranslatedFields は削除。
 // 詳細: ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M8
 
 export interface StatsOptions {
@@ -18,10 +19,8 @@ export interface StatsReport {
   chapterCount: number;
   sceneCount: number;
   glossaryTermCount: number;
-  /** Synopsis Markdown + ノード fields の文字数合計 (LocalizedString は ja を採用、無ければ en)。 */
+  /** Synopsis + ノード fields の文字数合計。 */
   totalCharacters: number;
-  /** LocalizedString フィールドで ja が空 / 未設定のフィールド数。 */
-  untranslatedFields: number;
 }
 
 export interface StatsResult {
@@ -38,12 +37,9 @@ export async function stats(options: StatsOptions): Promise<StatsResult> {
 
   const nodesByTemplate: Record<string, number> = {};
   let totalCharacters = 0;
-  let untranslatedFields = 0;
   for (const node of loaded.project.nodes.values()) {
     nodesByTemplate[node.templateId] = (nodesByTemplate[node.templateId] ?? 0) + 1;
-    const counts = countNodeStrings(node);
-    totalCharacters += counts.chars;
-    untranslatedFields += counts.untranslated;
+    totalCharacters += countNodeStrings(node);
   }
 
   const synopsisChars =
@@ -61,7 +57,6 @@ export async function stats(options: StatsOptions): Promise<StatsResult> {
     sceneCount,
     glossaryTermCount: loaded.project.glossary.length,
     totalCharacters,
-    untranslatedFields,
   };
 
   return {
@@ -84,31 +79,18 @@ function renderText(r: StatsReport, projectPath: string): string {
   lines.push(`Scenes:       ${r.sceneCount}`);
   lines.push(`Glossary:     ${r.glossaryTermCount} terms`);
   lines.push(`Characters:   ${r.totalCharacters.toLocaleString('en-US')}`);
-  lines.push(`Untranslated: ${r.untranslatedFields} field(s)`);
   return lines.join('\n');
 }
 
-interface StringCounts {
-  chars: number;
-  untranslated: number;
-}
-
-function countNodeStrings(node: ScenarioNode): StringCounts {
+function countNodeStrings(node: ScenarioNode): number {
   let chars = 0;
-  let untranslated = 0;
   for (const value of Object.values(node.fields)) {
     if (typeof value === 'string') {
       chars += value.length;
     } else if (Array.isArray(value)) {
       for (const item of value) if (typeof item === 'string') chars += item.length;
-    } else if (value !== null && typeof value === 'object') {
-      const ls = value as LocalizedString;
-      const ja = typeof ls['ja'] === 'string' ? ls['ja'] : '';
-      const en = typeof ls['en'] === 'string' ? ls['en'] : '';
-      const text = ja !== '' ? ja : en;
-      chars += text.length;
-      if (ja === '') untranslated++;
     }
+    // PR-B 後: LocalizedString (object) フィールドは存在しない
   }
-  return { chars, untranslated };
+  return chars;
 }

@@ -49,7 +49,7 @@ describe('CLI run()', () => {
     const node = createNode(templates, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎', en: 'Tarou' } },
+      fields: { display_name: '太郎', reading: 'たろう', dev_name: 'Tarou' },
     });
     nodeIdValue = node.id;
     await repo.save(node);
@@ -107,7 +107,7 @@ describe('CLI run()', () => {
     expect(parsed.slug).toBe('tarou');
   });
 
-  it('stats reports node + character count + untranslated', async () => {
+  it('stats reports node + character + scene + glossary counts', async () => {
     const cap = capture();
     const code = await run(['stats', projectDir, '--format', 'json'], cap.io);
     expect(code).toBe(0);

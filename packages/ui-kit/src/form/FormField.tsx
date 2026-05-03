@@ -1,14 +1,13 @@
 import { Show } from 'solid-js';
 import type { JSX, ParentComponent } from 'solid-js';
-import type { LocalizedString } from '@scenario-studio/core';
 
 // 全 form input の共通 wrapper。label / description / error の表示を束ねる。
+// PR-B: label を LocalizedString から plain string に簡略化。
 // 詳細: ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M3
 
 export interface FormFieldProps {
   fieldId: string;
-  /** locale を引いて表示する。M3 は uiLocale='ja' をハードコード、M4 で settings 連動。 */
-  label?: LocalizedString | undefined;
+  label?: string | undefined;
   description?: string | undefined;
   error?: string | undefined;
   /** 子の input のために htmlFor で参照される id。 */
@@ -21,7 +20,7 @@ export const FormField: ParentComponent<FormFieldProps> = (props) => {
       <Show when={props.label}>
         {(l) => (
           <label class="ssf-label" for={props.inputId ?? props.fieldId}>
-            {l()['ja'] ?? l()['en'] ?? props.fieldId}
+            {l()}
           </label>
         )}
       </Show>
