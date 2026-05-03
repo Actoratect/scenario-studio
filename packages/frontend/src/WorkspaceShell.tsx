@@ -11,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { EraSlider } from './global/EraSlider';
+import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 
@@ -144,6 +145,7 @@ export const WorkspaceShell: Component = () => {
           {ProjectService.currentProject()?.project.settings.name ?? 'Scenario Studio'}
         </span>
         <EraSlider />
+        <SaveStatusBadge />
         <button class="workspace-close" onClick={() => ProjectService.close()}>
           プロジェクトを閉じる
         </button>

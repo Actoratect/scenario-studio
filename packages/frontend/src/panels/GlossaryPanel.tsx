@@ -4,6 +4,7 @@ import type { GroupPanelPartInitParameters } from 'dockview-core';
 import type { GlossaryTerm } from '@scenario-studio/core';
 import { LoadingOverlay } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
+import { Toast } from '../services/Toast';
 
 // 用語集 panel (M7)。
 // MVP は単一テーブル + 簡易フォーム。検索 / インポート / AI 一括翻訳は Phase 1 後半 / 3 で。
@@ -32,6 +33,7 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
       Object.assign(ctx.project, { glossary: next });
     } catch (e) {
       console.error('glossary save failed', e);
+      Toast.error(`用語集の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }

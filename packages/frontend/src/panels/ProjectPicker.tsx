@@ -2,6 +2,7 @@ import { createSignal, For, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { Spinner } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
+import { Toast } from '../services/Toast';
 
 // 「未だプロジェクトを開いていない」状態の welcome / picker UI。
 // 新規 / 開く / 最近開いた の 3 アクション。
@@ -21,6 +22,11 @@ export const ProjectPicker: Component = () => {
       await ProjectService.openWithPicker();
     } catch (e) {
       console.error('open failed', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      // ユーザのキャンセル (AbortError) は通知しない
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        Toast.error(`プロジェクトを開けません: ${msg}`);
+      }
     } finally {
       setBusy(false);
     }
@@ -32,6 +38,10 @@ export const ProjectPicker: Component = () => {
       await ProjectService.createWithPicker(newName().trim() || 'Untitled');
     } catch (e) {
       console.error('create failed', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        Toast.error(`プロジェクトを作成できません: ${msg}`);
+      }
     } finally {
       setBusy(false);
     }

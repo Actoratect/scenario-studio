@@ -6,6 +6,7 @@ import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { ProjectService } from '../services/ProjectService';
+import { Toast } from '../services/Toast';
 
 // 脚本エディタ Panel (M6 本実装)。
 // - シーン file (.scn.yaml) を chapter / scene 選択で load / save
@@ -105,6 +106,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       await ctx.adapter.write(ctx.handle, ref.path, text);
     } catch (e) {
       console.error('script save failed', e);
+      Toast.error(`脚本の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSaving(false);
     }
