@@ -27,3 +27,6 @@ export { parseYaml, serializeYaml, stringifyYaml } from './yaml/index.js';
 
 // Project layer (M1) — settings / model / loader / initializer
 export * from './project/index.js';
+
+// Graph (M5) — Relationship Lens + 初期レイアウト
+export * from './graph/index.js';
