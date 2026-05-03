@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
 import { SolidPanelView } from './dockview/SolidPanelView';
+import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
@@ -37,6 +38,7 @@ const PANEL_REGISTRY = {
   bench: BenchmarkPanel,
   console: ConsolePanel,
   glossary: GlossaryPanel,
+  ai: AiPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -119,6 +121,12 @@ export const WorkspaceShell: Component = () => {
       id: 'console-1',
       component: 'console',
       title: 'Console',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
+      id: 'ai-1',
+      component: 'ai',
+      title: 'AI',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });

@@ -66,3 +66,6 @@ export function serializeYaml(doc: Document.Parsed | Document, options?: ToStrin
 export function stringifyYaml(value: YamlValue, options?: ToStringOptions): string {
   return stringify(value, { ...DEFAULT_STRINGIFY_OPTIONS, ...options });
 }
+
+// M8 セキュリティ — 入力サニタイズ (C0 制御文字フィルタ)
+export { sanitizeYamlKey, sanitizeYamlTree, sanitizeYamlValue } from './sanitize.js';

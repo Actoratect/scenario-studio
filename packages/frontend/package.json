@@ -24,15 +24,16 @@
     "@scenario-studio/adapter-unity": "workspace:*",
     "@scenario-studio/core": "workspace:*",
     "@scenario-studio/ui-kit": "workspace:*",
+    "@solidjs/router": "^0.15.1",
     "codemirror": "^6.0.1",
     "dockview-core": "^4.5.1",
-    "@solidjs/router": "^0.15.1",
     "graphology": "^0.26.0",
     "graphology-layout-forceatlas2": "^0.10.1",
     "idb": "^8.0.0",
     "sigma": "^3.0.3",
     "solid-flow": "^1.0.4",
-    "solid-js": "^1.9.3"
+    "solid-js": "^1.9.3",
+    "workbox-window": "^7.4.0"
   },
   "devDependencies": {
     "vite": "^5.4.11",

@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
-import { parseYaml, stringifyYaml } from '../yaml/index.js';
+import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 import type { YamlValue } from '../yaml/index.js';
 import { nodeId, type NodeId } from './era.js';
 import type { ScenarioNode, NodeVariant } from './node.js';
@@ -165,7 +165,8 @@ export class FsNodeRepository implements NodeRepository {
         return obj;
       });
     }
-    return stringifyYaml(out);
+    // M8 セキュリティ: 書き出す直前に C0 制御文字を除去 (キー / 値の両方)
+    return stringifyYaml(sanitizeYamlTree(out));
   }
 }
 

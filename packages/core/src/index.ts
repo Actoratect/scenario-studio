@@ -21,9 +21,10 @@ export * from './domain/index.js';
 // ローカル履歴 / Undo-Redo (PoC-H、Phase X SaaS への布石)
 export * from './history/index.js';
 
-// YAML parse / serialize (M1)
+// YAML parse / serialize (M1) + サニタイズ (M8)
 export type { ParsedYaml, YamlValue } from './yaml/index.js';
 export { parseYaml, serializeYaml, stringifyYaml } from './yaml/index.js';
+export { sanitizeYamlKey, sanitizeYamlTree, sanitizeYamlValue } from './yaml/sanitize.js';
 
 // Project layer (M1) — settings / model / loader / initializer
 export * from './project/index.js';

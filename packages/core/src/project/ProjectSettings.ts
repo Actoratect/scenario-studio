@@ -1,5 +1,5 @@
 import type { YamlValue } from '../yaml/index.js';
-import { parseYaml, stringifyYaml } from '../yaml/index.js';
+import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 
 // プロジェクト設定 (`ProjectSettings.yaml`) のスキーマと読み書き。
 // MVP 範囲は最小: name / schemaVersion / locales / ai (空でも OK) / lastEra。
@@ -41,7 +41,7 @@ export function serializeProjectSettings(settings: ProjectSettings): string {
   if (settings.lastEra !== undefined) {
     out['lastEra'] = settings.lastEra;
   }
-  return stringifyYaml(out);
+  return stringifyYaml(sanitizeYamlTree(out));
 }
 
 export function parseProjectSettings(text: string): ProjectSettings {

@@ -1,5 +1,5 @@
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
-import { parseYaml, stringifyYaml } from '../yaml/index.js';
+import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 import type { YamlValue } from '../yaml/index.js';
 
 // Glossary (用語集) — Glossary/terms.yaml に集約。
@@ -66,7 +66,8 @@ export class FsGlossaryRepository {
         return obj;
       }),
     };
-    await this.adapter.write(this.handle, GLOSSARY_FILE, stringifyYaml(out));
+    // M8 セキュリティ: 制御文字を除去してから書き出す
+    await this.adapter.write(this.handle, GLOSSARY_FILE, stringifyYaml(sanitizeYamlTree(out)));
   }
 }
 
