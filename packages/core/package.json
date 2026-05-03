@@ -9,5 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "yjs": "^13.6.20"
   }
 }
