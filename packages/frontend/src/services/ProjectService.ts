@@ -6,6 +6,7 @@ import {
   ProjectNotInitializedError,
   type FileSystemAdapter,
   type FsEraRepository,
+  type FsGlossaryRepository,
   type FsScenarioRepository,
   type LoadProjectResult,
   type NodeRepository,
@@ -35,6 +36,7 @@ export interface OpenProjectContext {
   nodeRepository: NodeRepository;
   eraRepository: FsEraRepository;
   scenarioRepository: FsScenarioRepository;
+  glossaryRepository: FsGlossaryRepository;
   templates: TemplateRegistry;
   history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
@@ -131,6 +133,7 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     nodeRepository: loaded.nodeRepository,
     eraRepository: loaded.eraRepository,
     scenarioRepository: loaded.scenarioRepository,
+    glossaryRepository: loaded.glossaryRepository,
     templates: loaded.templates,
     history,
     rawDirectoryHandle: picked.rawDirectoryHandle,

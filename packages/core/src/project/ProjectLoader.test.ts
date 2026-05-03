@@ -49,6 +49,8 @@ describe('ProjectLoader', () => {
     expect(reloaded.project.eras.all()).toEqual([]);
     expect(reloaded.project.scenario.chapters).toEqual([]);
     expect(reloaded.project.scenario.projectSynopsis).toBe('');
+    // M7 で glossary が hydrate される (terms.yaml が無ければ空配列)
+    expect(reloaded.project.glossary).toEqual([]);
   });
 
   it('loadProject throws ProjectNotInitializedError when settings missing', async () => {

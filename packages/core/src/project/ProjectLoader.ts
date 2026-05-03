@@ -5,6 +5,7 @@ import type { ScenarioNode } from '../domain/node.js';
 import { FsNodeRepository } from '../domain/NodeRepository.js';
 import type { NodeRepository } from '../domain/NodeRepository.js';
 import { FsScenarioRepository } from '../domain/ScenarioRepository.js';
+import { FsGlossaryRepository } from '../domain/GlossaryRepository.js';
 import { TemplateRegistry } from '../domain/templates/index.js';
 import {
   defaultProjectSettings,
@@ -29,6 +30,8 @@ export interface LoadProjectResult {
   eraRepository: FsEraRepository;
   /** M4 から Scenarios/ の load/save に使う。 */
   scenarioRepository: FsScenarioRepository;
+  /** M7 から用語集の load/save に使う。 */
+  glossaryRepository: FsGlossaryRepository;
   /** Phase 3 でユーザ定義テンプレートを registry に追加する想定の hook。 */
   templates: TemplateRegistry;
 }
@@ -52,18 +55,21 @@ export async function loadProject(
   const nodeRepository = new FsNodeRepository(adapter, handle, templates);
   const eraRepository = new FsEraRepository(adapter, handle);
   const scenarioRepository = new FsScenarioRepository(adapter, handle);
+  const glossaryRepository = new FsGlossaryRepository(adapter, handle);
 
-  const [nodes, eras, scenario] = await Promise.all([
+  const [nodes, eras, scenario, glossary] = await Promise.all([
     nodeRepository.loadAll() as Promise<ReadonlyMap<NodeId, ScenarioNode>>,
     eraRepository.loadAll(),
     scenarioRepository.load(),
+    glossaryRepository.load(),
   ]);
 
   return {
-    project: { settings, nodes, eras, scenario },
+    project: { settings, nodes, eras, scenario, glossary },
     nodeRepository,
     eraRepository,
     scenarioRepository,
+    glossaryRepository,
     templates,
   };
 }

@@ -3,6 +3,8 @@ import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
 import { SolidPanelView } from './dockview/SolidPanelView';
+import { ConsolePanel } from './panels/ConsolePanel';
+import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
@@ -33,6 +35,8 @@ const PANEL_REGISTRY = {
   synopsis: SynopsisPanel,
   script: ScriptPanel,
   bench: BenchmarkPanel,
+  console: ConsolePanel,
+  glossary: GlossaryPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -103,6 +107,18 @@ export const WorkspaceShell: Component = () => {
       id: 'bench-1',
       component: 'bench',
       title: 'Graph Bench (PoC-B)',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
+      id: 'glossary-1',
+      component: 'glossary',
+      title: 'Glossary',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
+      id: 'console-1',
+      component: 'console',
+      title: 'Console',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });
