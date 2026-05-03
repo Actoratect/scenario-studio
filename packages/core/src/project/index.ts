@@ -11,4 +11,5 @@ export {
   PROJECT_SETTINGS_FILE,
   serializeProjectSettings,
 } from './ProjectSettings.js';
+export type { LoadProjectResult } from './ProjectLoader.js';
 export { initializeProject, loadProject, ProjectNotInitializedError } from './ProjectLoader.js';

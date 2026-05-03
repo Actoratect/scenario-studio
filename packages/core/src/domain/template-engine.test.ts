@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import { defaultFields, validateNode } from './template-engine.js';
+import { CHARACTER_TEMPLATE, FACTION_TEMPLATE } from './templates/index.js';
+import { nodeId } from './era.js';
+import type { ScenarioNode } from './node.js';
+
+describe('defaultFields', () => {
+  it('character template defaults', () => {
+    const d = defaultFields(CHARACTER_TEMPLATE);
+    expect(d['gender']).toBe('unknown');
+    expect(d['tone']).toBe('casual');
+    // required fields without defaultValue は default に出ない
+    expect(d['full_name']).toBeUndefined();
+  });
+
+  it('faction template includes bool default', () => {
+    const d = defaultFields(FACTION_TEMPLATE);
+    expect(d['is_active']).toBe(true);
+  });
+});
+
+describe('validateNode', () => {
+  function characterNode(fields: { [k: string]: import('./node.js').FieldValue }): ScenarioNode {
+    return {
+      id: nodeId('node.t'),
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 't',
+      fields,
+    };
+  }
+
+  it('returns no issues for a valid node', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      birth_year: -50,
+      gender: 'male',
+      height: 175,
+      tone: 'casual',
+    });
+    expect(validateNode(node, CHARACTER_TEMPLATE)).toEqual([]);
+  });
+
+  it('flags missing required field', () => {
+    const node = characterNode({ gender: 'male' });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    expect(issues.find((i) => i.fieldId === 'full_name')?.severity).toBe('error');
+  });
+
+  it('flags wrong type for int field', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      birth_year: 'not-a-number',
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    expect(issues.find((i) => i.fieldId === 'birth_year')?.severity).toBe('error');
+  });
+
+  it('flags out-of-range numeric (height min=0)', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      height: -10,
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    const heightIssue = issues.find((i) => i.fieldId === 'height');
+    expect(heightIssue?.severity).toBe('warning');
+    expect(heightIssue?.message).toContain('below min');
+  });
+
+  it('flags non-allowed enum value', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      gender: 'alien',
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    expect(issues.find((i) => i.fieldId === 'gender')?.severity).toBe('error');
+  });
+
+  it('flags maxLength overrun on string field', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      first_person: 'verylongfirstperson', // maxLength 8
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    expect(issues.find((i) => i.fieldId === 'first_person')?.severity).toBe('warning');
+  });
+
+  it('flags unknown field as warning', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 'Tarou' },
+      ghost_field: 'no such schema',
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    const ghost = issues.find((i) => i.fieldId === 'ghost_field');
+    expect(ghost?.severity).toBe('warning');
+    expect(ghost?.message).toContain('not declared');
+  });
+
+  it('flags localized_string with non-string value', () => {
+    const node = characterNode({
+      full_name: { ja: '太郎', en: 42 } as unknown as import('./node.js').FieldValue,
+    });
+    const issues = validateNode(node, CHARACTER_TEMPLATE);
+    expect(issues.find((i) => i.fieldId === 'full_name')?.severity).toBe('error');
+  });
+});
