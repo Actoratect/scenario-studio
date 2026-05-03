@@ -8,13 +8,22 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@scenario-studio/adapter-browser": "workspace:*",
     "@scenario-studio/adapter-tauri": "workspace:*",
     "@scenario-studio/adapter-unity": "workspace:*",
     "@scenario-studio/core": "workspace:*",
-    "@scenario-studio/ui-kit": "workspace:*"
+    "@scenario-studio/ui-kit": "workspace:*",
+    "dockview-core": "^4.5.1",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11",
+    "vite-plugin-solid": "^2.11.0"
   }
 }

@@ -1,0 +1,56 @@
+/* Dockview の style と最低限のレイアウトリセット */
+@import 'dockview-core/dist/styles/dockview.css';
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN',
+    'Yu Gothic UI',
+    sans-serif;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell {
+  flex: 1;
+  position: relative;
+}
+
+.panel-content {
+  padding: 12px 16px;
+  font-size: 13px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.panel-content h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.panel-content p {
+  margin: 4px 0;
+  color: #555;
+}
+
+.panel-content code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
