@@ -4,14 +4,19 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
 import { yaml } from '@codemirror/lang-yaml';
 import { scriptInlineWidgets } from './inlineWidgets';
+import { scriptAutocomplete, type ScriptCompletionSources } from './autocomplete';
 
-// PoC-D の脚本エディタ最小セット。CodeMirror 6 + YAML 言語 + 自前 inline widget。
-// Phase 1 で Smart 入力モード / 文字数バッジ / 改訂モード を載せる。
-// 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §5
+// PoC-D の脚本エディタを M6 で本格化:
+// - inline widget は character/emotion/aside/sfx/bgm/choice
+// - autocomplete (who: / emotion: / kind: 候補)
+// - 編集 → onChange 通知 (ScriptPanel が SaveScheduler に流す)
+// 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §5,
+//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M6
 
 export interface ScriptEditorOptions {
   parent: HTMLElement;
   initialDoc: string;
+  sources: ScriptCompletionSources;
   onChange?: (doc: string) => void;
 }
 
@@ -25,6 +30,7 @@ export function createScriptEditor(options: ScriptEditorOptions): EditorView {
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         yaml(),
+        scriptAutocomplete(options.sources),
         scriptInlineWidgets,
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {

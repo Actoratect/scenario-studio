@@ -116,6 +116,52 @@ body,
   cursor: pointer;
 }
 
+/* aside (演技指示 `<弱々しく>`) を山括弧でレンダ (M6) */
+.cm-ss-aside {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: #806;
+  background: rgba(128, 0, 96, 0.08);
+  border-radius: 3px;
+  vertical-align: -2px;
+}
+
+/* sfx / bgm / choice — `kind: ...` 行の前にアイコン (M6) */
+.cm-ss-sfx,
+.cm-ss-bgm,
+.cm-ss-choice {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 12px;
+  vertical-align: -1px;
+}
+
+.panel-script-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-script-scene-select {
+  padding: 2px 6px;
+  font-size: 12px;
+  flex: 1;
+  max-width: 320px;
+}
+
+.panel-script-saving {
+  font-size: 11px;
+  color: #888;
+}
+
+.panel-script-panel-id {
+  margin-left: auto;
+  font-size: 10px;
+  color: #aaa;
+}
+
 /* PoC-B 大規模グラフベンチ panel */
 .panel-bench {
   display: flex;
