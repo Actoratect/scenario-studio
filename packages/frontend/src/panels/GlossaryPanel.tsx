@@ -2,6 +2,7 @@ import { createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import type { GlossaryTerm } from '@scenario-studio/core';
+import { LoadingOverlay } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 
 // 用語集 panel (M7)。
@@ -59,6 +60,7 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
 
   return (
     <div class="panel-content panel-glossary">
+      <LoadingOverlay when={busy()} label="保存中…" />
       <header class="panel-glossary-header">
         Glossary · <code>{params.api.id}</code>
       </header>

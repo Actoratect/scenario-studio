@@ -10,6 +10,7 @@ import {
   type ScenarioNode,
   type TemplateDefinition,
 } from '@scenario-studio/core';
+import { LoadingOverlay } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 
@@ -114,6 +115,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
 
   return (
     <div class="panel-content panel-outline">
+      <LoadingOverlay when={busy()} label="保存中…" />
       <header class="panel-outline-header">
         <span>
           Outline · <code>{params.api.id}</code>

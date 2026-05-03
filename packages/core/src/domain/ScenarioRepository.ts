@@ -141,9 +141,7 @@ script:
     await this.adapter.write(
       this.handle,
       sceneIndexPath,
-      stringifyYaml(
-        sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order }),
-      ),
+      stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order })),
     );
 
     return {

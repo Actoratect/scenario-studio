@@ -1,6 +1,7 @@
 import { createSignal, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
+import { Spinner } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 
 // プロジェクト全体の synopsis (Scenarios/synopsis.md) を編集する panel。
@@ -49,7 +50,9 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
       <div class="panel-synopsis-meta">
         Project Synopsis · <code>{params.api.id}</code>
         <Show when={saving()}>
-          <span class="panel-synopsis-saving"> saving…</span>
+          <span class="panel-synopsis-saving">
+            <Spinner /> 保存中…
+          </span>
         </Show>
       </div>
       <textarea
