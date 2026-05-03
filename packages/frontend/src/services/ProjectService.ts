@@ -5,6 +5,8 @@ import {
   ProjectHistory,
   ProjectNotInitializedError,
   type FileSystemAdapter,
+  type FsEraRepository,
+  type FsScenarioRepository,
   type LoadProjectResult,
   type NodeRepository,
   type ProjectHandle,
@@ -31,10 +33,12 @@ export interface OpenProjectContext {
   handle: ProjectHandle;
   project: ProjectModel;
   nodeRepository: NodeRepository;
+  eraRepository: FsEraRepository;
+  scenarioRepository: FsScenarioRepository;
   templates: TemplateRegistry;
   history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
-  rawDirectoryHandle?: FileSystemDirectoryHandle;
+  rawDirectoryHandle?: FileSystemDirectoryHandle | undefined;
 }
 
 const [currentProject, setCurrentProject] = createSignal<OpenProjectContext | undefined>(undefined);
@@ -125,6 +129,8 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     handle: picked.handle,
     project: loaded.project,
     nodeRepository: loaded.nodeRepository,
+    eraRepository: loaded.eraRepository,
+    scenarioRepository: loaded.scenarioRepository,
     templates: loaded.templates,
     history,
     rawDirectoryHandle: picked.rawDirectoryHandle,

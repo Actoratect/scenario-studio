@@ -27,3 +27,15 @@ export { defaultFields, validateNode } from './template-engine.js';
 // Node repository (M2)
 export type { CreateNodeOptions, NodeRepository } from './NodeRepository.js';
 export { createNode, FsNodeRepository, isValidSlug } from './NodeRepository.js';
+
+// Era repository (M4)
+export { FsEraRepository } from './EraRepository.js';
+
+// Scenario hierarchy (M4)
+export type { Chapter, ChapterId, ScenarioStructure, SceneId, SceneMeta } from './scenario.js';
+export { chapterId, sceneId } from './scenario.js';
+export { FsScenarioRepository } from './ScenarioRepository.js';
+
+// Relation types (M4)
+export type { RelationType, RelationTypeDefinition } from './relations.js';
+export { getRelationType, RELATION_TYPES } from './relations.js';

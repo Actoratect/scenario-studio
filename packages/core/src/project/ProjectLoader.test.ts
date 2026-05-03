@@ -42,9 +42,13 @@ describe('ProjectLoader', () => {
     const reloaded = await loadProject(adapter, handle);
     expect(reloaded.project.settings.name).toBe('Reloadable');
     expect(reloaded.project.settings.schemaVersion).toBe(1);
-    // M2 で nodes が空 Map で hydrate されること (ノード未配置時)
+    // M2 で nodes が空 Map で hydrate されること
     expect(reloaded.project.nodes.size).toBe(0);
     expect(reloaded.templates.list().length).toBe(4); // 4 builtin templates
+    // M4 で eras / scenario が hydrate される (空 project でも shape が存在)
+    expect(reloaded.project.eras.all()).toEqual([]);
+    expect(reloaded.project.scenario.chapters).toEqual([]);
+    expect(reloaded.project.scenario.projectSynopsis).toBe('');
   });
 
   it('loadProject throws ProjectNotInitializedError when settings missing', async () => {

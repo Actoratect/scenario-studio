@@ -6,6 +6,8 @@ import { SolidPanelView } from './dockview/SolidPanelView';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
+import { SynopsisPanel } from './panels/SynopsisPanel';
+import { EraSlider } from './global/EraSlider';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 
@@ -28,6 +30,7 @@ const PANEL_REGISTRY = {
   graph: GraphPanel,
   inspector: InspectorPanel,
   outline: OutlinePanel,
+  synopsis: SynopsisPanel,
   script: ScriptPanel,
   bench: BenchmarkPanel,
 } as const;
@@ -85,6 +88,12 @@ export const WorkspaceShell: Component = () => {
       position: { referencePanel: 'graph-1', direction: 'below' },
     });
     api.addPanel({
+      id: 'synopsis-1',
+      component: 'synopsis',
+      title: 'Synopsis',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
       id: 'script-1',
       component: 'script',
       title: 'Script: s01_opening',
@@ -110,6 +119,7 @@ export const WorkspaceShell: Component = () => {
         <span class="workspace-title">
           {ProjectService.currentProject()?.project.settings.name ?? 'Scenario Studio'}
         </span>
+        <EraSlider />
         <button class="workspace-close" onClick={() => ProjectService.close()}>
           プロジェクトを閉じる
         </button>

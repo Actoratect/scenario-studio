@@ -1,9 +1,10 @@
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
-import { buildEraIndex } from '../domain/era.js';
 import type { NodeId } from '../domain/era.js';
+import { FsEraRepository } from '../domain/EraRepository.js';
 import type { ScenarioNode } from '../domain/node.js';
 import { FsNodeRepository } from '../domain/NodeRepository.js';
 import type { NodeRepository } from '../domain/NodeRepository.js';
+import { FsScenarioRepository } from '../domain/ScenarioRepository.js';
 import { TemplateRegistry } from '../domain/templates/index.js';
 import {
   defaultProjectSettings,
@@ -24,6 +25,10 @@ export interface LoadProjectResult {
   project: ProjectModel;
   /** 編集ループで使うリポジトリ。Inspector が save / rename / delete を呼ぶ。 */
   nodeRepository: NodeRepository;
+  /** M4 から Era 永続化に使う。 */
+  eraRepository: FsEraRepository;
+  /** M4 から Scenarios/ の load/save に使う。 */
+  scenarioRepository: FsScenarioRepository;
   /** Phase 3 でユーザ定義テンプレートを registry に追加する想定の hook。 */
   templates: TemplateRegistry;
 }
@@ -45,13 +50,20 @@ export async function loadProject(
 
   const templates = new TemplateRegistry();
   const nodeRepository = new FsNodeRepository(adapter, handle, templates);
-  const nodes: ReadonlyMap<NodeId, ScenarioNode> = await nodeRepository.loadAll();
+  const eraRepository = new FsEraRepository(adapter, handle);
+  const scenarioRepository = new FsScenarioRepository(adapter, handle);
 
-  // M4 で Eras/ ディレクトリから hydrate。M2 では空。
-  const eras = buildEraIndex([]);
+  const [nodes, eras, scenario] = await Promise.all([
+    nodeRepository.loadAll() as Promise<ReadonlyMap<NodeId, ScenarioNode>>,
+    eraRepository.loadAll(),
+    scenarioRepository.load(),
+  ]);
+
   return {
-    project: { settings, nodes, eras },
+    project: { settings, nodes, eras, scenario },
     nodeRepository,
+    eraRepository,
+    scenarioRepository,
     templates,
   };
 }
