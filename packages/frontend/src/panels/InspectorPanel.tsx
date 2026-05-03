@@ -2,6 +2,7 @@ import { createMemo, For, Match, onCleanup, onMount, Show, Switch } from 'solid-
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
+  resolveNode,
   validateNode,
   type FieldSchema,
   type FieldValue,
@@ -22,6 +23,7 @@ import {
 } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
+import { EraContext } from '../services/EraContext';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 // 選択中ノードの編集 UI。
@@ -54,6 +56,26 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const t = template();
     if (!n || !t) return [];
     return validateNode(n, t);
+  });
+
+  /**
+   * Era-aware な「現在の見え方」。EraContext.isBase() のときはベース fields をそのまま、
+   * それ以外は resolveNode() で variant をマージした結果を返す。
+   * 編集 (setField) はベースに書く方針 — Variant 編集 UI は Phase 1 後半で。
+   */
+  const resolvedFields = createMemo<{ readonly [key: string]: FieldValue }>(() => {
+    const n = node();
+    const ctx = ProjectService.currentProject();
+    if (!n || !ctx) return {};
+    if (EraContext.isBase()) return n.fields;
+    return resolveNode(n, EraContext.currentEraId(), ctx.project.eras).fields;
+  });
+
+  const appliedVariantEras = createMemo<readonly string[]>(() => {
+    const n = node();
+    const ctx = ProjectService.currentProject();
+    if (!n || !ctx || EraContext.isBase()) return [];
+    return resolveNode(n, EraContext.currentEraId(), ctx.project.eras).appliedVariantEras;
   });
 
   const refOptions = createMemo<readonly NodeRefOption[]>(() => {
@@ -107,13 +129,23 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
         <header class="panel-inspector-header">
           <strong>{node()!.slug}</strong>
           <span class="panel-inspector-template">{template()!.id}</span>
+          <Show when={!EraContext.isBase()}>
+            <span class="panel-inspector-era">
+              Era: <code>{EraContext.currentEraId()}</code>
+              <Show when={appliedVariantEras().length > 0}>
+                <span class="panel-inspector-variant-active">
+                  · variant 適用 ({appliedVariantEras().join(' → ')})
+                </span>
+              </Show>
+            </span>
+          </Show>
         </header>
         <div class="panel-inspector-fields">
           <For each={template()!.fields}>
             {(field) => (
               <FieldRow
                 field={field}
-                value={node()!.fields[field.id]}
+                value={resolvedFields()[field.id] ?? node()!.fields[field.id]}
                 issue={issues().find((i) => i.fieldId === field.id)}
                 project={ProjectService.currentProject()!}
                 refOptions={refOptions()}

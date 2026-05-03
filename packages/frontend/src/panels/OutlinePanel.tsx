@@ -13,11 +13,10 @@ import {
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 
-// M3 暫定の Outliner: テンプレート別にグループ分けしたノード一覧。
-// クリックで SelectionContext.selectNode → Inspector が反応。
-// 真の章 / シーン階層 Outliner は M4 で本実装。
+// M4 Outliner: 章 / シーン階層 (Scenario) と Nodes 一覧の 2 セクション構成。
+// 真の TanStack Virtual / ドラッグ並べ替え は M5+ または Phase 1 後半。
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §4.3,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M3, M4
+//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M4
 
 const NEW_NODE_TEMPLATES: ReadonlyArray<{ template: TemplateDefinition; label: string }> = [
   { template: CHARACTER_TEMPLATE, label: 'Character' },
@@ -28,7 +27,9 @@ const NEW_NODE_TEMPLATES: ReadonlyArray<{ template: TemplateDefinition; label: s
 
 export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [busy, setBusy] = createSignal(false);
-  const grouped = createMemo(() => {
+  const [newChapterTitle, setNewChapterTitle] = createSignal('新しい章');
+
+  const groupedNodes = createMemo(() => {
     const ctx = ProjectService.currentProject();
     const groups = new Map<string, ScenarioNode[]>();
     if (!ctx) return groups;
@@ -42,6 +43,28 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     return groups;
   });
 
+  async function addChapter(): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    setBusy(true);
+    try {
+      const idx = ctx.project.scenario.chapters.length + 1;
+      const slug = `ch${String(idx).padStart(2, '0')}_${Date.now().toString(36)}`;
+      const ch = await ctx.scenarioRepository.addChapter({
+        slug,
+        title: newChapterTitle().trim() || `Chapter ${idx}`,
+      });
+      const nextChapters = [...ctx.project.scenario.chapters, ch];
+      await ctx.scenarioRepository.saveProjectIndex(nextChapters.map((c) => ({ slug: c.slug })));
+      const nextScenario = { ...ctx.project.scenario, chapters: nextChapters };
+      Object.assign(ctx.project, { scenario: nextScenario });
+    } catch (e) {
+      console.error('addChapter failed', e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addNode(template: TemplateDefinition): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -50,7 +73,6 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       const slug = `new_${template.directory.replace(/s$/, '')}_${Date.now().toString(36)}`;
       const node = createNode(ctx.templates, { templateId: template.id, slug });
       await ctx.nodeRepository.save(node);
-      // ProjectModel.nodes は ReadonlyMap として公開しているが、M3 では in-place 拡張を許容
       const next = new Map(ctx.project.nodes);
       next.set(node.id, node);
       Object.assign(ctx.project, { nodes: next });
@@ -67,8 +89,44 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     <div class="panel-content panel-outline">
       <header class="panel-outline-header">
         <span>
-          Nodes (M3 暫定一覧) · <code>{params.api.id}</code>
+          Outline · <code>{params.api.id}</code>
         </span>
+      </header>
+
+      <div class="panel-outline-list">
+        <h3 class="panel-outline-group">Scenarios</h3>
+        <ul>
+          <For each={ProjectService.currentProject()?.project.scenario.chapters ?? []}>
+            {(chapter) => (
+              <li class="panel-outline-chapter">
+                <span class="panel-outline-chapter-title">
+                  📖 {chapter.title} <span class="panel-outline-chapter-slug">{chapter.slug}</span>
+                </span>
+                <Show when={chapter.scenes.length > 0}>
+                  <ul class="panel-outline-scenes">
+                    <For each={chapter.scenes}>
+                      {(scene) => <li class="panel-outline-scene">🎬 {scene.title}</li>}
+                    </For>
+                  </ul>
+                </Show>
+              </li>
+            )}
+          </For>
+        </ul>
+        <div class="panel-outline-add-chapter">
+          <input
+            type="text"
+            value={newChapterTitle()}
+            onInput={(e) => setNewChapterTitle(e.currentTarget.value)}
+            disabled={busy()}
+            placeholder="新しい章のタイトル"
+          />
+          <button disabled={busy()} onClick={() => void addChapter()}>
+            + Chapter
+          </button>
+        </div>
+
+        <h3 class="panel-outline-group">Nodes</h3>
         <div class="panel-outline-actions">
           <For each={NEW_NODE_TEMPLATES}>
             {(t) => (
@@ -78,14 +136,12 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             )}
           </For>
         </div>
-      </header>
-      <div class="panel-outline-list">
         <For each={ProjectService.currentProject()?.templates.list() ?? []}>
           {(template) => {
-            const items = () => grouped().get(template.id) ?? [];
+            const items = () => groupedNodes().get(template.id) ?? [];
             return (
               <Show when={items().length > 0}>
-                <h3 class="panel-outline-group">{template.displayName['ja'] ?? template.id}</h3>
+                <h4 class="panel-outline-subgroup">{template.displayName['ja'] ?? template.id}</h4>
                 <ul>
                   <For each={items()}>
                     {(node) => (
