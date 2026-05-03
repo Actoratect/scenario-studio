@@ -22,6 +22,7 @@ import {
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
+import { Toast } from '../services/Toast';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 // 選択中ノードの編集 UI。
@@ -121,12 +122,63 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     ctx.history.get(id)?.markUndoBoundary();
   }
 
+  async function renameNode(): Promise<void> {
+    const n = node();
+    const ctx = ProjectService.currentProject();
+    if (!n || !ctx) return;
+    const next = window.prompt('新しい slug を入力 (英小文字 / 数字 / _ / -):', n.slug);
+    if (next === null) return; // cancel
+    const trimmed = next.trim();
+    if (trimmed === '' || trimmed === n.slug) return;
+    try {
+      await ctx.nodeRepository.rename(n.id, trimmed);
+      // ProjectModel.nodes を更新 — 既存 Map を作り直す
+      const nextMap = new Map(ctx.project.nodes);
+      const updated = { ...n, slug: trimmed };
+      nextMap.set(n.id, updated);
+      Object.assign(ctx.project, { nodes: nextMap });
+      Toast.success(`slug を変更: ${n.slug} → ${trimmed}`);
+    } catch (e) {
+      Toast.error(`slug 変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function deleteNode(): Promise<void> {
+    const n = node();
+    const ctx = ProjectService.currentProject();
+    if (!n || !ctx) return;
+    if (!window.confirm(`ノード "${n.slug}" を削除しますか? (元に戻せません)`)) return;
+    try {
+      await ctx.nodeRepository.delete(n.id);
+      const nextMap = new Map(ctx.project.nodes);
+      nextMap.delete(n.id);
+      Object.assign(ctx.project, { nodes: nextMap });
+      SelectionContext.selectNode(undefined);
+      Toast.success(`ノードを削除: ${n.slug}`);
+    } catch (e) {
+      Toast.error(`削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   return (
     <div class="panel-content panel-inspector">
       <Show when={node() && template()} fallback={<EmptyInspector panelId={params.api.id} />}>
         <header class="panel-inspector-header">
           <strong>{node()!.slug}</strong>
           <span class="panel-inspector-template">{template()!.id}</span>
+          <span class="panel-inspector-actions">
+            <button type="button" onClick={() => void renameNode()} title="slug を変更">
+              ✎ Rename
+            </button>
+            <button
+              type="button"
+              class="panel-inspector-delete"
+              onClick={() => void deleteNode()}
+              title="このノードを削除"
+            >
+              🗑 Delete
+            </button>
+          </span>
           <Show when={!EraContext.isBase()}>
             <span class="panel-inspector-era">
               Era: <code>{EraContext.currentEraId()}</code>

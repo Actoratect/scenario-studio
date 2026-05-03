@@ -100,6 +100,43 @@ export class FsScenarioRepository {
   }
 
   /**
+   * 章のタイトルを書き換える。slug は変えない (参照が壊れるため)。
+   */
+  async renameChapter(chapterSlug: string, newTitle: string): Promise<void> {
+    const indexPath = `${SCENARIOS_ROOT}/${chapterSlug}/_index.yaml`;
+    if (!(await this.adapter.exists(this.handle, indexPath))) {
+      throw new Error(`Chapter ${chapterSlug} does not exist`);
+    }
+    const text = await this.adapter.read(this.handle, indexPath);
+    const { value } = parseYaml(text);
+    const v = expectMapping(value, indexPath);
+    v['title'] = newTitle;
+    await this.adapter.write(this.handle, indexPath, stringifyYaml(sanitizeYamlTree(v)));
+  }
+
+  /**
+   * シーン (.scn.yaml) を削除し、`_scene_index.yaml` からも除外する。
+   */
+  async removeScene(chapterSlug: string, sceneSlug: string): Promise<void> {
+    const chapterDir = `${SCENARIOS_ROOT}/${chapterSlug}`;
+    const filePath = `${chapterDir}/${sceneSlug}.scn.yaml`;
+    if (await this.adapter.exists(this.handle, filePath)) {
+      await this.adapter.delete(this.handle, filePath);
+    }
+    const sceneIndexPath = `${chapterDir}/_scene_index.yaml`;
+    if (!(await this.adapter.exists(this.handle, sceneIndexPath))) return;
+    const text = await this.adapter.read(this.handle, sceneIndexPath);
+    const { value } = parseYaml(text);
+    const v = expectMapping(value, sceneIndexPath);
+    const order = expectStringArray(v, 'scenes').filter((s) => s !== sceneSlug);
+    await this.adapter.write(
+      this.handle,
+      sceneIndexPath,
+      stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order })),
+    );
+  }
+
+  /**
    * 章にシーンを 1 つ追加する。`<chapter>/<slug>.scn.yaml` を空のテンプレで作り、
    * `_scene_index.yaml` の末尾に slug を追記する。
    */

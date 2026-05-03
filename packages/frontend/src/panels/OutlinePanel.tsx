@@ -96,6 +96,50 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  async function renameChapter(chapterSlug: string, currentTitle: string): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const next = window.prompt('章のタイトル:', currentTitle);
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (trimmed === '' || trimmed === currentTitle) return;
+    setBusy(true);
+    try {
+      await ctx.scenarioRepository.renameChapter(chapterSlug, trimmed);
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === chapterSlug ? { ...c, title: trimmed } : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+    } catch (e) {
+      Toast.error(`章タイトル変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteScene(chapterSlug: string, sceneSlug: string): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    if (!window.confirm(`シーン "${sceneSlug}" を削除しますか? (元に戻せません)`)) return;
+    setBusy(true);
+    try {
+      await ctx.scenarioRepository.removeScene(chapterSlug, sceneSlug);
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === chapterSlug ? { ...c, scenes: c.scenes.filter((s) => s.slug !== sceneSlug) } : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+      Toast.success(`シーンを削除: ${sceneSlug}`);
+    } catch (e) {
+      Toast.error(`シーンの削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addNode(template: TemplateDefinition): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -133,7 +177,15 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             {(chapter) => (
               <li class="panel-outline-chapter">
                 <span class="panel-outline-chapter-title">
-                  📖 {chapter.title} <span class="panel-outline-chapter-slug">{chapter.slug}</span>
+                  <button
+                    class="panel-outline-chapter-title-button"
+                    disabled={busy()}
+                    onClick={() => void renameChapter(chapter.slug, chapter.title)}
+                    title="章のタイトルを変更"
+                  >
+                    📖 {chapter.title}
+                  </button>
+                  <span class="panel-outline-chapter-slug">{chapter.slug}</span>
                   <button
                     class="panel-outline-add-scene"
                     disabled={busy()}
@@ -146,7 +198,19 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                 <Show when={chapter.scenes.length > 0}>
                   <ul class="panel-outline-scenes">
                     <For each={chapter.scenes}>
-                      {(scene) => <li class="panel-outline-scene">🎬 {scene.title}</li>}
+                      {(scene) => (
+                        <li class="panel-outline-scene">
+                          🎬 {scene.title}
+                          <button
+                            class="panel-outline-delete-scene"
+                            disabled={busy()}
+                            onClick={() => void deleteScene(chapter.slug, scene.slug)}
+                            title="このシーンを削除"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      )}
                     </For>
                   </ul>
                 </Show>

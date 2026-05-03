@@ -1517,13 +1517,81 @@ button {
   padding: 1px 6px;
   font-size: 11px;
   cursor: pointer;
-  background: #eef;
-  border: 1px solid #aac;
+  background: var(--ss-bg-info);
+  border: 1px solid var(--ss-accent-sky);
   border-radius: 3px;
+  color: var(--ss-accent-blue);
 }
 
 .panel-outline-add-scene:hover:not(:disabled) {
-  background: #dde;
+  background: var(--ss-accent-sky);
+  color: var(--ss-text-on-emph);
+}
+
+.panel-outline-chapter-title-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--ss-text);
+  text-align: left;
+}
+
+.panel-outline-chapter-title-button:hover {
+  color: var(--ss-accent-blue);
+  text-decoration: underline;
+}
+
+.panel-outline-delete-scene {
+  margin-left: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ss-text-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.panel-outline-scene:hover .panel-outline-delete-scene {
+  opacity: 1;
+}
+
+.panel-outline-delete-scene:hover {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
+/* Inspector header actions */
+.panel-inspector-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.panel-inspector-actions button {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-inspector-actions button:hover {
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-inspector-actions .panel-inspector-delete:hover {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
 }
 
 /* ===== AI Panel (M8) ===== */
