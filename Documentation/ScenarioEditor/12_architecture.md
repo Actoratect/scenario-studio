@@ -45,11 +45,16 @@
 └───────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
-│ Platform Adapters (one per target)                           │
-│  - adapter-browser  : FS Access API, OPFS, IndexedDB         │
-│  - adapter-tauri    : Tauri invoke, Rust FS, native dialogs   │
+│ Platform Adapters (one per target) — PoC-C で interface 確定    │
+│  - adapter-browser  : FS Access API, OPFS (fallback)         │
+│  - adapter-tauri    : Tauri invoke (Rust 実装は PoC-G で)       │
 │  - adapter-unity    : HTTP bridge to Unity (SSE for changes)  │
-│  - adapter-node     : Node.js fs, used by CLI                 │
+│  - adapter-node     : Node.js fs, used by CLI / contract test │
+│                                                                │
+│  共通: core/src/platform.ts                                    │
+│    - FileSystemAdapter interface (read/write/list/walk/watch) │
+│    - assertSafePath() で path traversal を入口で拒否           │
+│    - compileGlob() で `*` `**` `?` をサポートする最小 glob       │
 └──────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
