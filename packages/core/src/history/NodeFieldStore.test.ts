@@ -121,9 +121,16 @@ describe('NodeFieldStore', () => {
   });
 
   it('applyUpdate from another store is observable as remote and not tracked by undo', () => {
+    // SaaS 同期 / マルチタブのリアル想定: 片方を canonical にして、もう片方は applyUpdate で受ける。
+    // 両方を独立に seed すると Y.Doc の client ID が異なり conflict resolution の結果が
+    // 非決定的になるため、b は空 store にして a から sync させる。
     const a = new NodeFieldStore({ x: 1 });
-    const b = new NodeFieldStore({ x: 1 });
+    const b = new NodeFieldStore();
     try {
+      // 初期 sync: b は a の state を取り込む
+      b.applyUpdate(a.encodeState());
+      expect(b.get('x')).toBe(1);
+
       const events: Array<{ isRemote: boolean }> = [];
       b.observe((e) => events.push({ isRemote: e.origin === NodeFieldStore.REMOTE_ORIGIN }));
 
