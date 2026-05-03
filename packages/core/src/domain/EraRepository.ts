@@ -1,5 +1,5 @@
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
-import { parseYaml, stringifyYaml } from '../yaml/index.js';
+import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 import type { YamlValue } from '../yaml/index.js';
 import { buildEraIndex, eraId, type EraDefinition, type EraId, type EraIndex } from './era.js';
 
@@ -76,7 +76,7 @@ export class FsEraRepository {
     if (era.yearRange !== undefined) {
       out['yearRange'] = [era.yearRange[0], era.yearRange[1]];
     }
-    return stringifyYaml(out);
+    return stringifyYaml(sanitizeYamlTree(out));
   }
 }
 

@@ -1,5 +1,5 @@
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
-import { parseYaml, stringifyYaml } from '../yaml/index.js';
+import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 import type { YamlValue } from '../yaml/index.js';
 import {
   chapterId,
@@ -62,7 +62,7 @@ export class FsScenarioRepository {
       kind: 'scenario_project',
       chapters: chapters.map((c) => c.slug),
     };
-    await this.adapter.write(this.handle, PROJECT_FILE, stringifyYaml(out));
+    await this.adapter.write(this.handle, PROJECT_FILE, stringifyYaml(sanitizeYamlTree(out)));
   }
 
   async addChapter(input: { slug: string; title: string; summary?: string }): Promise<Chapter> {
@@ -79,7 +79,7 @@ export class FsScenarioRepository {
       title: input.title,
     };
     if (input.summary !== undefined) indexOut['summary'] = input.summary;
-    await this.adapter.write(this.handle, indexPath, stringifyYaml(indexOut));
+    await this.adapter.write(this.handle, indexPath, stringifyYaml(sanitizeYamlTree(indexOut)));
     // 章直下の synopsis.md と _scene_index.yaml も初期化
     await this.adapter.write(this.handle, `${dir}/synopsis.md`, `# ${input.title}\n\n`);
     await this.adapter.write(
