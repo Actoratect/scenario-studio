@@ -25,6 +25,10 @@
     "@scenario-studio/ui-kit": "workspace:*",
     "codemirror": "^6.0.1",
     "dockview-core": "^4.5.1",
+    "graphology": "^0.26.0",
+    "graphology-layout-forceatlas2": "^0.10.1",
+    "sigma": "^3.0.3",
+    "solid-flow": "^1.0.4",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {

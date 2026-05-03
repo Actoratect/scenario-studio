@@ -41,6 +41,8 @@
 
 ## 3. レイアウト
 
+> **Phase 0 PoC-B 状況**: ベンチハーネスを `packages/frontend` の Bench Panel に実装済 (`pnpm -F frontend dev` → Graph Bench タブ)。同一合成グラフを SolidFlow (DOM、`solid-flow@1.0.4`) と Sigma.js (WebGL、`sigma@3` + `graphology`) で描画し、mount 時間と idle FPS を計測する。MVP/β/1.0 の各ライブラリ採用判断は、**実プロジェクト想定の N で本 harness を再実行** して根拠データを残す方針。`@xyflow/solid` (公式 SolidJS バインディング) は npm 未公開のため `solid-flow` (community 実装) を採用、登場時に再評価。
+
 ### 3.1 自動レイアウトアルゴリズム
 
 | アルゴリズム | 適合 |

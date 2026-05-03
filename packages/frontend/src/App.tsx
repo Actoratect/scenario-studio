@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
 import { SolidPanelView } from './dockview/SolidPanelView';
+import { BenchmarkPanel } from './panels/BenchmarkPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
@@ -15,6 +16,7 @@ const PANEL_REGISTRY = {
   inspector: InspectorPanel,
   outline: OutlinePanel,
   script: ScriptPanel,
+  bench: BenchmarkPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -69,6 +71,13 @@ export const App: Component = () => {
       id: 'script-1',
       component: 'script',
       title: 'Script: s01_opening',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    // PoC-B 大規模グラフベンチ panel — 同じ TabSet にもう 1 タブ追加。
+    api.addPanel({
+      id: 'bench-1',
+      component: 'bench',
+      title: 'Graph Bench (PoC-B)',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });
