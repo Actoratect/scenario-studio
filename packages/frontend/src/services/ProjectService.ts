@@ -1,11 +1,15 @@
 import { createSignal } from 'solid-js';
-import type { ProjectModel } from '@scenario-studio/core';
 import {
   initializeProject,
   loadProject,
+  ProjectHistory,
   ProjectNotInitializedError,
   type FileSystemAdapter,
+  type LoadProjectResult,
+  type NodeRepository,
   type ProjectHandle,
+  type ProjectModel,
+  type TemplateRegistry,
 } from '@scenario-studio/core';
 import {
   pickProjectDirectory,
@@ -18,13 +22,17 @@ import type { RecentProject } from './recent-projects.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
 // frontend 全体が `currentProject()` シグナルを購読してリレンダ。
+// M2: nodeRepository / templates / history を context に追加。
 // 詳細: ../../../../Documentation/ScenarioEditor/12_architecture.md §1, §4.1,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M1
+//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M1, M2
 
 export interface OpenProjectContext {
   adapter: FileSystemAdapter;
   handle: ProjectHandle;
   project: ProjectModel;
+  nodeRepository: NodeRepository;
+  templates: TemplateRegistry;
+  history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
   rawDirectoryHandle?: FileSystemDirectoryHandle;
 }
@@ -50,7 +58,7 @@ export const ProjectService = {
   async openWithPicker(): Promise<OpenProjectContext> {
     setLastError(undefined);
     const picked = await pickProjectDirectory({});
-    return await openPicked(picked);
+    return await openPicked(picked, await loadProject(picked.adapter, picked.handle));
   },
 
   /**
@@ -60,21 +68,8 @@ export const ProjectService = {
   async createWithPicker(name: string): Promise<OpenProjectContext> {
     setLastError(undefined);
     const picked = await pickProjectDirectory({ name });
-    const project = await initializeProject(picked.adapter, picked.handle, { name });
-    const ctx: OpenProjectContext = {
-      adapter: picked.adapter,
-      handle: picked.handle,
-      project,
-      rawDirectoryHandle: picked.rawDirectoryHandle,
-    };
-    setCurrentProject(ctx);
-    await rememberProject({
-      id: picked.handle.id,
-      name: project.settings.name,
-      directoryHandle: picked.rawDirectoryHandle,
-    });
-    await ProjectService.refreshRecent();
-    return ctx;
+    const result = await initializeProject(picked.adapter, picked.handle, { name });
+    return openPicked(picked, result);
   },
 
   /**
@@ -88,7 +83,7 @@ export const ProjectService = {
       return null;
     }
     try {
-      return await openPicked(restored);
+      return await openPicked(restored, await loadProject(restored.adapter, restored.handle));
     } catch (e) {
       if (e instanceof ProjectNotInitializedError) {
         setLastError(e);
@@ -104,6 +99,8 @@ export const ProjectService = {
   },
 
   close(): void {
+    const ctx = currentProject();
+    if (ctx) ctx.history.destroy();
     setCurrentProject(undefined);
     setLastError(undefined);
   },
@@ -113,20 +110,31 @@ export const ProjectService = {
   },
 };
 
-async function openPicked(picked: PickedProject): Promise<OpenProjectContext> {
-  const project = await loadProject(picked.adapter, picked.handle);
+function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
+  // 既に open 中だった場合の history 解放
+  const prev = currentProject();
+  if (prev) prev.history.destroy();
+
+  const history = new ProjectHistory();
+  for (const node of loaded.project.nodes.values()) {
+    history.register(node);
+  }
+
   const ctx: OpenProjectContext = {
     adapter: picked.adapter,
     handle: picked.handle,
-    project,
+    project: loaded.project,
+    nodeRepository: loaded.nodeRepository,
+    templates: loaded.templates,
+    history,
     rawDirectoryHandle: picked.rawDirectoryHandle,
   };
   setCurrentProject(ctx);
-  await rememberProject({
+  return rememberProject({
     id: picked.handle.id,
-    name: project.settings.name,
+    name: loaded.project.settings.name,
     directoryHandle: picked.rawDirectoryHandle,
-  });
-  await ProjectService.refreshRecent();
-  return ctx;
+  })
+    .then(() => ProjectService.refreshRecent())
+    .then(() => ctx);
 }

@@ -16,3 +16,14 @@ export type {
 } from './node.js';
 
 export { mergeField, resolveNode } from './variant.js';
+
+// Templates (M2)
+export * from './templates/index.js';
+
+// Template engine (M2)
+export type { ValidationIssue, ValidationSeverity } from './template-engine.js';
+export { defaultFields, validateNode } from './template-engine.js';
+
+// Node repository (M2)
+export type { CreateNodeOptions, NodeRepository } from './NodeRepository.js';
+export { createNode, FsNodeRepository, isValidSlug } from './NodeRepository.js';

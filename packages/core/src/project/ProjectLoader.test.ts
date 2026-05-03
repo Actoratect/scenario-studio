@@ -19,9 +19,9 @@ describe('ProjectLoader', () => {
   });
 
   it('initializeProject creates ProjectSettings.yaml + skeleton dirs + .gitignore', async () => {
-    const project = await initializeProject(adapter, handle, { name: 'My Project' });
-    expect(project.settings.name).toBe('My Project');
-    expect(project.settings.locales).toEqual(['ja', 'en']);
+    const result = await initializeProject(adapter, handle, { name: 'My Project' });
+    expect(result.project.settings.name).toBe('My Project');
+    expect(result.project.settings.locales).toEqual(['ja', 'en']);
 
     expect(await adapter.exists(handle, PROJECT_SETTINGS_FILE)).toBe(true);
     expect(await adapter.exists(handle, '.gitignore')).toBe(true);
@@ -40,8 +40,11 @@ describe('ProjectLoader', () => {
   it('loadProject reads settings written by initializeProject', async () => {
     await initializeProject(adapter, handle, { name: 'Reloadable' });
     const reloaded = await loadProject(adapter, handle);
-    expect(reloaded.settings.name).toBe('Reloadable');
-    expect(reloaded.settings.schemaVersion).toBe(1);
+    expect(reloaded.project.settings.name).toBe('Reloadable');
+    expect(reloaded.project.settings.schemaVersion).toBe(1);
+    // M2 で nodes が空 Map で hydrate されること (ノード未配置時)
+    expect(reloaded.project.nodes.size).toBe(0);
+    expect(reloaded.templates.list().length).toBe(4); // 4 builtin templates
   });
 
   it('loadProject throws ProjectNotInitializedError when settings missing', async () => {
