@@ -28,6 +28,8 @@
 | 16  | [セキュリティ設計](./16_security.md)                      | ブラウザ/Desktop/Unity 各層のセキュリティ。SaaS 章は棚上げ      |
 | 17  | [SaaS 設計 (棚上げ)](./17_saas.md)                        | 将来の参照用スナップショット。**現時点では着手しない**           |
 | 18  | [Unity 統合](./18_unity-integration.md)                   | Asset 自動生成、開発側 AI 連携、Inspector/Find Usages           |
+| 19  | [Phase 0 振り返り](./19_phase0_retrospective.md)           | 9 PoC の結果サマリ、tech stack 確定、open questions の更新       |
+| 20  | [Phase 1 実装計画](./20_phase1_implementation_plan.md)     | MVP の done 定義、8 milestone、依存グラフ、リスク台帳            |
 
 > **読む順番のおすすめ**: 全体像 → `01` → `02` → `15` (プラットフォーム方針) → `18` (Unity 価値) → `11` (AI 抽象) → `16` (セキュリティ) → `03`〜`12` (個別設計) → `13`〜`14`
 
