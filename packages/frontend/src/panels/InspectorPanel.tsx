@@ -6,7 +6,6 @@ import {
   validateNode,
   type FieldSchema,
   type FieldValue,
-  type LocalizedString,
   type NodeId,
   type ScenarioNode,
   type ValidationIssue,
@@ -14,7 +13,6 @@ import {
 import {
   CheckboxField,
   EnumSelect,
-  LocalizedStringInput,
   MultilineInput,
   NodeRefPicker,
   NumberInput,
@@ -215,15 +213,6 @@ const FieldRow: Component<FieldRowProps> = (props) => {
           rows={props.field.type === 'markdown' ? 8 : 4}
         />
       </Match>
-      <Match when={props.field.type === 'localized_string'}>
-        <LocalizedStringInput
-          {...base()}
-          value={isLocalizedString(props.value) ? props.value : undefined}
-          locales={props.project.project.settings.locales}
-          onInput={(v) => props.onInput(v as unknown as FieldValue)}
-          onBlur={props.onBlur}
-        />
-      </Match>
       <Match when={props.field.type === 'int' || props.field.type === 'number'}>
         <NumberInput
           {...base()}
@@ -265,15 +254,6 @@ const FieldRow: Component<FieldRowProps> = (props) => {
     </Switch>
   );
 };
-
-function isLocalizedString(v: FieldValue | undefined): v is LocalizedString {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    !Array.isArray(v) &&
-    Object.values(v).every((x) => typeof x === 'string')
-  );
-}
 
 /**
  * ProjectModel.nodes の Map 自体は immutable だが、内部の単一 ScenarioNode を差替える。

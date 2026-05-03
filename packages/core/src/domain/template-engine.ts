@@ -90,16 +90,6 @@ function checkType(field: FieldSchema, value: FieldValue): ValidationIssue | und
         }
       }
       return undefined;
-    case 'localized_string':
-      if (
-        typeof value !== 'object' ||
-        value === null ||
-        Array.isArray(value) ||
-        Object.values(value).some((v) => typeof v !== 'string')
-      ) {
-        return typeIssue(field, 'object<locale, string>', value);
-      }
-      return undefined;
     case 'int':
       if (typeof value !== 'number' || !Number.isInteger(value)) {
         return typeIssue(field, 'integer', value);

@@ -27,7 +27,7 @@ describe('BUILTIN_LINT_RULES', () => {
     const t = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: 'node.ghost' },
+      fields: { display_name: '太郎', faction: 'node.ghost' },
     });
     const issues = engine.run(ctxFor([t]));
     expect(issues.find((i) => i.ruleId === 'relation-target-exists')?.severity).toBe('error');
@@ -38,12 +38,12 @@ describe('BUILTIN_LINT_RULES', () => {
     const f = createNode(tmpl, {
       templateId: FACTION_TEMPLATE.id,
       slug: 'red',
-      fields: { display_name: { ja: '赤' } },
+      fields: { display_name: '赤' },
     });
     const t = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: f.id },
+      fields: { display_name: '太郎', faction: f.id },
     });
     const issues = engine.run(ctxFor([t, f]));
     expect(issues.find((i) => i.ruleId === 'relation-target-exists')).toBeUndefined();
@@ -54,22 +54,22 @@ describe('BUILTIN_LINT_RULES', () => {
     const lonely = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'lonely',
-      fields: { full_name: { ja: '孤独' } },
+      fields: { display_name: '孤独' },
     });
     const issues = engine.run(ctxFor([lonely]));
     expect(issues.find((i) => i.ruleId === 'orphan-node')?.severity).toBe('info');
   });
 
-  it('required-field-missing fires when full_name is absent', () => {
+  it('required-field-missing fires when display_name is absent', () => {
     const tmpl = new TemplateRegistry();
     const t = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'no_name',
-      // full_name は required だが空
+      // display_name は required だが空
     });
     const issues = engine.run(ctxFor([t]));
     expect(
-      issues.find((i) => i.ruleId === 'required-field-missing' && i.fieldId === 'full_name')
+      issues.find((i) => i.ruleId === 'required-field-missing' && i.fieldId === 'display_name')
         ?.severity,
     ).toBe('error');
   });
@@ -79,12 +79,12 @@ describe('BUILTIN_LINT_RULES', () => {
     const a = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'dup',
-      fields: { full_name: { ja: 'A' } },
+      fields: { display_name: 'A' },
     });
     const b = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'dup',
-      fields: { full_name: { ja: 'B' } },
+      fields: { display_name: 'B' },
     });
     const issues = engine.run(ctxFor([a, b]));
     expect(issues.find((i) => i.ruleId === 'duplicate-slug')?.severity).toBe('error');
@@ -96,7 +96,7 @@ describe('BUILTIN_LINT_RULES', () => {
     const f = createNode(tmpl, {
       templateId: FACTION_TEMPLATE.id,
       slug: 'self_led',
-      fields: { display_name: { ja: '自家中毒' }, leader: 'placeholder' },
+      fields: { display_name: '自家中毒', leader: 'placeholder' },
     });
     // leader を自身の id に書換える
     const fSelf = { ...f, fields: { ...f.fields, leader: f.id } };
@@ -123,16 +123,15 @@ describe('BUILTIN_LINT_RULES', () => {
     const f = createNode(tmpl, {
       templateId: FACTION_TEMPLATE.id,
       slug: 'red',
-      fields: { display_name: { ja: '赤' } },
+      fields: { display_name: '赤' },
     });
     const t = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
       slug: 'tarou',
-      fields: { full_name: { ja: '太郎' }, faction: f.id },
+      fields: { display_name: '太郎', faction: f.id },
     });
     const issues = engine.run(ctxFor([t, f]));
-    // orphan-node は 1 件出る (faction.red は誰からも参照されない以外、tarou は誰からも参照されない)
-    // この test ではそれは許容
+    // orphan-node は出るが error は無いはず
     expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
   });
 });

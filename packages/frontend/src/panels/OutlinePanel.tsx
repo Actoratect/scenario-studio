@@ -178,7 +178,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             const items = () => groupedNodes().get(template.id) ?? [];
             return (
               <Show when={items().length > 0}>
-                <h4 class="panel-outline-subgroup">{template.displayName['ja'] ?? template.id}</h4>
+                <h4 class="panel-outline-subgroup">{template.displayName}</h4>
                 <ul>
                   <For each={items()}>
                     {(node) => (

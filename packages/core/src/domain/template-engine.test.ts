@@ -10,7 +10,7 @@ describe('defaultFields', () => {
     expect(d['gender']).toBe('unknown');
     expect(d['tone']).toBe('casual');
     // required fields without defaultValue は default に出ない
-    expect(d['full_name']).toBeUndefined();
+    expect(d['display_name']).toBeUndefined();
   });
 
   it('faction template includes bool default', () => {
@@ -31,7 +31,7 @@ describe('validateNode', () => {
 
   it('returns no issues for a valid node', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       birth_year: -50,
       gender: 'male',
       height: 175,
@@ -43,12 +43,12 @@ describe('validateNode', () => {
   it('flags missing required field', () => {
     const node = characterNode({ gender: 'male' });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
-    expect(issues.find((i) => i.fieldId === 'full_name')?.severity).toBe('error');
+    expect(issues.find((i) => i.fieldId === 'display_name')?.severity).toBe('error');
   });
 
   it('flags wrong type for int field', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       birth_year: 'not-a-number',
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
@@ -57,7 +57,7 @@ describe('validateNode', () => {
 
   it('flags out-of-range numeric (height min=0)', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       height: -10,
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
@@ -68,7 +68,7 @@ describe('validateNode', () => {
 
   it('flags non-allowed enum value', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       gender: 'alien',
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
@@ -77,7 +77,7 @@ describe('validateNode', () => {
 
   it('flags maxLength overrun on string field', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       first_person: 'verylongfirstperson', // maxLength 8
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
@@ -86,7 +86,7 @@ describe('validateNode', () => {
 
   it('flags unknown field as warning', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 'Tarou' },
+      display_name: '太郎',
       ghost_field: 'no such schema',
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
@@ -95,11 +95,11 @@ describe('validateNode', () => {
     expect(ghost?.message).toContain('not declared');
   });
 
-  it('flags localized_string with non-string value', () => {
+  it('flags non-string value on string field', () => {
     const node = characterNode({
-      full_name: { ja: '太郎', en: 42 } as unknown as import('./node.js').FieldValue,
+      display_name: 42 as unknown as import('./node.js').FieldValue,
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
-    expect(issues.find((i) => i.fieldId === 'full_name')?.severity).toBe('error');
+    expect(issues.find((i) => i.fieldId === 'display_name')?.severity).toBe('error');
   });
 });

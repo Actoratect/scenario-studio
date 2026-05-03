@@ -1,44 +1,39 @@
-import { templateId } from './types.js';
+import { NAME_FIELDS, templateId } from './types.js';
 import type { TemplateDefinition } from './types.js';
 
 export const LOCATION_TEMPLATE: TemplateDefinition = {
   id: templateId('template.location'),
   directory: 'locations',
-  displayName: { ja: '場所', en: 'Location' },
+  displayName: '場所',
   icon: 'builtin:map-pin',
   defaultThumbnailColor: '#7ab98a',
   fields: [
-    {
-      id: 'display_name',
-      label: { ja: '表示名', en: 'Display Name' },
-      type: 'localized_string',
-      required: true,
-    },
+    ...NAME_FIELDS,
     {
       id: 'region',
-      label: { ja: '地域', en: 'Region' },
+      label: '地域',
       type: 'string',
     },
     {
       id: 'climate',
-      label: { ja: '気候', en: 'Climate' },
+      label: '気候',
       type: 'enum',
       values: ['tropical', 'temperate', 'cold', 'arid', 'magical'],
     },
     {
       id: 'population',
-      label: { ja: '人口', en: 'Population' },
+      label: '人口',
       type: 'int',
       min: 0,
     },
     {
       id: 'description',
-      label: { ja: '説明', en: 'Description' },
+      label: '説明',
       type: 'multiline_string',
     },
     {
       id: 'parent_location',
-      label: { ja: '親 location', en: 'Parent Location' },
+      label: '親 location',
       type: 'node_ref',
       referencesTemplateId: templateId('template.location'),
     },

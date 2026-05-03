@@ -1,41 +1,36 @@
-import { templateId } from './types.js';
+import { NAME_FIELDS, templateId } from './types.js';
 import type { TemplateDefinition } from './types.js';
 
 export const ITEM_TEMPLATE: TemplateDefinition = {
   id: templateId('template.item'),
   directory: 'items',
-  displayName: { ja: 'アイテム', en: 'Item' },
+  displayName: 'アイテム',
   icon: 'builtin:package',
   defaultThumbnailColor: '#c9a35b',
   fields: [
-    {
-      id: 'display_name',
-      label: { ja: '表示名', en: 'Display Name' },
-      type: 'localized_string',
-      required: true,
-    },
+    ...NAME_FIELDS,
     {
       id: 'category',
-      label: { ja: '分類', en: 'Category' },
+      label: '分類',
       type: 'enum',
       values: ['weapon', 'armor', 'consumable', 'key_item', 'currency', 'misc'],
       defaultValue: 'misc',
     },
     {
       id: 'rarity',
-      label: { ja: '稀少度', en: 'Rarity' },
+      label: '稀少度',
       type: 'enum',
       values: ['common', 'uncommon', 'rare', 'legendary', 'unique'],
       defaultValue: 'common',
     },
     {
       id: 'description',
-      label: { ja: '説明', en: 'Description' },
+      label: '説明',
       type: 'multiline_string',
     },
     {
       id: 'owner',
-      label: { ja: '所有者', en: 'Owner' },
+      label: '所有者',
       type: 'node_ref',
       referencesTemplateId: templateId('template.character'),
     },
