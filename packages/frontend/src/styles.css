@@ -691,3 +691,74 @@ body,
   line-height: 1.55;
   outline: none;
 }
+
+/* GraphPanel + LensCanvas */
+.panel-graph {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  height: 100%;
+}
+
+.panel-graph-header {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #e0e0e3;
+  display: flex;
+  justify-content: space-between;
+  color: #555;
+}
+
+.panel-graph-stats {
+  font-size: 11px;
+  color: #888;
+}
+
+.panel-graph-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.panel-graph-empty {
+  padding: 32px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
+
+.lens-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.lens-canvas:active {
+  cursor: grabbing;
+}
+
+.lens-node {
+  cursor: pointer;
+}
+
+.lens-node-label {
+  font-size: 11px;
+  text-anchor: middle;
+  fill: #333;
+  pointer-events: none;
+}
+
+.lens-edge-label {
+  font-size: 9px;
+  fill: #888;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.lens-node--selected .lens-node-label {
+  font-weight: 700;
+}
