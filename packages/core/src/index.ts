@@ -2,4 +2,11 @@
 // 詳細は ../../../Documentation/ScenarioEditor/03_data-model.md
 export const VERSION = '0.0.0';
 
-export type { FileSystemAdapter, ProjectHandle } from './platform.js';
+export { assertSafePath, compileGlob, InvalidPathError } from './platform.js';
+export type {
+  FileSystemAdapter,
+  ProjectHandle,
+  WatchEvent,
+  WatchEventKind,
+  WatchHandler,
+} from './platform.js';

@@ -46,7 +46,7 @@ Phase X: SaaS 化  [棚上げ]  需要確認・意思決定後に着手
 - [x] SaaS 方針 (`17_saas.md`、棚上げ扱い)
 - [x] **PoC-A: Vite + SolidJS + Dockview** — 3 パネル分割/フロート/タブ。`packages/frontend` に最小実装 (Graph / Inspector / Outline)。Solid と Dockview の橋渡しは自前 `SolidPanelView` adapter (公式は React/Vue のみ)
 - [ ] **PoC-B: 大規模グラフ描画** — SolidFlow → Sigma.js 比較ベンチ
-- [ ] **PoC-C: 3 ターゲット FS Adapter** — Browser/Tauri/Unity 共通インターフェイス
+- [x] **PoC-C: 3 ターゲット FS Adapter** — Browser/Tauri/Unity + Node 共通インターフェイス。`@scenario-studio/core` に `FileSystemAdapter` interface + path-traversal guard + 自前 glob を配置。Node 実装は完成 (vitest で contract test)、Browser は FS Access API + OPFS fallback を実装、Tauri は PoC-G で Rust コマンド接続予定の skeleton、Unity は HTTP/SSE クライアントを完成 (Bridge サーバ実体は Phase 2)
 - [ ] **PoC-D: CodeMirror 6 で脚本エディタ** — サムネ/感情タグの inline widget
 - [ ] **PoC-E: Era Variant 解決**
 - [ ] **PoC-F: マルチ AI プロバイダ抽象** — Claude API / Codex / Ollama を 1 抽象で切替
