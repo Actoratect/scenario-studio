@@ -5,6 +5,7 @@ import { keymap } from '@codemirror/view';
 import { yaml } from '@codemirror/lang-yaml';
 import { scriptInlineWidgets } from './inlineWidgets';
 import { scriptAutocomplete, type ScriptCompletionSources } from './autocomplete';
+import { inlineCompletion } from './inlineCompletion';
 
 // PoC-D の脚本エディタを M6 で本格化:
 // - inline widget は character/emotion/aside/sfx/bgm/choice
@@ -74,6 +75,7 @@ export function createScriptEditor(options: ScriptEditorOptions): EditorView {
         yaml(),
         scriptAutocomplete(options.sources),
         scriptInlineWidgets,
+        inlineCompletion(),
         EditorView.lineWrapping,
         lightTheme,
         EditorView.updateListener.of((update) => {

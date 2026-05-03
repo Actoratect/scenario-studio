@@ -54,6 +54,7 @@ export interface AiSendRequest {
 const [providerId, setProviderId] = createSignal<ProviderId>('anthropic');
 const [status, setStatus] = createSignal<AiStatus>({ kind: 'locked' });
 const [lastError, setLastError] = createSignal<Error | undefined>(undefined);
+const [inlineEnabled, setInlineEnabled] = createSignal<boolean>(false);
 
 let activeProvider: LlmProvider | undefined;
 
@@ -85,7 +86,12 @@ export const AiService = {
   providerId,
   status,
   lastError,
+  inlineEnabled,
   providers: AI_PROVIDERS,
+
+  setInlineEnabled(v: boolean): void {
+    setInlineEnabled(v);
+  },
 
   /** 起動時に呼ぶ — 現在の providerId について鍵保有状況を判定。 */
   async refreshStatus(): Promise<void> {
@@ -169,6 +175,42 @@ export const AiService = {
       const err = e instanceof Error ? e : new Error(String(e));
       setLastError(err);
       throw err;
+    }
+  },
+
+  /**
+   * 脚本 inline 続き提案 (PR-F)。1 行のみ、低 maxTokens、Show prompt 不要。
+   * inlineEnabled() == false / unlocked でない場合は undefined を返す (no-op)。
+   * AbortSignal で外部からキャンセル可能 (ユーザのキー入力で前リクエスト中断)。
+   */
+  async requestInline(prefix: string, signal?: AbortSignal): Promise<string | undefined> {
+    if (!inlineEnabled()) return undefined;
+    if (!activeProvider) return undefined;
+    if (status().kind !== 'unlocked') return undefined;
+    const opt = providerOption(providerId());
+    const systemPrompt =
+      'あなたは日本語シナリオの執筆を補佐するアシスタントです。' +
+      '与えられた脚本の続きを 1 行だけ、改行を含めずに提案してください。' +
+      '余計な前置きや解説は不要、続きの本文のみ。';
+    try {
+      const response = await activeProvider.complete(
+        {
+          systemPrompt,
+          messages: [{ role: 'user', content: prefix }],
+          model: opt.defaultModel,
+          maxTokens: 80,
+          temperature: 0.7,
+        },
+        signal,
+      );
+      // 改行以降を捨てる (1 行制約)
+      const firstLine = response.split(/\r?\n/)[0]?.trim() ?? '';
+      return firstLine || undefined;
+    } catch (e) {
+      // abort は静かに無視
+      if (e instanceof DOMException && e.name === 'AbortError') return undefined;
+      // その他のエラーも inline では Toast を出さない (ユーザの邪魔をしない)
+      return undefined;
     }
   },
 };
