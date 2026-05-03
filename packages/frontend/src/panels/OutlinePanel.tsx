@@ -140,6 +140,54 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  async function reorderChapters(fromIdx: number, toIdx: number): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx || fromIdx === toIdx) return;
+    setBusy(true);
+    try {
+      const arr = [...ctx.project.scenario.chapters];
+      const [moved] = arr.splice(fromIdx, 1);
+      if (!moved) return;
+      arr.splice(toIdx, 0, moved);
+      await ctx.scenarioRepository.saveProjectIndex(arr.map((c) => ({ slug: c.slug })));
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: arr },
+      });
+    } catch (e) {
+      Toast.error(`章の並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reorderScenes(chapterSlug: string, fromIdx: number, toIdx: number): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx || fromIdx === toIdx) return;
+    const chapter = ctx.project.scenario.chapters.find((c) => c.slug === chapterSlug);
+    if (!chapter) return;
+    setBusy(true);
+    try {
+      const scenes = [...chapter.scenes];
+      const [moved] = scenes.splice(fromIdx, 1);
+      if (!moved) return;
+      scenes.splice(toIdx, 0, moved);
+      await ctx.scenarioRepository.reorderScenes(
+        chapterSlug,
+        scenes.map((s) => s.slug),
+      );
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === chapterSlug ? { ...c, scenes } : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+    } catch (e) {
+      Toast.error(`シーンの並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addNode(template: TemplateDefinition): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -174,9 +222,33 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
         <h3 class="panel-outline-group">Scenarios</h3>
         <ul>
           <For each={ProjectService.currentProject()?.project.scenario.chapters ?? []}>
-            {(chapter) => (
-              <li class="panel-outline-chapter">
+            {(chapter, chIdx) => (
+              <li
+                class="panel-outline-chapter"
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer?.setData('application/x-ss-chapter', String(chIdx()));
+                  e.dataTransfer!.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  if (e.dataTransfer?.types.includes('application/x-ss-chapter')) {
+                    e.preventDefault();
+                    e.currentTarget.classList.add('panel-outline-chapter--drop');
+                  }
+                }}
+                onDragLeave={(e) => e.currentTarget.classList.remove('panel-outline-chapter--drop')}
+                onDrop={(e) => {
+                  e.currentTarget.classList.remove('panel-outline-chapter--drop');
+                  const from = e.dataTransfer?.getData('application/x-ss-chapter');
+                  if (from === undefined || from === '') return;
+                  e.preventDefault();
+                  void reorderChapters(Number(from), chIdx());
+                }}
+              >
                 <span class="panel-outline-chapter-title">
+                  <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
+                    ⋮⋮
+                  </span>
                   <button
                     class="panel-outline-chapter-title-button"
                     disabled={busy()}
@@ -198,8 +270,41 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                 <Show when={chapter.scenes.length > 0}>
                   <ul class="panel-outline-scenes">
                     <For each={chapter.scenes}>
-                      {(scene) => (
-                        <li class="panel-outline-scene">
+                      {(scene, sIdx) => (
+                        <li
+                          class="panel-outline-scene"
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer?.setData(
+                              'application/x-ss-scene',
+                              `${chapter.slug}::${sIdx()}`,
+                            );
+                            e.dataTransfer!.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            const data = e.dataTransfer?.getData('application/x-ss-scene') ?? '';
+                            const sameChapter = data.startsWith(`${chapter.slug}::`);
+                            if (sameChapter) {
+                              e.preventDefault();
+                              e.currentTarget.classList.add('panel-outline-scene--drop');
+                            }
+                          }}
+                          onDragLeave={(e) =>
+                            e.currentTarget.classList.remove('panel-outline-scene--drop')
+                          }
+                          onDrop={(e) => {
+                            e.currentTarget.classList.remove('panel-outline-scene--drop');
+                            const raw = e.dataTransfer?.getData('application/x-ss-scene');
+                            if (!raw) return;
+                            const [srcChap, srcIdxStr] = raw.split('::');
+                            if (srcChap !== chapter.slug || srcIdxStr === undefined) return;
+                            e.preventDefault();
+                            void reorderScenes(chapter.slug, Number(srcIdxStr), sIdx());
+                          }}
+                        >
+                          <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
+                            ⋮
+                          </span>
                           🎬 {scene.title}
                           <button
                             class="panel-outline-delete-scene"

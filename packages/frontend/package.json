@@ -30,6 +30,7 @@
     "graphology": "^0.26.0",
     "graphology-layout-forceatlas2": "^0.10.1",
     "idb": "^8.0.0",
+    "marked": "^18.0.3",
     "sigma": "^3.0.3",
     "solid-flow": "^1.0.4",
     "solid-js": "^1.9.3",
