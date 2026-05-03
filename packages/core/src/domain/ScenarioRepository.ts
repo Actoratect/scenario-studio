@@ -115,6 +115,20 @@ export class FsScenarioRepository {
   }
 
   /**
+   * 章内のシーン順を `_scene_index.yaml` に再書込み。slug の追加 / 削除はしない。
+   */
+  async reorderScenes(chapterSlug: string, newOrder: readonly string[]): Promise<void> {
+    const sceneIndexPath = `${SCENARIOS_ROOT}/${chapterSlug}/_scene_index.yaml`;
+    await this.adapter.write(
+      this.handle,
+      sceneIndexPath,
+      stringifyYaml(
+        sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: [...newOrder] }),
+      ),
+    );
+  }
+
+  /**
    * シーン (.scn.yaml) を削除し、`_scene_index.yaml` からも除外する。
    */
   async removeScene(chapterSlug: string, sceneSlug: string): Promise<void> {
