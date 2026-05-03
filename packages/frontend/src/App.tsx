@@ -2,6 +2,7 @@ import { Show, Suspense } from 'solid-js';
 import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
+import { CommandPaletteRoot } from './global/CommandPalette';
 import { Toaster } from './global/Toaster';
 import { ProjectService } from './services/ProjectService';
 
@@ -20,6 +21,7 @@ export const App: Component = () => {
         </Show>
       </Suspense>
       <Toaster />
+      <CommandPaletteRoot />
     </>
   );
 };
