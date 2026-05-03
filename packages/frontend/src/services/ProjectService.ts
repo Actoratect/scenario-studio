@@ -7,6 +7,7 @@ import {
   type FileSystemAdapter,
   type FsEraRepository,
   type FsGlossaryRepository,
+  type FsRelationsRepository,
   type FsScenarioRepository,
   type LoadProjectResult,
   type NodeRepository,
@@ -38,6 +39,7 @@ export interface OpenProjectContext {
   eraRepository: FsEraRepository;
   scenarioRepository: FsScenarioRepository;
   glossaryRepository: FsGlossaryRepository;
+  relationsRepository: FsRelationsRepository;
   templates: TemplateRegistry;
   history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
@@ -136,6 +138,7 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     eraRepository: loaded.eraRepository,
     scenarioRepository: loaded.scenarioRepository,
     glossaryRepository: loaded.glossaryRepository,
+    relationsRepository: loaded.relationsRepository,
     templates: loaded.templates,
     history,
     rawDirectoryHandle: picked.rawDirectoryHandle,

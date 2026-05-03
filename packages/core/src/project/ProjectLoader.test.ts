@@ -51,6 +51,8 @@ describe('ProjectLoader', () => {
     expect(reloaded.project.scenario.projectSynopsis).toBe('');
     // M7 で glossary が hydrate される (terms.yaml が無ければ空配列)
     expect(reloaded.project.glossary).toEqual([]);
+    // PR-E で relations が hydrate される (relations.yaml が無ければ空配列)
+    expect(reloaded.project.relations).toEqual([]);
   });
 
   it('loadProject throws ProjectNotInitializedError when settings missing', async () => {

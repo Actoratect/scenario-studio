@@ -5,31 +5,50 @@ import {
   computeRelationshipLens,
   deterministicCircularLayout,
   resolveNode,
+  type LensEdge,
   type NodeId,
+  type RelationId,
+  type RelationType,
 } from '@scenario-studio/core';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
+import { RelationsService } from '../services/RelationsService';
 import { LensCanvas } from '../graph/LensCanvas';
+import { RelationTypePicker } from '../graph/RelationTypePicker';
 import { GraphPositions } from '../graph/graph-positions';
 
-// Relationship Lens 本実装 (M5) + PR-C 編集機能拡張。
-// - drag でノード位置を更新 → GraphPositions に永続化 (localStorage)
-// - dblclick で Inspector ジャンプ
-// - Era フィルタトグル (有効時、現 Era で isAlive=false のノードを薄く)
-// 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M5
+// Relationship Lens 本実装 (M5) + PR-C/E 編集機能。
+// - ノード drag で位置 (PR-C)
+// - dblclick で Inspector 注目 (PR-C)
+// - Era フィルタ (PR-C)
+// - Shift+drag でノード間関係を新規作成 → RelationTypePicker (PR-E)
+// - explicit edge ラベルクリックで type 変更 / 削除 picker (PR-E)
+// 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md
+
+interface PendingPicker {
+  source: NodeId;
+  target: NodeId;
+  caption: string;
+}
+
+interface EditingPicker {
+  relationId: RelationId;
+  current: { type: RelationType; label?: string };
+  caption: string;
+}
 
 export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
+  const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
+  const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
 
   const lens = createMemo(() => {
     const ctx = ProjectService.currentProject();
     if (!ctx) return undefined;
-    return computeRelationshipLens(ctx.project.nodes, ctx.templates);
+    return computeRelationshipLens(ctx.project.nodes, ctx.templates, ctx.project.relations);
   });
 
-  // 自動レイアウト位置 (初期値) — drag で個別に上書き、stored 位置 > stored で無いならこれ。
   const fallbackPositions = createMemo(() => {
     const l = lens();
     if (!l) return new Map<NodeId, { x: number; y: number }>();
@@ -41,7 +60,6 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     });
   });
 
-  /** stored 位置を優先、無ければ自動レイアウトにフォールバック。 */
   const positions = createMemo<ReadonlyMap<NodeId, { x: number; y: number }>>(() => {
     const stored = GraphPositions.positions();
     const fallback = fallbackPositions();
@@ -51,7 +69,6 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return merged;
   });
 
-  /** Era フィルタが ON のとき、現 Era で isAlive=false のノードを dimmed 集合へ。 */
   const dimmed = createMemo<ReadonlySet<NodeId>>(() => {
     if (!eraFilterOn() || EraContext.isBase()) return new Set();
     const ctx = ProjectService.currentProject();
@@ -64,11 +81,29 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return out;
   });
 
+  function nodeLabel(id: NodeId): string {
+    return lens()?.nodes.find((n) => n.id === id)?.label ?? id;
+  }
+
   function activate(id: NodeId): void {
     SelectionContext.selectNode(id);
-    // dblclick = 「Inspector に注目」— select は単 click でも反映するが、
-    // ここでは将来 Inspector パネルにフォーカスを当てるためのフックを残す
-    // (Phase 1 後半: dockview の panel.api.setActive() を呼ぶ)
+  }
+
+  function startCreate(source: NodeId, target: NodeId): void {
+    setPending({
+      source,
+      target,
+      caption: `${nodeLabel(source)} → ${nodeLabel(target)}`,
+    });
+  }
+
+  function startEdit(edge: LensEdge): void {
+    if (edge.kind !== 'explicit' || !edge.relationId || !edge.relationType) return;
+    setEditing({
+      relationId: edge.relationId,
+      current: { type: edge.relationType, label: edge.label },
+      caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
+    });
   }
 
   return (
@@ -84,6 +119,9 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             </span>
           )}
         </Show>
+        <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
+          ⓘ Shift+drag で関係作成
+        </span>
         <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
           <input
             type="checkbox"
@@ -112,11 +150,49 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             onSelect={(id) => SelectionContext.selectNode(id)}
             onActivate={activate}
             onPositionChange={(id, p) => GraphPositions.setPosition(id, p)}
+            onCreateRelation={startCreate}
+            onEdgeClick={startEdit}
             selected={SelectionContext.selectedNodeId()}
             dimmed={dimmed()}
           />
         </Show>
       </div>
+
+      <RelationTypePicker
+        open={!!pending()}
+        canDelete={false}
+        caption={pending()?.caption}
+        onClose={() => setPending(undefined)}
+        onSubmit={(input) => {
+          const p = pending();
+          if (!p) return;
+          void RelationsService.add({
+            source: p.source,
+            target: p.target,
+            type: input.type,
+          }).then((rel) => {
+            if (rel && input.label) void RelationsService.setLabel(rel.id, input.label);
+          });
+        }}
+      />
+      <RelationTypePicker
+        open={!!editing()}
+        canDelete={true}
+        caption={editing()?.caption}
+        initial={editing()?.current}
+        onClose={() => setEditing(undefined)}
+        onSubmit={(input) => {
+          const e = editing();
+          if (!e) return;
+          void RelationsService.setType(e.relationId, input.type);
+          void RelationsService.setLabel(e.relationId, input.label);
+        }}
+        onDelete={() => {
+          const e = editing();
+          if (!e) return;
+          void RelationsService.remove(e.relationId);
+        }}
+      />
     </div>
   );
 };

@@ -1,16 +1,17 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
-import type { LensPayload, NodeId } from '@scenario-studio/core';
+import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
 
-// SVG ベースの軽量グラフ canvas (PR-C 拡張版)。
+// SVG ベースの軽量グラフ canvas (PR-C/E)。
 // 機能:
-//  - pan / zoom (ホイール / ドラッグで背景)
-//  - 個別ノードの drag & drop で位置を更新 (onPositionChange に通知)
-//  - edge label を中間に矩形 Box で描画 (relation 名)
-//  - ノードのダブルクリックで onActivate (Inspector ジャンプ)
-//  - Era フィルタが適用されると dimmed[] のノードを薄く表示
-// 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md §1, §3,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M5
+//  - pan / zoom (ホイール / 背景ドラッグ)
+//  - ノード drag で位置更新 (onPositionChange)
+//  - edge label を中間 Box で描画 (PR-C)
+//  - ダブルクリックで onActivate (Inspector ジャンプ)
+//  - Era フィルタで dimmed
+//  - Shift+drag で関係作成 (PR-E、rubber-band → onCreateRelation)
+//  - explicit edge label のクリックで onEdgeClick (relation type 変更 picker 表示)
+// 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md §1, §3
 
 export interface LensCanvasProps {
   payload: LensPayload;
@@ -18,8 +19,11 @@ export interface LensCanvasProps {
   onSelect?: (id: NodeId) => void;
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
+  /** Shift+drag で関係作成 (source → target)。 */
+  onCreateRelation?: (source: NodeId, target: NodeId) => void;
+  /** edge ラベルクリック (relation type 変更 / 削除 picker)。 */
+  onEdgeClick?: (edge: LensEdge) => void;
   selected?: NodeId | undefined;
-  /** dimmed (Era フィルタで対象外) のノード id 集合。半透明描画。 */
   dimmed?: ReadonlySet<NodeId>;
 }
 
@@ -33,12 +37,14 @@ interface ViewState {
 
 type DragMode =
   | { kind: 'pan'; startX: number; startY: number; vx: number; vy: number }
-  | { kind: 'node'; id: NodeId; startX: number; startY: number; px: number; py: number };
+  | { kind: 'node'; id: NodeId; startX: number; startY: number; px: number; py: number }
+  | { kind: 'connect'; source: NodeId; toX: number; toY: number };
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
   const [view, setView] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
+  const [hoverNode, setHoverNode] = createSignal<NodeId | undefined>(undefined);
 
   function clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
     const rect = svg?.getBoundingClientRect();
@@ -52,7 +58,6 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
 
   function onBackgroundMouseDown(e: MouseEvent): void {
     if (e.button !== 0 && e.button !== 1) return;
-    // ノードクリックの onMouseDown は stopPropagation するため、ここはほぼ「背景」のみ
     const v = view();
     setDrag({ kind: 'pan', startX: e.clientX, startY: e.clientY, vx: v.x, vy: v.y });
     e.preventDefault();
@@ -61,8 +66,13 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   function onNodeMouseDown(e: MouseEvent, id: NodeId): void {
     if (e.button !== 0) return;
     e.stopPropagation();
-    const p = pos(id);
-    setDrag({ kind: 'node', id, startX: e.clientX, startY: e.clientY, px: p.x, py: p.y });
+    if (e.shiftKey) {
+      const p = pos(id);
+      setDrag({ kind: 'connect', source: id, toX: p.x, toY: p.y });
+    } else {
+      const p = pos(id);
+      setDrag({ kind: 'node', id, startX: e.clientX, startY: e.clientY, px: p.x, py: p.y });
+    }
   }
 
   function onMouseMove(e: MouseEvent): void {
@@ -75,15 +85,42 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       setView({ ...v, x: d.vx + dx, y: d.vy + dy });
       return;
     }
-    // ノードドラッグ: world 座標で delta を反映
-    const v = view();
-    const dx = (e.clientX - d.startX) / v.scale;
-    const dy = (e.clientY - d.startY) / v.scale;
-    props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
+    if (d.kind === 'node') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
+      return;
+    }
+    // connect: マウス位置を world に変換して rubber-band の終端に
+    const w = clientToWorld(e.clientX, e.clientY);
+    setDrag({ ...d, toX: w.x, toY: w.y });
   }
 
-  function onMouseUp(): void {
+  function onMouseUp(e: MouseEvent): void {
+    const d = drag();
     setDrag(null);
+    if (!d || d.kind !== 'connect') return;
+    // ターゲット node の解決: マウス up 位置に最も近いノード (距離 NODE_RADIUS 以内)
+    const w = clientToWorld(e.clientX, e.clientY);
+    const target = nearestNodeWithin(w, NODE_RADIUS * 1.5);
+    if (target && target !== d.source) {
+      props.onCreateRelation?.(d.source, target);
+    }
+  }
+
+  function nearestNodeWithin(p: { x: number; y: number }, maxDist: number): NodeId | undefined {
+    let best: NodeId | undefined;
+    let bestDist = Infinity;
+    for (const node of props.payload.nodes) {
+      const np = pos(node.id);
+      const d = Math.hypot(np.x - p.x, np.y - p.y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = node.id;
+      }
+    }
+    return bestDist <= maxDist ? best : undefined;
   }
 
   function onWheel(e: WheelEvent): void {
@@ -124,17 +161,10 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     return props.dimmed?.has(id) ?? false;
   }
 
-  // edge label のサイズを文字数から見積もる (SVG の getBBox 同期は重いので近似)
   function edgeBox(label: string): { w: number; h: number } {
     const ch = label.length;
-    return { w: Math.max(28, ch * 7 + 12), h: 18 };
+    return { w: Math.max(28, ch * 8 + 14), h: 18 };
   }
-
-  // 矢印マーカーの ID。SVG defs に 1 度だけ宣言。
-  const ARROW = createMemo(() => 'arrow-marker');
-
-  // 全 connect 不要だが clientToWorld を eslint で参照済み判定にするための no-op
-  void clientToWorld;
 
   return (
     <svg
@@ -146,7 +176,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     >
       <defs>
         <marker
-          id={ARROW()}
+          id="arrow-marker"
           viewBox="0 0 10 10"
           refX="10"
           refY="5"
@@ -156,14 +186,24 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         >
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6068" />
         </marker>
+        <marker
+          id="arrow-marker-explicit"
+          viewBox="0 0 10 10"
+          refX="10"
+          refY="5"
+          markerWidth="8"
+          markerHeight="8"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#0072b2" />
+        </marker>
       </defs>
       <g transform={`translate(${view().x}, ${view().y}) scale(${view().scale})`}>
-        {/* edges 描画 */}
+        {/* edges */}
         <For each={props.payload.edges}>
           {(edge) => {
             const s = pos(edge.source);
             const t = pos(edge.target);
-            // 端点をノード半径ぶん内側に詰めて矢印が円の外に来るように
             const dx = t.x - s.x;
             const dy = t.y - s.y;
             const len = Math.hypot(dx, dy) || 1;
@@ -175,7 +215,8 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
             const ty = t.y - uy * NODE_RADIUS;
             const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
             const dim = isDimmed(edge.source) || isDimmed(edge.target);
-            const box = edgeBox(edge.fieldId);
+            const box = edgeBox(edge.label);
+            const explicit = edge.kind === 'explicit';
             return (
               <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim }}>
                 <line
@@ -183,11 +224,23 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   y1={sy}
                   x2={tx}
                   y2={ty}
-                  stroke="#5a6068"
-                  stroke-width="1.5"
-                  marker-end={`url(#${ARROW()})`}
+                  stroke={explicit ? '#0072b2' : '#5a6068'}
+                  stroke-width={explicit ? 2 : 1.5}
+                  stroke-dasharray={explicit ? undefined : '4 3'}
+                  marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
-                <g transform={`translate(${mid.x}, ${mid.y})`}>
+                <g
+                  transform={`translate(${mid.x}, ${mid.y})`}
+                  class="lens-edge-label-group"
+                  classList={{
+                    'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
+                  }}
+                  onClick={(e) => {
+                    if (!explicit) return;
+                    e.stopPropagation();
+                    props.onEdgeClick?.(edge);
+                  }}
+                >
                   <rect
                     x={-box.w / 2}
                     y={-box.h / 2}
@@ -196,32 +249,64 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     rx="4"
                     ry="4"
                     fill="#ffffff"
-                    stroke="#5a6068"
+                    stroke={explicit ? '#0072b2' : '#5a6068'}
                     stroke-width="1"
                   />
-                  <text class="lens-edge-label" text-anchor="middle" dominant-baseline="middle">
-                    {edge.fieldId}
+                  <text
+                    class="lens-edge-label"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                    fill={explicit ? '#0072b2' : undefined}
+                  >
+                    {edge.label}
                   </text>
                 </g>
               </g>
             );
           }}
         </For>
-        {/* nodes 描画 */}
+
+        {/* connect モード中の rubber-band */}
+        <Show when={drag()?.kind === 'connect'}>
+          {(_) => {
+            const d = drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number };
+            const s = pos(d.source);
+            return (
+              <line
+                x1={s.x}
+                y1={s.y}
+                x2={d.toX}
+                y2={d.toY}
+                stroke="#0072b2"
+                stroke-width="2"
+                stroke-dasharray="6 4"
+                opacity="0.7"
+                pointer-events="none"
+              />
+            );
+          }}
+        </Show>
+
+        {/* nodes */}
         <For each={props.payload.nodes}>
           {(node) => {
             const p = pos(node.id);
             const isSelected = () => props.selected === node.id;
             const dim = () => isDimmed(node.id);
+            const isHover = () => hoverNode() === node.id;
+            const connecting = () => drag()?.kind === 'connect';
             return (
               <g
                 class="lens-node"
                 classList={{
                   'lens-node--selected': isSelected(),
                   'lens-node--dimmed': dim(),
+                  'lens-node--target-hover': connecting() && isHover(),
                 }}
                 transform={`translate(${p.x}, ${p.y})`}
                 onMouseDown={(e) => onNodeMouseDown(e, node.id)}
+                onMouseEnter={() => setHoverNode(node.id)}
+                onMouseLeave={() => setHoverNode(undefined)}
                 onClick={(e) => {
                   e.stopPropagation();
                   props.onSelect?.(node.id);
@@ -234,10 +319,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                 <circle
                   r={NODE_RADIUS}
                   fill={colorForTemplate(node.templateId)}
-                  stroke={isSelected() ? '#0072b2' : '#1a1d24'}
-                  stroke-width={isSelected() ? 3 : 1.5}
+                  stroke={
+                    isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
+                  }
+                  stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
                 />
-                {/* ノード形状を template ごとに区別する小マーカー (色覚冗長化 — CUDO 配慮) */}
                 <Show when={shapeForTemplate(node.templateId) === 'square'}>
                   <rect x={-6} y={-6} width={12} height={12} fill="#1a1d24" opacity="0.55" />
                 </Show>
@@ -264,23 +350,21 @@ function clampScale(s: number): number {
 }
 
 function colorForTemplate(templateId: string): string {
-  // CUDO 配色をテンプレ ID で固定 (ハッシュ揺れを避け、再起動でも同じ色)
   switch (templateId) {
     case 'template.character':
-      return '#56b4e9'; // sky
+      return '#56b4e9';
     case 'template.location':
-      return '#009e73'; // green
+      return '#009e73';
     case 'template.item':
-      return '#e69f00'; // orange
+      return '#e69f00';
     case 'template.faction':
-      return '#cc79a7'; // purple
+      return '#cc79a7';
     default:
       return '#cccccc';
   }
 }
 
 function shapeForTemplate(templateId: string): 'circle' | 'square' | 'triangle' | 'diamond' {
-  // 色だけに依存せず、形でも識別できるよう冗長化
   switch (templateId) {
     case 'template.character':
       return 'circle';
