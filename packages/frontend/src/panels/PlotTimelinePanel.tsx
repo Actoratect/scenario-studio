@@ -2,7 +2,9 @@ import { createMemo, createResource, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { parseYaml, type YamlValue } from '@scenario-studio/core';
+import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
+import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
 
 // Plot Timeline panel (PR-P)。
@@ -51,9 +53,14 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
   });
 
   function activate(s: SceneSummary): void {
-    Toast.info(
-      `シーン: ${s.chapterSlug}/${s.sceneSlug} (Script パネルでドロップダウン選択 / Cmd+K でも可)`,
-    );
+    SceneSelection.select({
+      chapterSlug: s.chapterSlug,
+      sceneSlug: s.sceneSlug,
+      label: s.title,
+    });
+    if (!PanelFocus.focus('script-1')) {
+      Toast.info(`シーン: ${s.chapterSlug}/${s.sceneSlug}`);
+    }
   }
 
   // 統計

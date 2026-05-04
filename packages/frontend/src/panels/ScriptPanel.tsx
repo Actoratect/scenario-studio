@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { CHARACTER_TEMPLATE } from '@scenario-studio/core';
@@ -6,6 +6,7 @@ import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { ProjectService } from '../services/ProjectService';
+import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
 
 // 脚本エディタ Panel (M6 本実装)。
@@ -123,6 +124,26 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       },
       onChange: (text) => scheduleSave(text),
     });
+    // 起動時に SceneSelection が既にあれば load。
+    const sel = SceneSelection.selected();
+    if (sel) {
+      const ref = availableScenes().find(
+        (s) => s.chapterSlug === sel.chapterSlug && s.sceneSlug === sel.sceneSlug,
+      );
+      if (ref) void loadScene(ref);
+    }
+  });
+
+  // SceneSelection が変わったら自動 load (PR-R)。
+  createEffect(() => {
+    const sel = SceneSelection.selected();
+    if (!sel) return;
+    const cur = scene();
+    if (cur && cur.chapterSlug === sel.chapterSlug && cur.sceneSlug === sel.sceneSlug) return;
+    const ref = availableScenes().find(
+      (s) => s.chapterSlug === sel.chapterSlug && s.sceneSlug === sel.sceneSlug,
+    );
+    if (ref) void loadScene(ref);
   });
 
   onCleanup(() => {
@@ -143,7 +164,14 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           onChange={(e) => {
             const path = e.currentTarget.value;
             const ref = availableScenes().find((s) => s.path === path);
-            if (ref) void loadScene(ref);
+            if (ref) {
+              void loadScene(ref);
+              SceneSelection.select({
+                chapterSlug: ref.chapterSlug,
+                sceneSlug: ref.sceneSlug,
+                label: ref.label,
+              });
+            }
           }}
         >
           <option value="">— サンプル脚本 (PoC-D)</option>

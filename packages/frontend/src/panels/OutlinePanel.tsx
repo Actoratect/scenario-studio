@@ -12,7 +12,9 @@ import {
 } from '@scenario-studio/core';
 import { LoadingOverlay } from '@scenario-studio/ui-kit';
 import { NodeThumbnail } from '../global/NodeThumbnail';
+import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
+import { SceneSelection } from '../services/SceneSelection';
 import { SelectionContext } from '../services/SelectionContext';
 import { Toast } from '../services/Toast';
 
@@ -306,7 +308,20 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                           <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
                             ⋮
                           </span>
-                          🎬 {scene.title}
+                          <button
+                            class="panel-outline-scene-jump"
+                            onClick={() => {
+                              SceneSelection.select({
+                                chapterSlug: chapter.slug,
+                                sceneSlug: scene.slug,
+                                label: scene.title,
+                              });
+                              PanelFocus.focus('script-1');
+                            }}
+                            title="Script タブに jump"
+                          >
+                            🎬 {scene.title}
+                          </button>
                           <button
                             class="panel-outline-delete-scene"
                             disabled={busy()}

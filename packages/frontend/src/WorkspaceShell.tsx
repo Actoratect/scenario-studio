@@ -18,6 +18,7 @@ import { ExportDialog } from './global/ExportDialog';
 import { OnboardingBanner } from './global/OnboardingBanner';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
+import { PanelFocus } from './services/PanelFocus';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
@@ -115,6 +116,7 @@ export const WorkspaceShell: Component = () => {
         return new SolidPanelView(PANEL_REGISTRY[options.name]);
       },
     });
+    PanelFocus.register(api);
 
     api.addPanel({ id: 'graph-1', component: 'graph', title: 'Graph' });
     api.addPanel({
@@ -182,6 +184,7 @@ export const WorkspaceShell: Component = () => {
   onCleanup(() => {
     window.removeEventListener('keydown', onKeydown);
     disposeSaveScheduler();
+    PanelFocus.unregister();
     api?.dispose();
   });
 
