@@ -129,6 +129,66 @@ export class FsScenarioRepository {
   }
 
   /**
+   * シーンを別章に移動 (PR-U)。
+   * - <fromChapter>/<sceneSlug>.scn.yaml を読む
+   * - <toChapter>/<sceneSlug>.scn.yaml に書き直す (slug 衝突時は throw)
+   * - <fromChapter>/<sceneSlug>.scn.yaml を削除
+   * - 両方の _scene_index.yaml を更新
+   * - insertAt で挿入位置を指定できる (省略時は末尾)
+   */
+  async moveScene(input: {
+    fromChapter: string;
+    toChapter: string;
+    sceneSlug: string;
+    insertAt?: number;
+  }): Promise<void> {
+    if (input.fromChapter === input.toChapter) return;
+    const srcPath = `${SCENARIOS_ROOT}/${input.fromChapter}/${input.sceneSlug}.scn.yaml`;
+    const dstPath = `${SCENARIOS_ROOT}/${input.toChapter}/${input.sceneSlug}.scn.yaml`;
+    if (!(await this.adapter.exists(this.handle, srcPath))) {
+      throw new Error(`Scene not found: ${srcPath}`);
+    }
+    if (await this.adapter.exists(this.handle, dstPath)) {
+      throw new Error(`Scene slug ${input.sceneSlug} already exists in ${input.toChapter}`);
+    }
+    const text = await this.adapter.read(this.handle, srcPath);
+    await this.adapter.write(this.handle, dstPath, text);
+    await this.adapter.delete(this.handle, srcPath);
+
+    // 旧章の index から除外
+    const fromIdxPath = `${SCENARIOS_ROOT}/${input.fromChapter}/_scene_index.yaml`;
+    if (await this.adapter.exists(this.handle, fromIdxPath)) {
+      const fromText = await this.adapter.read(this.handle, fromIdxPath);
+      const fromOrder = expectStringArray(
+        expectMapping(parseYaml(fromText).value, fromIdxPath),
+        'scenes',
+      ).filter((s) => s !== input.sceneSlug);
+      await this.adapter.write(
+        this.handle,
+        fromIdxPath,
+        stringifyYaml(
+          sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: fromOrder }),
+        ),
+      );
+    }
+
+    // 新章の index に挿入
+    const toIdxPath = `${SCENARIOS_ROOT}/${input.toChapter}/_scene_index.yaml`;
+    let toOrder: string[] = [];
+    if (await this.adapter.exists(this.handle, toIdxPath)) {
+      const toText = await this.adapter.read(this.handle, toIdxPath);
+      toOrder = expectStringArray(expectMapping(parseYaml(toText).value, toIdxPath), 'scenes');
+    }
+    const insertAt = input.insertAt !== undefined ? input.insertAt : toOrder.length;
+    toOrder.splice(insertAt, 0, input.sceneSlug);
+    await this.adapter.write(
+      this.handle,
+      toIdxPath,
+      stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: toOrder })),
+    );
+  }
+
+  /**
    * シーン (.scn.yaml) を削除し、`_scene_index.yaml` からも除外する。
    */
   async removeScene(chapterSlug: string, sceneSlug: string): Promise<void> {
