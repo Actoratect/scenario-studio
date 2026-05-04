@@ -15,6 +15,7 @@ export const ITEM_TEMPLATE: TemplateDefinition = {
       type: 'enum',
       values: ['weapon', 'armor', 'consumable', 'key_item', 'currency', 'misc'],
       defaultValue: 'misc',
+      group: '基本情報',
     },
     {
       id: 'rarity',
@@ -22,17 +23,20 @@ export const ITEM_TEMPLATE: TemplateDefinition = {
       type: 'enum',
       values: ['common', 'uncommon', 'rare', 'legendary', 'unique'],
       defaultValue: 'common',
+      group: '基本情報',
     },
     {
       id: 'description',
       label: '説明',
       type: 'multiline_string',
+      group: '描写',
     },
     {
       id: 'owner',
       label: '所有者',
       type: 'node_ref',
       referencesTemplateId: templateId('template.character'),
+      group: '関係',
     },
   ],
 };

@@ -1512,6 +1512,75 @@ button {
   font-size: 12px;
 }
 
+/* ===== Inspector group collapse (PR-O) ===== */
+.panel-inspector-group {
+  margin-bottom: 8px;
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.panel-inspector-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ss-bg-soft);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  border-bottom: 1px solid var(--ss-border-soft);
+}
+
+.panel-inspector-group.collapsed .panel-inspector-group-header {
+  border-bottom: none;
+}
+
+.panel-inspector-group-header:hover {
+  background: var(--ss-bg-subtle);
+}
+
+.panel-inspector-group-toggle {
+  font-size: 9px;
+  color: var(--ss-text-faint);
+  width: 10px;
+}
+
+.panel-inspector-group-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ss-text);
+}
+
+.panel-inspector-group-count {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
+.panel-inspector-group-badge {
+  display: inline-flex;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.panel-inspector-group-badge.error {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+}
+
+.panel-inspector-group-badge.variant {
+  background: #f5e6ef;
+  color: var(--ss-accent-purple);
+}
+
+.panel-inspector-group-body {
+  padding: 8px 10px;
+  background: var(--ss-bg);
+}
+
 /* PR-L: variant 編集モード */
 .panel-inspector-field-row {
   margin-bottom: 6px;
