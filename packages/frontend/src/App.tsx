@@ -4,6 +4,7 @@ import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { ExportDialogRoot } from './global/ExportDialog';
+import { IdListOverlayRoot } from './global/IdListOverlay';
 import { SearchOverlayRoot } from './global/SearchOverlay';
 import { ShortcutsOverlayRoot } from './global/ShortcutsOverlay';
 import { Toaster } from './global/Toaster';
@@ -27,6 +28,7 @@ export const App: Component = () => {
       <CommandPaletteRoot />
       <ExportDialogRoot />
       <SearchOverlayRoot />
+      <IdListOverlayRoot />
       <ShortcutsOverlayRoot />
     </>
   );

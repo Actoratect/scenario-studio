@@ -16,6 +16,7 @@ import { SynopsisPanel } from './panels/SynopsisPanel';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
+import { IdListOverlay } from './global/IdListOverlay';
 import { OnboardingBanner } from './global/OnboardingBanner';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
@@ -87,6 +88,12 @@ export const WorkspaceShell: Component = () => {
     if (e.key === 'f') {
       e.preventDefault();
       SearchOverlay.toggle();
+      return;
+    }
+    // Cmd+I: ID 一覧
+    if (e.key === 'i') {
+      e.preventDefault();
+      IdListOverlay.toggle();
       return;
     }
     if (!ctx) return;
