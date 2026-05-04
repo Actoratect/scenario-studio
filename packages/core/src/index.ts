@@ -37,3 +37,6 @@ export * from './lint/index.js';
 
 // Export (PR-K) — scene / project を text / Markdown に書き出す
 export * from './export/index.js';
+
+// Script (PR-AA) — Scene script のブロックモデル + YAML 双方向
+export * from './script/index.js';
