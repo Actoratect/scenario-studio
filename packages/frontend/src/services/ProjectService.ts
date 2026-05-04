@@ -4,6 +4,8 @@ import {
   loadProject,
   ProjectHistory,
   ProjectNotInitializedError,
+  PROJECT_SETTINGS_FILE,
+  serializeProjectSettings,
   type FileSystemAdapter,
   type FsEraRepository,
   type FsGlossaryRepository,
@@ -13,6 +15,7 @@ import {
   type NodeRepository,
   type ProjectHandle,
   type ProjectModel,
+  type ProjectSettings,
   type TemplateRegistry,
 } from '@scenario-studio/core';
 import {
@@ -117,6 +120,19 @@ export const ProjectService = {
 
   supportsNativeFs(): boolean {
     return supportsFileSystemAccess();
+  },
+
+  /**
+   * ProjectSettings.yaml を更新 (PR-M)。次回起動時に反映される。
+   * Workspace title もリアクティブ更新するため ProjectModel.settings も差替え。
+   */
+  async updateSettings(next: ProjectSettings): Promise<void> {
+    const ctx = currentProject();
+    if (!ctx) return;
+    await ctx.adapter.write(ctx.handle, PROJECT_SETTINGS_FILE, serializeProjectSettings(next));
+    Object.assign(ctx.project, { settings: next });
+    // currentProject signal を再 set して subscriber に変更を伝える
+    setCurrentProject({ ...ctx });
   },
 };
 
