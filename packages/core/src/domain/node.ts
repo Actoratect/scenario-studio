@@ -31,11 +31,25 @@ export interface NodeVariant {
   isAlive?: boolean | null;
 }
 
+/**
+ * 立ち絵 (full portrait) のうち、サムネイル円に表示する正方形クロップ位置 (PR-AC)。
+ * x / y / size は 0..1 の比率。size が 1.0 なら全体を 1:1 で、
+ * 0.3 なら portrait の 30% × 30% の領域を crop する。
+ */
+export interface ThumbnailRect {
+  x: number;
+  y: number;
+  size: number;
+}
+
 export interface ScenarioNode {
   id: NodeId;
   templateId: string;
   slug: string;
+  /** 立ち絵 / 全身画像 (Inspector header に大きく表示) */
   thumbnail?: MediaRef;
+  /** thumbnail のうち、丸サムネイルとして使う正方形クロップ (PR-AC)。未指定なら全体を使う。 */
+  thumbnailRect?: ThumbnailRect;
   fields: { readonly [key: string]: FieldValue };
   variants?: readonly NodeVariant[];
   /** ベース isAlive。Variant が null なら継承。 */

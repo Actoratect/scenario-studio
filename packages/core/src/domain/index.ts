@@ -13,6 +13,7 @@ export type {
   ResolvedNode,
   Scalar,
   ScenarioNode,
+  ThumbnailRect,
 } from './node.js';
 
 export { mergeField, resolveNode } from './variant.js';

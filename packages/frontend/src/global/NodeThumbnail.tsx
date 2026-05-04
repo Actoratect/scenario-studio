@@ -33,6 +33,28 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
     return text.slice(0, 2);
   };
 
+  // PR-AC: thumbnailRect が指定されていれば、background-image で crop 表示。
+  // size: 0..1 (rect size, 1 で全体)。背景サイズは (1/size)*100% で拡大、
+  // background-position は rect の中心が円の中心に来るよう % 計算。
+  const cropStyle = (): { [k: string]: string } | undefined => {
+    const u = url();
+    const rect = props.node.thumbnailRect;
+    if (!u || !rect) return undefined;
+    const cropSize = rect.size > 0 ? rect.size : 1;
+    const scalePct = (1 / cropSize) * 100;
+    // crop の左上 (rect.x, rect.y) を thumbnail の左上に持ってくる:
+    // background-position-x = -(rect.x / (1 - cropSize)) * 100% (when cropSize < 1)
+    const denom = 1 - cropSize;
+    const posX = denom > 0 ? (rect.x / denom) * 100 : 0;
+    const posY = denom > 0 ? (rect.y / denom) * 100 : 0;
+    return {
+      'background-image': `url(${u})`,
+      'background-size': `${scalePct}% ${scalePct}%`,
+      'background-position': `${posX}% ${posY}%`,
+      'background-repeat': 'no-repeat',
+    };
+  };
+
   return (
     <span class="ss-node-thumb" style={{ width: `${size()}px`, height: `${size()}px` }}>
       <Show
@@ -49,7 +71,11 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
           </span>
         }
       >
-        {(u) => <img src={u()} alt="" class="ss-node-thumb-img" />}
+        {(u) => (
+          <Show when={cropStyle()} fallback={<img src={u()} alt="" class="ss-node-thumb-img" />}>
+            <span class="ss-node-thumb-img ss-node-thumb-img--cropped" style={cropStyle()} />
+          </Show>
+        )}
       </Show>
     </span>
   );
