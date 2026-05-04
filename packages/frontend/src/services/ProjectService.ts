@@ -34,6 +34,7 @@ import {
 import type { RecentProject } from './recent-projects.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
+import { ConflictDetector } from './ConflictDetector.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
 // frontend 全体が `currentProject()` シグナルを購読してリレンダ。
@@ -151,7 +152,10 @@ export const ProjectService = {
 
   close(): void {
     const ctx = currentProject();
-    if (ctx) ctx.history.destroy();
+    if (ctx) {
+      ctx.history.destroy();
+      ConflictDetector.clear(ctx.handle);
+    }
     setCurrentProject(undefined);
     setLastError(undefined);
     GraphPositions.clear();
@@ -186,7 +190,10 @@ function base64ToBytes(b64: string): Uint8Array {
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放
   const prev = currentProject();
-  if (prev) prev.history.destroy();
+  if (prev) {
+    prev.history.destroy();
+    ConflictDetector.clear(prev.handle);
+  }
 
   const history = new ProjectHistory();
   for (const node of loaded.project.nodes.values()) {
@@ -208,6 +215,9 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   };
   setCurrentProject(ctx);
   GraphPositions.switchProject(picked.handle.id);
+  // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
+  // (load 時点の内容 = 我々が知っている内容)
+  void primeConflictBaseline(ctx);
   return rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,
@@ -215,4 +225,18 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   })
     .then(() => ProjectService.refreshRecent())
     .then(() => ctx);
+}
+
+async function primeConflictBaseline(ctx: OpenProjectContext): Promise<void> {
+  for (const node of ctx.project.nodes.values()) {
+    const path = ctx.nodeRepository.pathFor(node);
+    try {
+      if (await ctx.adapter.exists(ctx.handle, path)) {
+        const text = await ctx.adapter.read(ctx.handle, path);
+        ConflictDetector.recordSnapshot(ctx.handle, path, text);
+      }
+    } catch {
+      // 読み込み失敗は無視 (load 自体は成功しているはずなので例外的)
+    }
+  }
 }

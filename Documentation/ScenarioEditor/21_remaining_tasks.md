@@ -16,12 +16,12 @@
 - [x] **Inspector フィールドにドキュメント link / プレビュー** ✅ 完了 (PR-AG) — node_ref に inline preview 行 (サムネ + 名前 + ジャンプ ❘ 参照切れは赤)
 - [x] **Plot Timeline の drag-reorder** ✅ 完了 (PR-AD) — シーンカード drag で同章内 reorder + 他章への移動
 - [x] **Plot Timeline で章 drag 並べ替え** ✅ 完了 (PR-AD) — カラム header drag で章順入れ替え
-- [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
+- [x] **Synopsis Markdown の table / image 対応** ✅ 完了 (PR-AH) — 「🖼 画像」ボタン / drop で `Scenarios/synopsis-images/` に保存 + Markdown 挿入、preview は blob URL に解決 (table は marked GFM で既に対応)
 - [x] **Glossary の用語をシーン text 中で自動ハイライト** ✅ 完了 (PR-AF) — Visual editor 各テキスト下に chip 行 (✓ 検出 / ⚠ 違反)
 - [x] **Stats panel に「セリフ密度」グラフ** ✅ 完了 (PR-AF) — 章別 1 行平均文字数 (緑バー)
 - [x] **Welcome 画面に「FF7 サンプルを開く」ボタン** ✅ 完了 (PR-AE) — Vite plugin で sample を bundle、選択フォルダに展開して開く
 - [ ] **AI でシーン全体の要約生成** — Cmd+Shift+A 等で「このシーンを 1 行で要約」
-- [ ] **Auto-save 競合検知** — 外部 (他ツール) で同じファイルが編集されたら警告
+- [x] **Auto-save 競合検知** ✅ 完了 (PR-AH) — ConflictDetector が path 別 snapshot を保持し、上書き直前に disk 内容と diff、不一致時は confirm prompt
 - [x] **Recent project 履歴の管理 UI** ✅ 完了 (PR-AE) — Welcome に 📌 pin / × 削除 (確認 prompt つき)
 
 ## 🟢 小 (Polish)
@@ -82,3 +82,4 @@
 | #50 | PR-AE | Welcome: FF7 サンプル open + recent pin/削除 |
 | #51 | PR-AF | Glossary auto-highlight + Stats セリフ密度 + Help/About |
 | #52 | PR-AG | Dock layout 永続化 + Outline 複数選択 + node_ref preview |
+| #53 | PR-AH | Synopsis 画像 upload + Auto-save 競合検知 |
