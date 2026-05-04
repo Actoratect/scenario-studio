@@ -1300,6 +1300,94 @@ button {
   color: var(--ss-accent-purple);
 }
 
+/* ===== Onboarding banner (PR-N) ===== */
+.ss-onboarding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--ss-bg-info);
+  border-bottom: 2px solid var(--ss-accent-sky);
+  font-size: 13px;
+  color: var(--ss-text);
+  flex-wrap: wrap;
+}
+
+.ss-onboarding-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ss-onboarding-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ss-accent-blue);
+  color: var(--ss-text-on-emph);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.ss-onboarding-detail {
+  color: var(--ss-text-muted);
+  font-size: 12px;
+}
+
+.ss-onboarding-arrow {
+  color: var(--ss-accent-blue);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* ===== Shortcuts overlay (PR-N) ===== */
+.ss-shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ss-shortcuts-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.ss-shortcuts-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.ss-shortcuts-keys kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ss-shortcuts-plus {
+  color: var(--ss-text-faint);
+  font-size: 11px;
+}
+
+.ss-shortcuts-desc {
+  color: var(--ss-text);
+}
+
 /* ===== Settings panel (PR-M) ===== */
 .panel-settings {
   display: flex;
