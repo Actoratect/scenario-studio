@@ -1,32 +1,15 @@
-import { For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
-import { eraId } from '@scenario-studio/core';
-import { EraContext } from '../services/EraContext';
+import { EraSelector } from './EraSelector';
 
-// グローバルツールバー上の Era スライダ (= 現状はドロップダウンの簡易版)。
-// 真のスライダ (連続移動 + 年入力) は Phase 1 後半で。
-// 詳細: ../../../../Documentation/ScenarioEditor/05_timeline.md §2.1, §2.2,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M4
+// Workspace header の Era 切替 (PR-Z で EraSelector に統合)。
+// UI は select 形式。Inspector header の pills 形式と signal を共有。
+// 詳細: ../../../../Documentation/ScenarioEditor/05_timeline.md §2
 
 export const EraSlider: Component = () => {
   return (
     <div class="era-slider">
-      <span class="era-slider-label">Era:</span>
-      <select
-        class="era-slider-select"
-        value={EraContext.currentEraId()}
-        onChange={(e) => {
-          const v = e.currentTarget.value;
-          if (v === EraContext.PROJECT_BASE_ERA) EraContext.selectBase();
-          else EraContext.selectEra(eraId(v));
-        }}
-      >
-        <option value={EraContext.PROJECT_BASE_ERA}>(base — variant なし)</option>
-        <For each={EraContext.availableEras()}>{(id) => <option value={id}>{id}</option>}</For>
-      </select>
-      <Show when={EraContext.availableEras().length === 0}>
-        <span class="era-slider-hint">Eras 未定義 — Phase 1 後半で UI 追加予定</span>
-      </Show>
+      <span class="era-slider-label">時間軸:</span>
+      <EraSelector variant="select" />
     </div>
   );
 };
