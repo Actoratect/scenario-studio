@@ -14,9 +14,11 @@ import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
 import { RelationsService } from '../services/RelationsService';
+import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
 import { GraphPositions } from '../graph/graph-positions';
+import { createResource } from 'solid-js';
 
 // Relationship Lens 本実装 (M5) + PR-C/E 編集機能。
 // - ノード drag で位置 (PR-C)
@@ -68,6 +70,21 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     for (const [id, p] of stored) merged.set(id, p);
     return merged;
   });
+
+  // 各ノードのサムネイル URL を解決 (PR-Q)。lens 変化時に再計算。
+  const [thumbnailUrls] = createResource(
+    () => lens(),
+    async (l) => {
+      if (!l) return new Map<NodeId, string>();
+      const out = new Map<NodeId, string>();
+      for (const n of l.nodes) {
+        if (!n.thumbnail) continue;
+        const url = await ThumbnailService.resolveUrl(n.thumbnail);
+        if (url) out.set(n.id, url);
+      }
+      return out;
+    },
+  );
 
   const dimmed = createMemo<ReadonlySet<NodeId>>(() => {
     if (!eraFilterOn() || EraContext.isBase()) return new Set();
@@ -147,6 +164,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           <LensCanvas
             payload={lens()!}
             positions={positions()}
+            thumbnailUrls={thumbnailUrls() ?? new Map()}
             onSelect={(id) => SelectionContext.selectNode(id)}
             onActivate={activate}
             onPositionChange={(id, p) => GraphPositions.setPosition(id, p)}

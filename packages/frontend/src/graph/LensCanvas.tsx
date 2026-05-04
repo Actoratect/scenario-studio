@@ -16,6 +16,8 @@ import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
 export interface LensCanvasProps {
   payload: LensPayload;
   positions: ReadonlyMap<NodeId, { x: number; y: number }>;
+  /** ノード id → サムネイル object URL (PR-Q)。無ければ円塗り。 */
+  thumbnailUrls?: ReadonlyMap<NodeId, string>;
   onSelect?: (id: NodeId) => void;
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
@@ -316,22 +318,60 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   props.onActivate?.(node.id);
                 }}
               >
-                <circle
-                  r={NODE_RADIUS}
-                  fill={colorForTemplate(node.templateId)}
-                  stroke={
-                    isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
+                <Show
+                  when={props.thumbnailUrls?.get(node.id)}
+                  fallback={
+                    <circle
+                      r={NODE_RADIUS}
+                      fill={colorForTemplate(node.templateId)}
+                      stroke={
+                        isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
+                      }
+                      stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
+                    />
                   }
-                  stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
-                />
-                <Show when={shapeForTemplate(node.templateId) === 'square'}>
-                  <rect x={-6} y={-6} width={12} height={12} fill="#1a1d24" opacity="0.55" />
+                >
+                  {(url) => (
+                    <>
+                      <defs>
+                        <clipPath id={`clip-${node.id}`}>
+                          <circle r={NODE_RADIUS} />
+                        </clipPath>
+                      </defs>
+                      <image
+                        href={url()}
+                        x={-NODE_RADIUS}
+                        y={-NODE_RADIUS}
+                        width={NODE_RADIUS * 2}
+                        height={NODE_RADIUS * 2}
+                        clip-path={`url(#clip-${node.id})`}
+                        preserveAspectRatio="xMidYMid slice"
+                      />
+                      <circle
+                        r={NODE_RADIUS}
+                        fill="none"
+                        stroke={
+                          isSelected()
+                            ? '#0072b2'
+                            : connecting() && isHover()
+                              ? '#009e73'
+                              : '#1a1d24'
+                        }
+                        stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
+                      />
+                    </>
+                  )}
                 </Show>
-                <Show when={shapeForTemplate(node.templateId) === 'triangle'}>
-                  <polygon points="0,-7 6,5 -6,5" fill="#1a1d24" opacity="0.55" />
-                </Show>
-                <Show when={shapeForTemplate(node.templateId) === 'diamond'}>
-                  <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
+                <Show when={!props.thumbnailUrls?.get(node.id)}>
+                  <Show when={shapeForTemplate(node.templateId) === 'square'}>
+                    <rect x={-6} y={-6} width={12} height={12} fill="#1a1d24" opacity="0.55" />
+                  </Show>
+                  <Show when={shapeForTemplate(node.templateId) === 'triangle'}>
+                    <polygon points="0,-7 6,5 -6,5" fill="#1a1d24" opacity="0.55" />
+                  </Show>
+                  <Show when={shapeForTemplate(node.templateId) === 'diamond'}>
+                    <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
+                  </Show>
                 </Show>
                 <text class="lens-node-label" y={NODE_RADIUS + 14}>
                   {node.label}

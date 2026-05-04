@@ -11,6 +11,7 @@ import {
   type TemplateDefinition,
 } from '@scenario-studio/core';
 import { LoadingOverlay } from '@scenario-studio/ui-kit';
+import { NodeThumbnail } from '../global/NodeThumbnail';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { Toast } from '../services/Toast';
@@ -364,7 +365,8 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                           }}
                           onClick={() => SelectionContext.selectNode(node.id)}
                         >
-                          {node.slug}
+                          <NodeThumbnail node={node} size={20} />
+                          <span class="panel-outline-node-label">{node.slug}</span>
                         </button>
                       </li>
                     )}
