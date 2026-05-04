@@ -47,6 +47,30 @@ export const ProjectPicker: Component = () => {
     }
   }
 
+  /** PR-AE: bundle 済 FF7 サンプルを選択フォルダに展開して開く */
+  async function onOpenSample(): Promise<void> {
+    if (
+      !window.confirm(
+        'FF7 サンプルを開きます。空フォルダを 1 つ選んでください (そこに 30 個ほどのファイルが書き出されます)。',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await ProjectService.openFf7Sample();
+      Toast.success('FF7 サンプルを展開しました');
+    } catch (e) {
+      console.error('open ff7 sample failed', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        Toast.error(`FF7 サンプルを開けません: ${msg}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div class="picker">
       <header class="picker-header">
@@ -98,6 +122,20 @@ export const ProjectPicker: Component = () => {
           </button>
         </section>
 
+        <section class="picker-card picker-card--sample">
+          <h2>🎮 FF7 サンプルを試す</h2>
+          <p>
+            キャラ / Faction / Item / Era / 章 / シーン / 脚本が一通り入ったサンプル。
+            空のフォルダを選ぶと、そこに展開して開きます。
+          </p>
+          <button data-variant="primary" onClick={() => void onOpenSample()} disabled={busy()}>
+            <Show when={busy()}>
+              <Spinner /> 展開中…
+            </Show>
+            <Show when={!busy()}>FF7 サンプルを展開して開く</Show>
+          </button>
+        </section>
+
         <section class="picker-card">
           <h2>最近開いた</h2>
           <Show
@@ -107,7 +145,15 @@ export const ProjectPicker: Component = () => {
             <ul class="picker-recent">
               <For each={ProjectService.recentProjects()}>
                 {(r) => (
-                  <li>
+                  <li classList={{ 'picker-recent--pinned': r.pinned }}>
+                    <button
+                      class="picker-recent-pin"
+                      disabled={busy()}
+                      onClick={() => void ProjectService.setPinned(r.id, !r.pinned)}
+                      title={r.pinned ? 'pin を外す' : '上に pin'}
+                    >
+                      {r.pinned ? '📌' : '📍'}
+                    </button>
                     <button
                       class="picker-recent-open"
                       disabled={busy()}
@@ -121,7 +167,11 @@ export const ProjectPicker: Component = () => {
                     <button
                       class="picker-recent-forget"
                       disabled={busy()}
-                      onClick={() => void ProjectService.forget(r.id)}
+                      onClick={() => {
+                        if (window.confirm(`"${r.name}" をリストから削除しますか?`)) {
+                          void ProjectService.forget(r.id);
+                        }
+                      }}
                       title="リストから削除"
                     >
                       ×

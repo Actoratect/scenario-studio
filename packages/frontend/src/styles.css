@@ -1680,6 +1680,35 @@ button {
   padding: 0;
 }
 
+/* PR-AE: pin button */
+.picker-recent-pin {
+  width: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.picker-recent-pin:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-sky);
+}
+
+.picker-recent--pinned .picker-recent-open {
+  border-color: var(--ss-accent-sky);
+  background: var(--ss-bg-info);
+}
+
+/* PR-AE: FF7 サンプル誘導カードを少し目立たせる */
+.picker-card--sample {
+  border-left: 3px solid var(--ss-accent-purple, #cc79a7);
+}
+
 .picker-error {
   background: #ffe9e9;
   border: 1px solid #ffb0b0;
