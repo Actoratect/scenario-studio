@@ -34,6 +34,8 @@ interface BaseFieldSchema {
   required?: boolean;
   description?: string;
   unit?: string;
+  /** Inspector でフィールドを分類するグループ名 (PR-O)。同じ名前の field をまとめて表示。 */
+  group?: string;
 }
 
 export interface StringFieldSchema extends BaseFieldSchema {
@@ -106,17 +108,20 @@ export const NAME_FIELDS: readonly FieldSchema[] = [
     type: 'string',
     required: true,
     description: '画面・出力に出る人間用の名前',
+    group: '名前',
   },
   {
     id: 'reading',
     label: '読み仮名',
     type: 'string',
     description: 'ふりがな / カナ。検索 / ソート / TTS で利用',
+    group: '名前',
   },
   {
     id: 'dev_name',
     label: '開発名',
     type: 'string',
     description: '英字内部呼称。脚本 (who: ...) で参照する短い識別子',
+    group: '名前',
   },
 ];

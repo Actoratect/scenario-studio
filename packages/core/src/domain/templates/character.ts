@@ -1,8 +1,7 @@
 import { NAME_FIELDS, templateId } from './types.js';
 import type { TemplateDefinition } from './types.js';
 
-// 03_data-model.md §2 のサンプルキャラクターテンプレート (MVP 縮小版)。
-// PR-B: full_name (LocalizedString) を NAME_FIELDS (display_name + reading + dev_name) に置換。
+// Character テンプレ。フィールドは Inspector の見やすさのため group 付きで宣言。
 export const CHARACTER_TEMPLATE: TemplateDefinition = {
   id: templateId('template.character'),
   directory: 'characters',
@@ -16,6 +15,7 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
       label: '生年',
       type: 'int',
       description: '物語現在 (0 年) からの相対値',
+      group: '基本情報',
     },
     {
       id: 'gender',
@@ -23,6 +23,7 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
       type: 'enum',
       values: ['male', 'female', 'nonbinary', 'unknown'],
       defaultValue: 'unknown',
+      group: '基本情報',
     },
     {
       id: 'height',
@@ -30,22 +31,14 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
       type: 'number',
       unit: 'cm',
       min: 0,
-    },
-    {
-      id: 'appearance',
-      label: '外見',
-      type: 'multiline_string',
-    },
-    {
-      id: 'personality',
-      label: '性格',
-      type: 'multiline_string',
+      group: '基本情報',
     },
     {
       id: 'first_person',
       label: '一人称',
       type: 'string',
       maxLength: 8,
+      group: '話し方',
     },
     {
       id: 'tone',
@@ -53,12 +46,26 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
       type: 'enum',
       values: ['casual', 'polite', 'formal', 'rough', 'archaic'],
       defaultValue: 'casual',
+      group: '話し方',
+    },
+    {
+      id: 'appearance',
+      label: '外見',
+      type: 'multiline_string',
+      group: '描写',
+    },
+    {
+      id: 'personality',
+      label: '性格',
+      type: 'multiline_string',
+      group: '描写',
     },
     {
       id: 'faction',
       label: '所属',
       type: 'node_ref',
       referencesTemplateId: templateId('template.faction'),
+      group: '関係',
     },
   ],
 };

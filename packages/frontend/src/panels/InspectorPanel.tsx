@@ -1,4 +1,4 @@
-import { createMemo, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
@@ -138,6 +138,28 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     return out;
   });
 
+  /** template.fields を group ごとに集約 (PR-O)。順序は宣言順を維持。 */
+  const fieldGroups = createMemo<readonly { title: string; fields: readonly FieldSchema[] }[]>(
+    () => {
+      const t = template();
+      if (!t) return [];
+      const order: string[] = [];
+      const buckets = new Map<string, FieldSchema[]>();
+      for (const f of t.fields) {
+        const g = f.group ?? '_';
+        if (!buckets.has(g)) {
+          buckets.set(g, []);
+          order.push(g);
+        }
+        buckets.get(g)!.push(f);
+      }
+      return order.map((g) => ({
+        title: g === '_' ? 'その他' : g,
+        fields: buckets.get(g) ?? [],
+      }));
+    },
+  );
+
   function onFieldBlur(): void {
     const id = SelectionContext.selectedNodeId();
     if (!id) return;
@@ -215,19 +237,22 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
           </Show>
         </header>
         <div class="panel-inspector-fields">
-          <For each={template()!.fields}>
-            {(field) => (
-              <FieldRow
-                field={field}
-                value={resolvedFields()[field.id] ?? node()!.fields[field.id]}
-                issue={issues().find((i) => i.fieldId === field.id)}
+          <For each={fieldGroups()}>
+            {(group) => (
+              <FieldGroup
+                title={group.title}
+                templateId={template()!.id}
+                fields={group.fields}
+                resolvedFields={resolvedFields()}
+                node={node()!}
+                issues={issues()}
                 project={ProjectService.currentProject()!}
                 refOptions={refOptions()}
                 isVariantMode={!EraContext.isBase()}
-                hasOverride={overrideMap().has(field.id)}
-                onInput={(v) => setField(field.id, v)}
-                onRemoveOverride={() => removeOverride(field.id)}
-                onBlur={() => onFieldBlur()}
+                overrideMap={overrideMap()}
+                onInput={setField}
+                onRemoveOverride={removeOverride}
+                onBlur={onFieldBlur}
               />
             )}
           </For>
@@ -245,6 +270,123 @@ const EmptyInspector: Component<{ panelId: string }> = (props) => (
     </p>
   </div>
 );
+
+// ===== FieldGroup (PR-O) =====
+//
+// テンプレ field を `field.group` ごとにまとめて折りたたみ可能セクションとして
+// 表示。折りたたみ状態は localStorage に <templateId>:<group> キーで永続化。
+
+const COLLAPSE_STORAGE = 'scenario-studio:inspector-collapsed';
+
+function loadCollapsed(): Record<string, boolean> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(COLLAPSE_STORAGE);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    return parsed as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function saveCollapsed(state: Record<string, boolean>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(COLLAPSE_STORAGE, JSON.stringify(state));
+  } catch {
+    /* quota */
+  }
+}
+
+const [collapsedMap, setCollapsedMap] = createSignal<Record<string, boolean>>(loadCollapsed());
+
+function isCollapsed(templateId: string, group: string): boolean {
+  return collapsedMap()[`${templateId}:${group}`] === true;
+}
+function toggleCollapsed(templateId: string, group: string): void {
+  const key = `${templateId}:${group}`;
+  const next = { ...collapsedMap(), [key]: !isCollapsed(templateId, group) };
+  setCollapsedMap(next);
+  saveCollapsed(next);
+}
+
+interface FieldGroupProps {
+  title: string;
+  templateId: string;
+  fields: readonly FieldSchema[];
+  resolvedFields: { readonly [k: string]: FieldValue };
+  node: ScenarioNode;
+  issues: readonly ValidationIssue[];
+  project: NonNullable<ReturnType<typeof ProjectService.currentProject>>;
+  refOptions: readonly NodeRefOption[];
+  isVariantMode: boolean;
+  overrideMap: ReadonlySet<string>;
+  onInput: (fieldId: string, v: FieldValue) => void;
+  onRemoveOverride: (fieldId: string) => void;
+  onBlur: () => void;
+}
+
+const FieldGroup: Component<FieldGroupProps> = (props) => {
+  const collapsed = (): boolean => isCollapsed(props.templateId, props.title);
+  const overrideCount = createMemo(
+    () => props.fields.filter((f) => props.overrideMap.has(f.id)).length,
+  );
+  const errorCount = createMemo(
+    () =>
+      props.fields.filter((f) =>
+        props.issues.some((i) => i.fieldId === f.id && i.severity === 'error'),
+      ).length,
+  );
+  return (
+    <section class="panel-inspector-group" classList={{ collapsed: collapsed() }}>
+      <header
+        class="panel-inspector-group-header"
+        onClick={() => toggleCollapsed(props.templateId, props.title)}
+      >
+        <span class="panel-inspector-group-toggle" aria-hidden="true">
+          {collapsed() ? '▶' : '▼'}
+        </span>
+        <span class="panel-inspector-group-title">{props.title}</span>
+        <span class="panel-inspector-group-count">{props.fields.length}</span>
+        <Show when={errorCount() > 0}>
+          <span class="panel-inspector-group-badge error" title={`${errorCount()} 件のエラー`}>
+            ⛔ {errorCount()}
+          </span>
+        </Show>
+        <Show when={overrideCount() > 0}>
+          <span
+            class="panel-inspector-group-badge variant"
+            title={`${overrideCount()} 件の variant override`}
+          >
+            ◆ {overrideCount()}
+          </span>
+        </Show>
+      </header>
+      <Show when={!collapsed()}>
+        <div class="panel-inspector-group-body">
+          <For each={props.fields}>
+            {(field) => (
+              <FieldRow
+                field={field}
+                value={props.resolvedFields[field.id] ?? props.node.fields[field.id]}
+                issue={props.issues.find((i) => i.fieldId === field.id)}
+                project={props.project}
+                refOptions={props.refOptions}
+                isVariantMode={props.isVariantMode}
+                hasOverride={props.overrideMap.has(field.id)}
+                onInput={(v) => props.onInput(field.id, v)}
+                onRemoveOverride={() => props.onRemoveOverride(field.id)}
+                onBlur={props.onBlur}
+              />
+            )}
+          </For>
+        </div>
+      </Show>
+    </section>
+  );
+};
 
 interface FieldRowProps {
   field: FieldSchema;
