@@ -3,6 +3,13 @@ import { EditorView, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
 import { yaml } from '@codemirror/lang-yaml';
+import {
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  openSearchPanel,
+  search,
+} from '@codemirror/search';
 import { scriptInlineWidgets } from './inlineWidgets';
 import { scriptAutocomplete, type ScriptCompletionSources } from './autocomplete';
 import { inlineCompletion } from './inlineCompletion';
@@ -52,6 +59,53 @@ const lightTheme = EditorView.theme(
       backgroundColor: '#0072b2',
       color: '#ffffff',
     },
+    // search panel (PR-W)
+    '.cm-panels': {
+      backgroundColor: '#f5f7fa',
+      color: '#1a1d24',
+      borderBottom: '1px solid #d4d7dc',
+    },
+    '.cm-panels.cm-panels-top': {
+      borderBottom: '1px solid #d4d7dc',
+    },
+    '.cm-search input': {
+      backgroundColor: '#ffffff',
+      color: '#1a1d24',
+      border: '1px solid #d4d7dc',
+      padding: '2px 6px',
+      borderRadius: '3px',
+    },
+    '.cm-search input:focus': {
+      borderColor: '#0072b2',
+      outline: 'none',
+    },
+    '.cm-search button': {
+      backgroundColor: '#ffffff',
+      color: '#1a1d24',
+      border: '1px solid #d4d7dc',
+      padding: '2px 8px',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      marginLeft: '4px',
+    },
+    '.cm-search button:hover': {
+      borderColor: '#0072b2',
+      color: '#0072b2',
+    },
+    '.cm-search label': {
+      color: '#5a6068',
+      fontSize: '12px',
+    },
+    '.cm-search [name=close]': {
+      color: '#5a6068',
+    },
+    '.cm-searchMatch': {
+      backgroundColor: 'rgba(240, 228, 66, 0.5)',
+    },
+    '.cm-searchMatch-selected': {
+      backgroundColor: '#f0e442',
+      color: '#1a1d24',
+    },
   },
   { dark: false },
 );
@@ -71,7 +125,17 @@ export function createScriptEditor(options: ScriptEditorOptions): EditorView {
       extensions: [
         lineNumbers(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        // CodeMirror 検索パネル (PR-W) — グローバル Cmd+F は global SearchOverlay に
+        // 譲り、ここでは Mod+H で replace モードを開く + F3/Mod+G で次/前。
+        search({ top: true }),
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          { key: 'Mod-h', run: openSearchPanel },
+          { key: 'F3', run: findNext, shift: findPrevious, preventDefault: true },
+          { key: 'Mod-g', run: findNext, shift: findPrevious, preventDefault: true },
+          { key: 'Escape', run: closeSearchPanel },
+        ]),
         yaml(),
         scriptAutocomplete(options.sources),
         scriptInlineWidgets,
