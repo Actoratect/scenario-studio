@@ -5,6 +5,7 @@ import { CHARACTER_TEMPLATE } from '@scenario-studio/core';
 import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
+import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptSnippets';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
@@ -154,8 +155,30 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     view?.destroy();
   });
 
+  function onInsert(kind: SnippetKind): void {
+    if (!view) return;
+    const defaultWho = characterSlugs()[0] ?? 'cloud';
+    insertSnippet(view, kind, defaultWho);
+  }
+
   return (
     <div class="panel-content panel-script">
+      <div class="panel-script-toolbar">
+        <span class="panel-script-toolbar-label">挿入:</span>
+        <For each={SNIPPETS}>
+          {(s) => (
+            <button
+              type="button"
+              class="panel-script-snippet"
+              data-kind={s.kind}
+              onClick={() => onInsert(s.kind)}
+              title={`${s.label} ブロックを挿入`}
+            >
+              + {s.label}
+            </button>
+          )}
+        </For>
+      </div>
       <div class="panel-script-meta">
         <span>Scene:</span>
         <select

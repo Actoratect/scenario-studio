@@ -712,12 +712,68 @@ button {
   padding: 0;
 }
 
+.panel-script-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--ss-bg-soft);
+  border-bottom: 1px solid var(--ss-border-soft);
+  font-size: 12px;
+}
+
+.panel-script-toolbar-label {
+  margin-right: 4px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+}
+
+.panel-script-snippet {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--ss-text);
+}
+
+.panel-script-snippet:hover {
+  border-color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+}
+
+.panel-script-snippet[data-kind='line'] {
+  border-left-width: 3px;
+  border-left-color: var(--ss-accent-sky);
+}
+.panel-script-snippet[data-kind='aside'] {
+  border-left-width: 3px;
+  border-left-color: var(--ss-accent-purple);
+}
+.panel-script-snippet[data-kind='stage'],
+.panel-script-snippet[data-kind='action'] {
+  border-left-width: 3px;
+  border-left-color: var(--ss-accent-green);
+}
+.panel-script-snippet[data-kind='sfx'],
+.panel-script-snippet[data-kind='bgm'] {
+  border-left-width: 3px;
+  border-left-color: var(--ss-accent-orange);
+}
+.panel-script-snippet[data-kind='choice'] {
+  border-left-width: 3px;
+  border-left-color: var(--ss-accent-vermillion);
+}
+
 .panel-script-meta {
   padding: 6px 12px;
   font-size: 12px;
-  background: #f4f4f5;
-  border-bottom: 1px solid #e0e0e3;
-  color: #555;
+  background: var(--ss-bg-soft);
+  border-bottom: 1px solid var(--ss-border-soft);
+  color: var(--ss-text-muted);
 }
 
 .panel-script-host {
