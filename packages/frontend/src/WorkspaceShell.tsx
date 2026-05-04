@@ -11,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
 import { PlotTimelinePanel } from './panels/PlotTimelinePanel';
 import { SettingsPanel } from './panels/SettingsPanel';
+import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
@@ -51,6 +52,7 @@ const PANEL_REGISTRY = {
   ai: AiPanel,
   settings: SettingsPanel,
   timeline: PlotTimelinePanel,
+  stats: StatsPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -184,6 +186,12 @@ export const WorkspaceShell: Component = () => {
       id: 'timeline-1',
       component: 'timeline',
       title: 'Plot Timeline',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
+      id: 'stats-1',
+      component: 'stats',
+      title: 'Stats',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });
