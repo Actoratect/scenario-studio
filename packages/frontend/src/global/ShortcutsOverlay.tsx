@@ -43,7 +43,14 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: ['⌘', 'E'], description: 'Export ダイアログを開く', category: '出力' },
   // Script (CodeMirror 内)
   { keys: ['Tab'], description: 'AI 続き提案を確定 (ghost text 表示中)', category: 'Script' },
-  { keys: ['Esc'], description: 'AI 続き提案を破棄 (ghost text 表示中)', category: 'Script' },
+  {
+    keys: ['Esc'],
+    description: 'AI 続き提案を破棄 / 検索パネルを閉じる',
+    category: 'Script',
+  },
+  { keys: ['⌘', 'H'], description: 'Find & Replace パネルを開く', category: 'Script' },
+  { keys: ['F3'], description: '次の検索結果へ', category: 'Script' },
+  { keys: ['Shift', 'F3'], description: '前の検索結果へ', category: 'Script' },
   // Graph
   { keys: ['Shift', 'Drag'], description: 'ノード間関係を作成', category: 'Graph' },
   { keys: ['Drag'], description: 'ノード位置を移動', category: 'Graph' },
