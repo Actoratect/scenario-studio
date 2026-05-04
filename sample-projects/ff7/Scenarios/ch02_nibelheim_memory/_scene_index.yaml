@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: scene_index
+scenes:
+  - s01_arrival
+  - s02_reactor

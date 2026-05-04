@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45ERA8M6RPF9JX47DXX0
+templateId: template.character
+slug: vincent
+fields:
+  gender: male
+  tone: formal
+  display_name: ヴィンセント・ヴァレンタイン
+  reading: う゛ぃんせんと・う゛ぁれんたいん
+  dev_name: Vincent
+  birth_year: -30
+  height: 184
+  appearance: 紅いマント、左腕の金属義手。元タークスの罪を背負う男。
+  personality: 寡黙で内省的。自らを呪いと呼ぶが、仲間のためなら戦う。
+  first_person: 俺
+  faction: 0101KQRB45CYB12ZMT71QQY6X356

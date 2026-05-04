@@ -1,0 +1,13 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45CY46GBJMR6RYDFZZTJ
+templateId: template.faction
+slug: avalanche
+fields:
+  is_active: true
+  display_name: アバランチ
+  reading: あばらんち
+  dev_name: Avalanche
+  founded_year: 5
+  description: 魔晄エネルギーへの反対を掲げる反神羅組織。バレットを中心としたミッドガル支部。
+  leader: 0101KQRB45E2HSY3R256GZWJRJR3

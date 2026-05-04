@@ -1,0 +1,13 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45CY0ZGV70XMJEPFY5NK
+templateId: template.faction
+slug: cetra
+fields:
+  is_active: true
+  display_name: 古代種
+  reading: せとら
+  dev_name: Cetra
+  founded_year: -2000
+  description: 星と語り、ライフストリームを導く太古の民。エアリスは最後の生き残り。
+  leader: 0101KQRB45DV3ZPN2GG4YZS32J0D

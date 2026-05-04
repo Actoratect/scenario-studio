@@ -1,0 +1,32 @@
+schemaVersion: 1
+kind: glossary
+terms:
+  - term: マテリア
+    aliases:
+      - Materia
+    forbidden:
+      - まてりあ
+    description: 魔法を発動させる結晶。武器・防具に装着して使う。
+  - term: ライフストリーム
+    aliases:
+      - Lifestream
+      - 星の生命
+    forbidden: []
+    description: 星全体を巡る生命エネルギーの流れ。死者の魂はここに還る。
+  - term: 魔晄
+    aliases:
+      - Mako
+    forbidden:
+      - まこう
+    description: 神羅が抽出するライフストリームの濃縮形。電力 / 燃料の主流。
+  - term: ジェノバ
+    aliases:
+      - Jenova
+      - 災厄
+    forbidden: []
+    description: 宇宙から飛来した古代の怪物。古代種を滅ぼした災厄。
+  - term: メテオ
+    aliases:
+      - Meteor
+    forbidden: []
+    description: 究極黒魔法。星に巨大な隕石を落とし破壊する。

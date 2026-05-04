@@ -1,0 +1,8 @@
+schemaVersion: 1
+kind: era
+id: era.present
+label: 本編 (メテオ襲来期)
+parent: era.world
+yearRange:
+  - 5
+  - 5

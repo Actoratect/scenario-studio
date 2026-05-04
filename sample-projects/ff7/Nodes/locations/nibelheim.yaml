@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45FTBNQ13SEGDAYYNJBJ
+templateId: template.location
+slug: nibelheim
+fields:
+  display_name: ニブルヘイム
+  reading: にぶるへいむ
+  region: 西部大陸
+  climate: cold
+  description: クラウドとティファの故郷。神羅の魔晄炉が山頂にある寒村。
+  population: 200

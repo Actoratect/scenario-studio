@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45G47C3EP98N4KMV1PBY
+templateId: template.location
+slug: cosmo_canyon
+fields:
+  display_name: コスモキャニオン
+  reading: こすもきゃにおん
+  region: 西部大陸
+  climate: arid
+  description: 星の知恵を集める学究の村。長老ブーゲンハーゲンが暮らす。

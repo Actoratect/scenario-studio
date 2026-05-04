@@ -1,0 +1,8 @@
+schemaVersion: 1
+kind: era
+id: era.pre_crisis
+label: ニブルヘイム事件以前
+parent: era.world
+yearRange:
+  - -5
+  - -1
