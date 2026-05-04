@@ -1287,8 +1287,8 @@ button {
 /* Inspector era awareness */
 .panel-inspector-era {
   font-size: 11px;
-  color: #5a4a8a;
-  background: #efeaff;
+  color: var(--ss-accent-purple);
+  background: #f5e6ef;
   padding: 1px 6px;
   border-radius: 3px;
   margin-top: 2px;
@@ -1297,7 +1297,67 @@ button {
 
 .panel-inspector-variant-active {
   margin-left: 4px;
-  color: #7a6aaa;
+  color: var(--ss-accent-purple);
+}
+
+/* PR-L: variant 編集モード */
+.panel-inspector-field-row {
+  margin-bottom: 6px;
+}
+
+.panel-inspector-field-row--era-mode {
+  padding: 6px 8px;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+}
+
+.panel-inspector-field-row--era-mode.panel-inspector-field-row--variant {
+  border-color: var(--ss-accent-purple);
+  background: #f9f3f8;
+}
+
+.panel-inspector-field-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.panel-inspector-variant-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.panel-inspector-variant-badge.inherit {
+  background: var(--ss-bg-soft);
+  color: var(--ss-text-faint);
+  border: 1px solid var(--ss-border-soft);
+}
+
+.panel-inspector-variant-badge.override {
+  background: #f5e6ef;
+  color: var(--ss-accent-purple);
+  border: 1px solid var(--ss-accent-purple);
+}
+
+.panel-inspector-variant-remove {
+  padding: 1px 6px;
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  color: var(--ss-text-muted);
+  cursor: pointer;
+}
+
+.panel-inspector-variant-remove:hover {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
 }
 
 /* Outline panel chapter tree */

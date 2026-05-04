@@ -23,6 +23,7 @@ import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
 import { Toast } from '../services/Toast';
+import { VariantsService } from '../services/VariantsService';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 // 選択中ノードの編集 UI。
@@ -107,12 +108,35 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const id = SelectionContext.selectedNodeId();
     const ctx = ProjectService.currentProject();
     if (!id || !ctx) return;
+    // 非 base Era で編集 → variant override に書く (base.fields は触らない)
+    if (!EraContext.isBase()) {
+      void VariantsService.setFieldOverride(id, EraContext.currentEraId(), fieldId, value);
+      return;
+    }
     const store = ctx.history.get(id);
     if (!store) return;
     store.set(fieldId, value);
     bumpProject(ctx, id);
     scheduler.schedule(id);
   }
+
+  function removeOverride(fieldId: string): void {
+    const id = SelectionContext.selectedNodeId();
+    if (!id || EraContext.isBase()) return;
+    void VariantsService.removeFieldOverride(id, EraContext.currentEraId(), fieldId);
+  }
+
+  /** field id → 当該 field に当該 Era の override が直接定義されているか (継承除外) */
+  const overrideMap = createMemo<ReadonlySet<string>>(() => {
+    const n = node();
+    if (!n || EraContext.isBase()) return new Set();
+    const eraId = EraContext.currentEraId();
+    const out = new Set<string>();
+    for (const field of template()?.fields ?? []) {
+      if (VariantsService.hasFieldOverride(n, eraId, field.id)) out.add(field.id);
+    }
+    return out;
+  });
 
   function onFieldBlur(): void {
     const id = SelectionContext.selectedNodeId();
@@ -199,7 +223,10 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
                 issue={issues().find((i) => i.fieldId === field.id)}
                 project={ProjectService.currentProject()!}
                 refOptions={refOptions()}
+                isVariantMode={!EraContext.isBase()}
+                hasOverride={overrideMap().has(field.id)}
                 onInput={(v) => setField(field.id, v)}
+                onRemoveOverride={() => removeOverride(field.id)}
                 onBlur={() => onFieldBlur()}
               />
             )}
@@ -225,7 +252,12 @@ interface FieldRowProps {
   issue?: ValidationIssue | undefined;
   project: NonNullable<ReturnType<typeof ProjectService.currentProject>>;
   refOptions: readonly NodeRefOption[];
+  /** 非 base Era 表示中 (variant 編集モード)。 */
+  isVariantMode: boolean;
+  /** 当該 Era で当該フィールドに直接 override が定義されているか。 */
+  hasOverride: boolean;
   onInput: (v: FieldValue) => void;
+  onRemoveOverride: () => void;
   onBlur: () => void;
 }
 
@@ -237,73 +269,99 @@ const FieldRow: Component<FieldRowProps> = (props) => {
     error: props.issue?.severity === 'error' ? props.issue.message : undefined,
   }));
   return (
-    <Switch>
-      <Match when={props.field.type === 'string' || props.field.type === 'media_ref'}>
-        <TextInput
-          {...base()}
-          value={typeof props.value === 'string' ? props.value : undefined}
-          onInput={props.onInput}
-          onBlur={props.onBlur}
-          maxLength={
-            props.field.type === 'string'
-              ? (props.field as { maxLength?: number }).maxLength
-              : undefined
-          }
-        />
-      </Match>
-      <Match when={props.field.type === 'multiline_string' || props.field.type === 'markdown'}>
-        <MultilineInput
-          {...base()}
-          value={typeof props.value === 'string' ? props.value : undefined}
-          onInput={props.onInput}
-          onBlur={props.onBlur}
-          maxLength={
-            props.field.type === 'multiline_string'
-              ? (props.field as { maxLength?: number }).maxLength
-              : undefined
-          }
-          rows={props.field.type === 'markdown' ? 8 : 4}
-        />
-      </Match>
-      <Match when={props.field.type === 'int' || props.field.type === 'number'}>
-        <NumberInput
-          {...base()}
-          value={typeof props.value === 'number' ? props.value : undefined}
-          integer={props.field.type === 'int'}
-          min={(props.field as { min?: number }).min}
-          max={(props.field as { max?: number }).max}
-          unit={(props.field as { unit?: string }).unit}
-          onInput={(v) => props.onInput(v ?? null)}
-          onBlur={props.onBlur}
-        />
-      </Match>
-      <Match when={props.field.type === 'enum'}>
-        <EnumSelect
-          {...base()}
-          value={typeof props.value === 'string' ? props.value : undefined}
-          values={(props.field as { values: readonly string[] }).values ?? []}
-          onInput={(v) => props.onInput(v)}
-          onBlur={props.onBlur}
-        />
-      </Match>
-      <Match when={props.field.type === 'bool'}>
-        <CheckboxField
-          {...base()}
-          value={typeof props.value === 'boolean' ? props.value : undefined}
-          onInput={(v) => props.onInput(v)}
-          onBlur={props.onBlur}
-        />
-      </Match>
-      <Match when={props.field.type === 'node_ref'}>
-        <NodeRefPicker
-          {...base()}
-          value={typeof props.value === 'string' ? props.value : undefined}
-          options={props.refOptions}
-          onInput={(v) => props.onInput(v ?? null)}
-          onBlur={props.onBlur}
-        />
-      </Match>
-    </Switch>
+    <div
+      class="panel-inspector-field-row"
+      classList={{
+        'panel-inspector-field-row--variant': props.hasOverride,
+        'panel-inspector-field-row--era-mode': props.isVariantMode,
+      }}
+    >
+      <Show when={props.isVariantMode}>
+        <div class="panel-inspector-field-meta">
+          <Show
+            when={props.hasOverride}
+            fallback={<span class="panel-inspector-variant-badge inherit">継承中</span>}
+          >
+            <span class="panel-inspector-variant-badge override">variant override</span>
+            <button
+              type="button"
+              class="panel-inspector-variant-remove"
+              onClick={() => props.onRemoveOverride()}
+              title="この Era の override を解除してベース値に戻す"
+            >
+              × override 解除
+            </button>
+          </Show>
+        </div>
+      </Show>
+      <Switch>
+        <Match when={props.field.type === 'string' || props.field.type === 'media_ref'}>
+          <TextInput
+            {...base()}
+            value={typeof props.value === 'string' ? props.value : undefined}
+            onInput={props.onInput}
+            onBlur={props.onBlur}
+            maxLength={
+              props.field.type === 'string'
+                ? (props.field as { maxLength?: number }).maxLength
+                : undefined
+            }
+          />
+        </Match>
+        <Match when={props.field.type === 'multiline_string' || props.field.type === 'markdown'}>
+          <MultilineInput
+            {...base()}
+            value={typeof props.value === 'string' ? props.value : undefined}
+            onInput={props.onInput}
+            onBlur={props.onBlur}
+            maxLength={
+              props.field.type === 'multiline_string'
+                ? (props.field as { maxLength?: number }).maxLength
+                : undefined
+            }
+            rows={props.field.type === 'markdown' ? 8 : 4}
+          />
+        </Match>
+        <Match when={props.field.type === 'int' || props.field.type === 'number'}>
+          <NumberInput
+            {...base()}
+            value={typeof props.value === 'number' ? props.value : undefined}
+            integer={props.field.type === 'int'}
+            min={(props.field as { min?: number }).min}
+            max={(props.field as { max?: number }).max}
+            unit={(props.field as { unit?: string }).unit}
+            onInput={(v) => props.onInput(v ?? null)}
+            onBlur={props.onBlur}
+          />
+        </Match>
+        <Match when={props.field.type === 'enum'}>
+          <EnumSelect
+            {...base()}
+            value={typeof props.value === 'string' ? props.value : undefined}
+            values={(props.field as { values: readonly string[] }).values ?? []}
+            onInput={(v) => props.onInput(v)}
+            onBlur={props.onBlur}
+          />
+        </Match>
+        <Match when={props.field.type === 'bool'}>
+          <CheckboxField
+            {...base()}
+            value={typeof props.value === 'boolean' ? props.value : undefined}
+            onInput={(v) => props.onInput(v)}
+            onBlur={props.onBlur}
+          />
+        </Match>
+        <Match when={props.field.type === 'node_ref'}>
+          <NodeRefPicker
+            {...base()}
+            value={typeof props.value === 'string' ? props.value : undefined}
+            options={props.refOptions}
+            onInput={(v) => props.onInput(v ?? null)}
+            onBlur={props.onBlur}
+          />
+        </Match>
+      </Switch>
+    </div>
   );
 };
 
