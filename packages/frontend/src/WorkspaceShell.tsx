@@ -14,7 +14,9 @@ import { SynopsisPanel } from './panels/SynopsisPanel';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
+import { OnboardingBanner } from './global/OnboardingBanner';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
+import { ShortcutsOverlay } from './global/ShortcutsOverlay';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
@@ -67,6 +69,12 @@ export const WorkspaceShell: Component = () => {
     if (e.key === 'k') {
       e.preventDefault();
       CommandPalette.toggle();
+      return;
+    }
+    // Cmd+/ (Slash): ショートカット一覧
+    if (e.key === '/') {
+      e.preventDefault();
+      ShortcutsOverlay.toggle();
       return;
     }
     if (!ctx) return;
@@ -179,6 +187,13 @@ export const WorkspaceShell: Component = () => {
         <SaveStatusBadge />
         <button
           class="workspace-export"
+          onClick={() => ShortcutsOverlay.show()}
+          title="ショートカット一覧 (Cmd+/)"
+        >
+          ⌨
+        </button>
+        <button
+          class="workspace-export"
           onClick={() => ExportDialog.show()}
           title="脚本を text / Markdown に書き出し (Cmd+E)"
         >
@@ -188,6 +203,7 @@ export const WorkspaceShell: Component = () => {
           プロジェクトを閉じる
         </button>
       </header>
+      <OnboardingBanner />
       <div class="app-shell" ref={host} />
     </div>
   );
