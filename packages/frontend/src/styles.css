@@ -544,6 +544,59 @@ button {
   font-size: 10px;
 }
 
+/* ===== Export dialog (PR-K) ===== */
+
+.ss-modal--wide {
+  max-width: min(720px, calc(100vw - 32px));
+}
+
+.ss-export-radio-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ss-export-radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.ss-export-output {
+  width: 100%;
+  height: 280px;
+  padding: 8px;
+  font-family: 'SF Mono', Consolas, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--ss-bg-subtle);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Workspace header の Export ボタン */
+.workspace-export {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.workspace-export:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
 /* AI panel inline-completion toggle */
 .panel-ai-inline-toggle {
   display: flex;

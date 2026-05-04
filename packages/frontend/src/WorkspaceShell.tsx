@@ -12,6 +12,7 @@ import { OutlinePanel } from './panels/OutlinePanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
+import { ExportDialog } from './global/ExportDialog';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
@@ -73,6 +74,12 @@ export const WorkspaceShell: Component = () => {
       const sched = useSaveScheduler();
       sched.flushAll();
       Toast.success('保存しました', 1500);
+      return;
+    }
+    // Cmd+E: Export ダイアログ
+    if (e.key === 'e') {
+      e.preventDefault();
+      ExportDialog.toggle();
       return;
     }
     if (e.key === 'z' && !e.shiftKey) {
@@ -162,6 +169,13 @@ export const WorkspaceShell: Component = () => {
         </span>
         <EraSlider />
         <SaveStatusBadge />
+        <button
+          class="workspace-export"
+          onClick={() => ExportDialog.show()}
+          title="脚本を text / Markdown に書き出し (Cmd+E)"
+        >
+          ⤓ Export
+        </button>
         <button class="workspace-close" onClick={() => ProjectService.close()}>
           プロジェクトを閉じる
         </button>
