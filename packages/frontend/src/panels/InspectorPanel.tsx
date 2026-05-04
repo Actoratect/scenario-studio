@@ -234,61 +234,84 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     }
   }
 
+  // ヘッダ表示用: display_name を resolvedFields から抽出 (variant 適用済み)
+  const displayName = createMemo<string>(() => {
+    const v = resolvedFields()['display_name'];
+    if (typeof v === 'string' && v !== '') return v;
+    return node()?.slug ?? '';
+  });
+  const devName = createMemo<string>(() => {
+    const v = resolvedFields()['dev_name'];
+    if (typeof v === 'string' && v !== '') return v;
+    return node()?.slug ?? '';
+  });
+
   return (
     <div class="panel-content panel-inspector">
       <Show when={node() && template()} fallback={<EmptyInspector panelId={params.api.id} />}>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          style={{ display: 'none' }}
+          onChange={onFileChange}
+        />
         <header class="panel-inspector-header">
-          <button
-            type="button"
-            class="panel-inspector-thumb-button"
-            onClick={onPickFile}
-            title="クリックでサムネイル画像をアップロード"
-          >
-            <NodeThumbnail node={node()!} size={40} />
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-            style={{ display: 'none' }}
-            onChange={onFileChange}
-          />
-          <strong>{node()!.slug}</strong>
-          <span class="panel-inspector-template">{template()!.id}</span>
-          <span class="panel-inspector-actions">
-            <Show when={node()!.thumbnail}>
+          <div class="panel-inspector-header-top">
+            <span class="panel-inspector-name-tag">{displayName()}</span>
+            <span class="panel-inspector-id-tag" title="ID (脚本の who: で参照)">
+              {devName()}
+            </span>
+            <Show when={!EraContext.isBase()}>
+              <span class="panel-inspector-era-tag">
+                Era: {EraContext.currentEraId()}
+                <Show when={appliedVariantEras().length > 0}>
+                  <span class="panel-inspector-variant-active">
+                    · variant ({appliedVariantEras().join(' → ')})
+                  </span>
+                </Show>
+              </span>
+            </Show>
+            <span class="panel-inspector-actions">
+              <button type="button" onClick={() => void renameNode()} title="slug を変更">
+                ✎
+              </button>
+              <Show when={node()!.thumbnail}>
+                <button
+                  type="button"
+                  onClick={() => void clearThumbnail()}
+                  title="サムネイル画像を削除"
+                >
+                  🖼×
+                </button>
+              </Show>
               <button
                 type="button"
-                onClick={() => void clearThumbnail()}
-                title="サムネイル画像を削除"
+                class="panel-inspector-delete"
+                onClick={() => void deleteNode()}
+                title="このノードを削除"
               >
-                🖼 ×
+                🗑
               </button>
-            </Show>
-            <button type="button" onClick={() => void renameNode()} title="slug を変更">
-              ✎ Rename
-            </button>
+            </span>
+          </div>
+          <div class="panel-inspector-header-meta">
             <button
               type="button"
-              class="panel-inspector-delete"
-              onClick={() => void deleteNode()}
-              title="このノードを削除"
+              class="panel-inspector-thumb-button"
+              onClick={onPickFile}
+              title="クリックでサムネイル画像をアップロード"
             >
-              🗑 Delete
+              <NodeThumbnail node={node()!} size={120} />
+              <span class="panel-inspector-thumb-hint">画像をアップロード</span>
             </button>
-          </span>
-          <Show when={!EraContext.isBase()}>
-            <span class="panel-inspector-era">
-              Era: <code>{EraContext.currentEraId()}</code>
-              <Show when={appliedVariantEras().length > 0}>
-                <span class="panel-inspector-variant-active">
-                  · variant 適用 ({appliedVariantEras().join(' → ')})
-                </span>
-              </Show>
+            <span class="panel-inspector-template-pill">
+              {template()!.displayName}
+              <code>{template()!.id}</code>
             </span>
-          </Show>
+          </div>
         </header>
-        <div class="panel-inspector-fields">
+        <div class="panel-inspector-scroll">
           <For each={fieldGroups()}>
             {(group) => (
               <FieldGroup
@@ -462,12 +485,26 @@ const FieldRow: Component<FieldRowProps> = (props) => {
     description: props.field.description,
     error: props.issue?.severity === 'error' ? props.issue.message : undefined,
   }));
+  // PR-X: short type は default compact (ラベル: 値 の inline 表示)
+  const isCompact = (): boolean => {
+    if (props.field.compact !== undefined) return props.field.compact;
+    return (
+      props.field.type === 'string' ||
+      props.field.type === 'int' ||
+      props.field.type === 'number' ||
+      props.field.type === 'enum' ||
+      props.field.type === 'bool' ||
+      props.field.type === 'node_ref' ||
+      props.field.type === 'media_ref'
+    );
+  };
   return (
     <div
       class="panel-inspector-field-row"
       classList={{
         'panel-inspector-field-row--variant': props.hasOverride,
         'panel-inspector-field-row--era-mode': props.isVariantMode,
+        'panel-inspector-field-row--compact': isCompact(),
       }}
     >
       <Show when={props.isVariantMode}>

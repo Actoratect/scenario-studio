@@ -36,6 +36,12 @@ interface BaseFieldSchema {
   unit?: string;
   /** Inspector でフィールドを分類するグループ名 (PR-O)。同じ名前の field をまとめて表示。 */
   group?: string;
+  /**
+   * Inspector で「ラベル: 値」を 1 行に並べる コンパクト表示にする (PR-X)。
+   * デフォルト: short type (string/int/number/enum/bool/node_ref) は true、
+   * multiline_string / markdown は false。明示的に compact=false でフルワイドにできる。
+   */
+  compact?: boolean;
 }
 
 export interface StringFieldSchema extends BaseFieldSchema {
@@ -119,7 +125,7 @@ export const NAME_FIELDS: readonly FieldSchema[] = [
   },
   {
     id: 'dev_name',
-    label: '開発名',
+    label: 'ID',
     type: 'string',
     description: '英字内部呼称。脚本 (who: ...) で参照する短い識別子',
     group: '名前',
