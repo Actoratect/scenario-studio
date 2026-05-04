@@ -9,6 +9,7 @@ import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
+import { SettingsPanel } from './panels/SettingsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
@@ -43,6 +44,7 @@ const PANEL_REGISTRY = {
   console: ConsolePanel,
   glossary: GlossaryPanel,
   ai: AiPanel,
+  settings: SettingsPanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -151,6 +153,12 @@ export const WorkspaceShell: Component = () => {
       id: 'ai-1',
       component: 'ai',
       title: 'AI',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    api.addPanel({
+      id: 'settings-1',
+      component: 'settings',
+      title: 'Settings',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });
