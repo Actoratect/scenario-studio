@@ -33,6 +33,11 @@ const SHORTCUTS: readonly Shortcut[] = [
     description: '全文検索 (ノード fields + 脚本 text)',
     category: 'ナビゲーション',
   },
+  {
+    keys: ['⌘', 'I'],
+    description: 'ID 一覧 (全ノードの ID をコピー / jump)',
+    category: 'ナビゲーション',
+  },
   { keys: ['⌘', '/'], description: 'このショートカット一覧を表示', category: 'ナビゲーション' },
   // 編集
   { keys: ['⌘', 'Z'], description: '元に戻す (Undo)', category: '編集' },
