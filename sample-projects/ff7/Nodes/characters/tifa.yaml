@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45DM3SS0A3CD17N3YV3A
+templateId: template.character
+slug: tifa
+fields:
+  gender: female
+  tone: casual
+  display_name: ティファ・ロックハート
+  reading: てぃふぁ・ろっくはーと
+  dev_name: Tifa
+  birth_year: 0
+  height: 167
+  appearance: 黒髪をリボンで束ねた長身。革のグローブと黒のミニスカート。
+  personality: 優しく強い拳闘家。クラウドの幼馴染で、彼の記憶の鍵を握る。
+  first_person: 私
+  faction: 0101KQRB45CY46GBJMR6RYDFZZTJ

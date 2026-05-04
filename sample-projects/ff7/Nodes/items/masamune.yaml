@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45GTR0AWA4Z296HEX25J
+templateId: template.item
+slug: masamune
+fields:
+  category: weapon
+  rarity: unique
+  display_name: 正宗
+  reading: まさむね
+  description: セフィロスの長刀。常人には扱えぬ常識外れの長さ。
+  owner: 0101KQRB45E8YTVTNR1V6NTKFA0A

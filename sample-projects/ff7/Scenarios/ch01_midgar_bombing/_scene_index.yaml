@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: scene_index
+scenes:
+  - s01_train_arrival
+  - s02_reactor_infiltration
+  - s03_escape

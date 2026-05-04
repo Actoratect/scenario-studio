@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45EFG4C8QVVEB4YSM8D1
+templateId: template.character
+slug: zack
+fields:
+  gender: male
+  tone: casual
+  display_name: ザックス・フェア
+  reading: ざっくす・ふぇあ
+  dev_name: Zack
+  birth_year: -3
+  height: 185
+  appearance: 逆立った黒髪、明るい青の瞳。バスターソードを背負う。
+  personality: 陽気で正義感の強いソルジャー1st。クラウドの親友。
+  first_person: 俺
+  faction: 0101KQRB45CYY7P96HTXZ0A7HPSD

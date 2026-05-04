@@ -1,0 +1,22 @@
+schemaVersion: 1
+sceneId: scene.s01_arrival
+plot:
+  title: '故郷へ'
+  cast: []
+
+script:
+  - { kind: stage, text: '5 年前。寒村ニブルヘイム。山の魔晄炉点検任務。' }
+  - { kind: line, who: sephiroth, emotion: calm, text: '...久しぶりの故郷というわけか、君の。' }
+  - {
+      kind: line,
+      who: cloud,
+      emotion: embarrassed,
+      text: 'は、はい。母は俺がソルジャーになったことを知らないんで…',
+    }
+  - {
+      kind: line,
+      who: sephiroth,
+      emotion: calm,
+      text: '私には故郷がない。母の名はジェノバ — そう聞かされて育った。',
+    }
+  - { kind: aside, text: '(セフィロスさんの目が、暗い。)' }

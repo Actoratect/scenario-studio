@@ -1,0 +1,28 @@
+schemaVersion: 1
+sceneId: scene.s02_reactor_infiltration
+plot:
+  title: '魔晄炉潜入'
+  cast: []
+
+script:
+  - { kind: stage, text: '八番魔晄炉、奥深く。轟音と熱気。' }
+  - {
+      kind: line,
+      who: barret,
+      emotion: angry,
+      text: 'ここに爆弾を仕掛けりゃ、この魔晄炉も終わりだ。',
+    }
+  - { kind: line, who: cloud, emotion: calm, text: '...本当に必要なのか?' }
+  - { kind: line, who: barret, emotion: suspicious, text: 'あ? 神羅の手先か、てめえ?' }
+  - { kind: line, who: cloud, emotion: tired, text: 'ただ確認しただけだ。命令通りやる。' }
+  - { kind: aside, text: '(この爆破で何人が死ぬのか、考えても仕方ない。)' }
+  - { kind: bgm, cue: bgm_tense, fade: 1.0 }
+  - {
+      kind: choice,
+      prompt: '爆弾を起爆するか?',
+      options:
+        [
+          { text: '起爆する', then: scene.s03_escape },
+          { text: 'ためらう', then: scene.s03_hesitate },
+        ],
+    }

@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45GD3DY44DSE3BGXEGNR
+templateId: template.location
+slug: ancient_capital
+fields:
+  display_name: 古代種の都
+  reading: こだいしゅのみやこ
+  region: 北の大空洞
+  climate: magical
+  description: 失われた古代種の都市。ホーリーマテリアの祈りの場所。

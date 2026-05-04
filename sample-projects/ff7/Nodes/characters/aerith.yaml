@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45DV3ZPN2GG4YZS32J0D
+templateId: template.character
+slug: aerith
+fields:
+  gender: female
+  tone: casual
+  display_name: エアリス・ゲインズブール
+  reading: えありす・げいんずぶーる
+  dev_name: Aerith
+  birth_year: -2
+  height: 163
+  appearance: ピンクのリボンで髪を結った優しい瞳の少女。古代種最後の生き残り。
+  personality: 太陽のように朗らかで芯が強い。星の声を聞く力を持つ。
+  first_person: わたし
+  faction: 0101KQRB45CY0ZGV70XMJEPFY5NK

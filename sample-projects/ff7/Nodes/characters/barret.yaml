@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45E2HSY3R256GZWJRJR3
+templateId: template.character
+slug: barret
+fields:
+  gender: male
+  tone: rough
+  display_name: バレット・ウォーレス
+  reading: ばれっと・うぉーれす
+  dev_name: Barret
+  birth_year: -10
+  height: 198
+  appearance: 右腕にガトリング銃を装着した大柄な戦士。サングラス。
+  personality: 熱血漢で口が悪いが情に厚い。アバランチ ミッドガル支部リーダー。
+  first_person: 俺様
+  faction: 0101KQRB45CY46GBJMR6RYDFZZTJ

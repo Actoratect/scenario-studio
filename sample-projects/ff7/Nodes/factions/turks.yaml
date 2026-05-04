@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 0101KQRB45CYB12ZMT71QQY6X356
+templateId: template.faction
+slug: turks
+fields:
+  is_active: true
+  display_name: タークス
+  reading: たーくす
+  dev_name: Turks
+  founded_year: 1990
+  description: 神羅総務部直属の特殊工作部隊。
