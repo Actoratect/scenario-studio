@@ -191,6 +191,49 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  /** PR-U: シーンを別章に移動。fromIdx は src 章内の元 index、insertAt は dst 章内の挿入位置。 */
+  async function moveSceneToChapter(
+    fromChapter: string,
+    fromIdx: number,
+    toChapter: string,
+    insertAt: number,
+  ): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const src = ctx.project.scenario.chapters.find((c) => c.slug === fromChapter);
+    if (!src) return;
+    const moved = src.scenes[fromIdx];
+    if (!moved) return;
+    setBusy(true);
+    try {
+      await ctx.scenarioRepository.moveScene({
+        fromChapter,
+        toChapter,
+        sceneSlug: moved.slug,
+        insertAt,
+      });
+      const nextChapters = ctx.project.scenario.chapters.map((c) => {
+        if (c.slug === fromChapter) {
+          return { ...c, scenes: c.scenes.filter((_, i) => i !== fromIdx) };
+        }
+        if (c.slug === toChapter) {
+          const arr = [...c.scenes];
+          arr.splice(insertAt, 0, moved);
+          return { ...c, scenes: arr };
+        }
+        return c;
+      });
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+      Toast.success(`シーン移動: ${fromChapter} → ${toChapter}`);
+    } catch (e) {
+      Toast.error(`シーン移動に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addNode(template: TemplateDefinition): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -234,7 +277,11 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                   e.dataTransfer!.effectAllowed = 'move';
                 }}
                 onDragOver={(e) => {
-                  if (e.dataTransfer?.types.includes('application/x-ss-chapter')) {
+                  // 章 drag (並べ替え) または scene drag (他章への移動) を受け付ける
+                  if (
+                    e.dataTransfer?.types.includes('application/x-ss-chapter') ||
+                    e.dataTransfer?.types.includes('application/x-ss-scene')
+                  ) {
                     e.preventDefault();
                     e.currentTarget.classList.add('panel-outline-chapter--drop');
                   }
@@ -242,10 +289,28 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                 onDragLeave={(e) => e.currentTarget.classList.remove('panel-outline-chapter--drop')}
                 onDrop={(e) => {
                   e.currentTarget.classList.remove('panel-outline-chapter--drop');
-                  const from = e.dataTransfer?.getData('application/x-ss-chapter');
-                  if (from === undefined || from === '') return;
-                  e.preventDefault();
-                  void reorderChapters(Number(from), chIdx());
+                  // 章順の並べ替え
+                  const fromChapterIdx = e.dataTransfer?.getData('application/x-ss-chapter');
+                  if (fromChapterIdx !== undefined && fromChapterIdx !== '') {
+                    e.preventDefault();
+                    void reorderChapters(Number(fromChapterIdx), chIdx());
+                    return;
+                  }
+                  // シーンの他章への移動 (drop on chapter li, not scene li)
+                  const sceneRaw = e.dataTransfer?.getData('application/x-ss-scene');
+                  if (sceneRaw) {
+                    const [srcChap, srcIdxStr] = sceneRaw.split('::');
+                    if (srcChap && srcChap !== chapter.slug && srcIdxStr !== undefined) {
+                      e.preventDefault();
+                      // 末尾に追加
+                      void moveSceneToChapter(
+                        srcChap,
+                        Number(srcIdxStr),
+                        chapter.slug,
+                        chapter.scenes.length,
+                      );
+                    }
+                  }
                 }}
               >
                 <span class="panel-outline-chapter-title">
@@ -285,10 +350,9 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                             e.dataTransfer!.effectAllowed = 'move';
                           }}
                           onDragOver={(e) => {
-                            const data = e.dataTransfer?.getData('application/x-ss-scene') ?? '';
-                            const sameChapter = data.startsWith(`${chapter.slug}::`);
-                            if (sameChapter) {
+                            if (e.dataTransfer?.types.includes('application/x-ss-scene')) {
                               e.preventDefault();
+                              e.stopPropagation(); // chapter li drop を抑止
                               e.currentTarget.classList.add('panel-outline-scene--drop');
                             }
                           }}
@@ -300,9 +364,19 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                             const raw = e.dataTransfer?.getData('application/x-ss-scene');
                             if (!raw) return;
                             const [srcChap, srcIdxStr] = raw.split('::');
-                            if (srcChap !== chapter.slug || srcIdxStr === undefined) return;
+                            if (!srcChap || srcIdxStr === undefined) return;
                             e.preventDefault();
-                            void reorderScenes(chapter.slug, Number(srcIdxStr), sIdx());
+                            e.stopPropagation();
+                            if (srcChap === chapter.slug) {
+                              void reorderScenes(chapter.slug, Number(srcIdxStr), sIdx());
+                            } else {
+                              void moveSceneToChapter(
+                                srcChap,
+                                Number(srcIdxStr),
+                                chapter.slug,
+                                sIdx(),
+                              );
+                            }
                           }}
                         >
                           <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
