@@ -17,6 +17,7 @@ import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
 import { OnboardingBanner } from './global/OnboardingBanner';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
+import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
 import { PanelFocus } from './services/PanelFocus';
 import { ProjectService } from './services/ProjectService';
@@ -78,6 +79,12 @@ export const WorkspaceShell: Component = () => {
     if (e.key === '/') {
       e.preventDefault();
       ShortcutsOverlay.toggle();
+      return;
+    }
+    // Cmd+F: 全文検索
+    if (e.key === 'f') {
+      e.preventDefault();
+      SearchOverlay.toggle();
       return;
     }
     if (!ctx) return;
