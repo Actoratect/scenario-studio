@@ -544,6 +544,36 @@ button {
   font-size: 10px;
 }
 
+/* ===== Full-text search (PR-T) ===== */
+.ss-search-kind {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 6px;
+  font-family: 'SF Mono', Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.ss-search-kind--node {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+}
+
+.ss-search-kind--scene {
+  background: var(--ss-bg-success);
+  color: var(--ss-accent-green);
+}
+
+.ss-cmd-palette-sub mark {
+  background: var(--ss-accent-yellow);
+  color: var(--ss-text);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 /* ===== Export dialog (PR-K) ===== */
 
 .ss-modal--wide {

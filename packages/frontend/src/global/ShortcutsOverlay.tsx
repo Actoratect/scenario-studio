@@ -28,6 +28,11 @@ interface Shortcut {
 const SHORTCUTS: readonly Shortcut[] = [
   // ナビゲーション
   { keys: ['⌘', 'K'], description: 'コマンド / 検索 palette を開く', category: 'ナビゲーション' },
+  {
+    keys: ['⌘', 'F'],
+    description: '全文検索 (ノード fields + 脚本 text)',
+    category: 'ナビゲーション',
+  },
   { keys: ['⌘', '/'], description: 'このショートカット一覧を表示', category: 'ナビゲーション' },
   // 編集
   { keys: ['⌘', 'Z'], description: '元に戻す (Undo)', category: '編集' },
