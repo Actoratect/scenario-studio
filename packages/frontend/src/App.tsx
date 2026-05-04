@@ -2,6 +2,7 @@ import { Show, Suspense } from 'solid-js';
 import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
+import { AboutOverlayRoot } from './global/AboutOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { ExportDialogRoot } from './global/ExportDialog';
 import { IdListOverlayRoot } from './global/IdListOverlay';
@@ -30,6 +31,7 @@ export const App: Component = () => {
       <SearchOverlayRoot />
       <IdListOverlayRoot />
       <ShortcutsOverlayRoot />
+      <AboutOverlayRoot />
     </>
   );
 };

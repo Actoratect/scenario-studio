@@ -13,6 +13,7 @@ import { PlotTimelinePanel } from './panels/PlotTimelinePanel';
 import { SettingsPanel } from './panels/SettingsPanel';
 import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
+import { AboutOverlay } from './global/AboutOverlay';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
@@ -224,6 +225,13 @@ export const WorkspaceShell: Component = () => {
           title="ショートカット一覧 (Cmd+/)"
         >
           ⌨
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => AboutOverlay.show()}
+          title="このアプリについて / Help"
+        >
+          ?
         </button>
         <button
           class="workspace-export"

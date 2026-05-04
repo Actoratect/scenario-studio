@@ -154,6 +154,11 @@ export default defineConfig({
       },
     }),
   ],
+  define: {
+    // PR-AF: Help / About 用に build 時刻と version を埋め込む。
+    __APP_VERSION__: JSON.stringify(process.env['npm_package_version'] ?? '0.0.0'),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   server: {
     port: 5173,
     strictPort: false,

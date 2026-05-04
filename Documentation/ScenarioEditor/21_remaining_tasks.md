@@ -17,8 +17,8 @@
 - [x] **Plot Timeline の drag-reorder** ✅ 完了 (PR-AD) — シーンカード drag で同章内 reorder + 他章への移動
 - [x] **Plot Timeline で章 drag 並べ替え** ✅ 完了 (PR-AD) — カラム header drag で章順入れ替え
 - [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
-- [ ] **Glossary の用語をシーン text 中で自動ハイライト** — 用語 + 表記揺れ違反を inline 表示
-- [ ] **Stats panel に「セリフ密度」グラフ** — 章別 / シーン別の 1 行平均文字数
+- [x] **Glossary の用語をシーン text 中で自動ハイライト** ✅ 完了 (PR-AF) — Visual editor 各テキスト下に chip 行 (✓ 検出 / ⚠ 違反)
+- [x] **Stats panel に「セリフ密度」グラフ** ✅ 完了 (PR-AF) — 章別 1 行平均文字数 (緑バー)
 - [x] **Welcome 画面に「FF7 サンプルを開く」ボタン** ✅ 完了 (PR-AE) — Vite plugin で sample を bundle、選択フォルダに展開して開く
 - [ ] **AI でシーン全体の要約生成** — Cmd+Shift+A 等で「このシーンを 1 行で要約」
 - [ ] **Auto-save 競合検知** — 外部 (他ツール) で同じファイルが編集されたら警告
@@ -26,7 +26,7 @@
 
 ## 🟢 小 (Polish)
 
-- [ ] **Help / About ダイアログ** — version / リンク / クレジット
+- [x] **Help / About ダイアログ** ✅ 完了 (PR-AF) — `?` ボタン / version + リンク + クレジット
 - [ ] **設定パネルでテーマ切替** (light / dark / system)
 - [ ] **Tab order を保存** — Dockview のレイアウトを localStorage に永続化
 - [ ] **マルチセレクト in Outline** — 複数ノードを選んで一括削除 / 一括 rename
@@ -80,3 +80,4 @@
 | #48 | PR-AC | 統一トンマナ + Inspector 2列レイアウト + 立ち絵サムネ Crop |
 | #49 | PR-AD | Plot Timeline drag-reorder (シーン + 章) |
 | #50 | PR-AE | Welcome: FF7 サンプル open + recent pin/削除 |
+| #51 | PR-AF | Glossary auto-highlight + Stats セリフ密度 + Help/About |
