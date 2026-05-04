@@ -19,6 +19,8 @@ export interface LensNode {
   label: string;
   /** テンプレート ID — UI 側で色やアイコンに transform。 */
   templateId: string;
+  /** ScenarioNode.thumbnail (Media/ 配下のパス) があれば。 */
+  thumbnail?: string | undefined;
 }
 
 export type LensEdgeKind = 'implicit' | 'explicit';
@@ -57,6 +59,7 @@ export function computeRelationshipLens(
       id: node.id,
       label: pickLabel(node),
       templateId: node.templateId,
+      ...(node.thumbnail !== undefined ? { thumbnail: node.thumbnail } : {}),
     });
   }
   lensNodes.sort((a, b) => a.label.localeCompare(b.label));

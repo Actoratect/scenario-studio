@@ -23,7 +23,9 @@ import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
 import { Toast } from '../services/Toast';
+import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
+import { NodeThumbnail } from '../global/NodeThumbnail';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 // 選択中ノードの編集 UI。
@@ -189,6 +191,32 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     }
   }
 
+  let fileInput: HTMLInputElement | undefined;
+
+  async function uploadThumbnail(file: File): Promise<void> {
+    const n = node();
+    if (!n) return;
+    await ThumbnailService.uploadForNode(n, file, file.name);
+  }
+
+  function onPickFile(): void {
+    fileInput?.click();
+  }
+
+  function onFileChange(e: Event): void {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) void uploadThumbnail(file);
+    input.value = '';
+  }
+
+  async function clearThumbnail(): Promise<void> {
+    const n = node();
+    if (!n || !n.thumbnail) return;
+    if (!window.confirm(`サムネイルを削除しますか? (Media/${n.slug}.* も消えます)`)) return;
+    await ThumbnailService.clearForNode(n);
+  }
+
   async function deleteNode(): Promise<void> {
     const n = node();
     const ctx = ProjectService.currentProject();
@@ -210,9 +238,33 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     <div class="panel-content panel-inspector">
       <Show when={node() && template()} fallback={<EmptyInspector panelId={params.api.id} />}>
         <header class="panel-inspector-header">
+          <button
+            type="button"
+            class="panel-inspector-thumb-button"
+            onClick={onPickFile}
+            title="クリックでサムネイル画像をアップロード"
+          >
+            <NodeThumbnail node={node()!} size={40} />
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            style={{ display: 'none' }}
+            onChange={onFileChange}
+          />
           <strong>{node()!.slug}</strong>
           <span class="panel-inspector-template">{template()!.id}</span>
           <span class="panel-inspector-actions">
+            <Show when={node()!.thumbnail}>
+              <button
+                type="button"
+                onClick={() => void clearThumbnail()}
+                title="サムネイル画像を削除"
+              >
+                🖼 ×
+              </button>
+            </Show>
             <button type="button" onClick={() => void renameNode()} title="slug を変更">
               ✎ Rename
             </button>
