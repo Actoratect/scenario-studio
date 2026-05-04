@@ -1,0 +1,78 @@
+# 21. 残タスクリスト (post-MVP, 2026-05-05 時点)
+
+> Phase 1 (M1-M8) + post-MVP A〜AA の合計 28 PR がマージ済。
+> 本ファイルは「**今後やる予定 / 検討中の機能**」を整理。
+> 完了したらここから消す or「✅ 完了 (PR #XX)」を付ける。
+
+## 🔴 緊急度高 (実機運用に直結)
+
+- [ ] **画像アップロードの drag & drop 対応** — 現状 Inspector のサムネ円クリック → file picker のみ。Inspector / Outline 行 に画像をドラッグして直接アップロード可能に
+- [ ] **シーン rename + slug 編集** — 現在は新規 scene 削除のみ。既存シーンの slug / title 変更が UI に無い (Outline で 🎬 タイトル直接 click → rename prompt を追加)
+- [ ] **Inspector で大規模ノード時のパフォーマンス** — 50+ field のテンプレで再描画が重くなる可能性。createMemo の細粒度化
+- [ ] **Lint 6 番目のルール: dialogue の連続発話検知** — 同一キャラ連続セリフ警告
+
+## 🟡 中 (UX 改善)
+
+- [ ] **Inspector フィールドにドキュメント link / プレビュー** — node_ref フィールドに hover で参照先プレビュー
+- [ ] **Plot Timeline の drag-reorder** — シーンカードを drag で並べ替え (現在は Outline で reorder)
+- [ ] **Plot Timeline で章 drag 並べ替え** — カラム自体の入れ替え
+- [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
+- [ ] **Glossary の用語をシーン text 中で自動ハイライト** — 用語 + 表記揺れ違反を inline 表示
+- [ ] **Stats panel に「セリフ密度」グラフ** — 章別 / シーン別の 1 行平均文字数
+- [ ] **Welcome 画面に「FF7 サンプルを開く」ボタン** — 新規ユーザがすぐ触れる導線
+- [ ] **AI でシーン全体の要約生成** — Cmd+Shift+A 等で「このシーンを 1 行で要約」
+- [ ] **Auto-save 競合検知** — 外部 (他ツール) で同じファイルが編集されたら警告
+- [ ] **Recent project 履歴の管理 UI** — Welcome 画面で削除 / pin
+
+## 🟢 小 (Polish)
+
+- [ ] **Help / About ダイアログ** — version / リンク / クレジット
+- [ ] **設定パネルでテーマ切替** (light / dark / system)
+- [ ] **Tab order を保存** — Dockview のレイアウトを localStorage に永続化
+- [ ] **マルチセレクト in Outline** — 複数ノードを選んで一括削除 / 一括 rename
+- [ ] **キーボードショートカット カスタマイズ**
+- [ ] **i18n: UI 英語 / 中国語切替** (内部識別子は日本語化済みなので外殻のみ)
+
+## 🔵 大 (新機能)
+
+- [ ] **Tauri デスクトップ版 配布インストーラ** — .msi / .dmg / .AppImage
+- [ ] **Unity ランタイム統合** (Phase 2) — Unity プロジェクトに脚本データを bundle
+- [ ] **Yjs CRDT 共同編集** (Phase X SaaS への布石) — オフライン → 同期
+- [ ] **AI: 章/シーン まるごと生成** (Show prompt 確認後)
+- [ ] **AI: キャラ性格に基づくセリフ感情推定**
+- [ ] **Voice 録音アシスト** — シーン script を読み上げ TTS で確認
+- [ ] **タイムライン本格 timeline** (横軸 = 時間 / 縦軸 = キャラの存命) — 05_timeline.md §3
+- [ ] **Variant override の bulk 編集** — 複数 Era にまたがる一括 override
+
+## 完了 (post-MVP A-AA)
+
+| # | PR | 内容 |
+|---|---|---|
+| #19 | hotfix | CSP for HMR + Scene 追加 UI |
+| #20 | PR-A | CUDO テーマ + ローディング視覚化 |
+| #21 | PR-B | LocalizedString 廃止 → 名前+読み仮名+ID |
+| #22 | PR-C | Graph: drag / 中間 Box ラベル / Era フィルタ |
+| #23 | PR-D | 自動保存 status pill + Toast 通知 |
+| #24 | PR-E | 明示 Relations + Shift+drag 作成 |
+| #25 | PR-F | AI 1 行続き提案 (Tab 確定) |
+| #26 | PR-G | ノード rename / delete + 章 rename + シーン削除 |
+| #27 | PR-H | Cmd+K コマンドパレット |
+| #28 | PR-I | Outline drag 並べ替え + Synopsis Markdown |
+| #29 | PR-J | FF7 サンプル + 生成スクリプト |
+| #30 | PR-K | Export — Scene/Chapter/Project を text/Markdown |
+| #31 | PR-L | Era Variants Inspector UI |
+| #32 | PR-M | Settings panel + Era CRUD |
+| #33 | PR-N | Onboarding banner + Cmd+/ shortcuts |
+| #34 | PR-O | Inspector field grouping + 折りたたみ |
+| #35 | PR-P | Plot Timeline panel |
+| #36 | PR-Q | ノードサムネイル画像 |
+| #37 | PR-R | Cross-panel scene jump |
+| #38 | PR-S | Script block-insert toolbar |
+| #39 | PR-T | Cmd+F 全文検索 |
+| #40 | PR-U | Cross-chapter scene drag |
+| #41 | PR-V | Stats panel |
+| #42 | PR-W | Script Find & Replace (Cmd+H) |
+| #43 | PR-X | Inspector 全面改修 + タブ日本語化 |
+| #44 | PR-Y | ID 一覧 (Cmd+I) |
+| #45 | PR-Z | Inspector inline Era selector |
+| #46 | PR-AA | Script visual editor |
