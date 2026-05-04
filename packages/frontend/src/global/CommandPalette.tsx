@@ -1,8 +1,9 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
+import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
+import { SceneSelection } from '../services/SceneSelection';
 import { SelectionContext } from '../services/SelectionContext';
-import { Toast } from '../services/Toast';
 
 // グローバル コマンド/検索 palette (PR-H)。Cmd+K / Ctrl+K で開く。
 // 候補: ノード / 章 / シーン / 用語 を文字列検索 → 選択で jump or 表示。
@@ -92,17 +93,21 @@ const CommandPaletteUi: Component = () => {
     switch (hit.kind) {
       case 'node':
         SelectionContext.selectNode(hit.nodeId as never);
+        PanelFocus.focus('inspector-1');
         break;
       case 'chapter':
-        Toast.info(`章: ${hit.label} (Outline で表示)`);
+        PanelFocus.focus('outline-1');
         break;
       case 'scene':
-        Toast.info(
-          `シーン: ${hit.chapterSlug}/${hit.sceneSlug} (Script パネルでドロップダウン選択)`,
-        );
+        SceneSelection.select({
+          chapterSlug: hit.chapterSlug,
+          sceneSlug: hit.sceneSlug,
+          label: hit.label,
+        });
+        PanelFocus.focus('script-1');
         break;
       case 'glossary':
-        Toast.info(`用語: ${hit.term} (Glossary パネルで参照)`);
+        PanelFocus.focus('glossary-1');
         break;
     }
     CommandPalette.hide();

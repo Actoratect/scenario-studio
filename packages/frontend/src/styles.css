@@ -2396,6 +2396,30 @@ button {
   text-decoration: underline;
 }
 
+.panel-outline-scene-jump {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 1px 6px;
+  font-size: inherit;
+  color: var(--ss-text);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.panel-outline-scene-jump:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+
+.panel-outline-scene {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .panel-outline-delete-scene {
   margin-left: 8px;
   padding: 0 6px;
