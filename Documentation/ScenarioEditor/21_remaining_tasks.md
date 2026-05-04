@@ -6,10 +6,10 @@
 
 ## 🔴 緊急度高 (実機運用に直結)
 
-- [ ] **画像アップロードの drag & drop 対応** — 現状 Inspector のサムネ円クリック → file picker のみ。Inspector / Outline 行 に画像をドラッグして直接アップロード可能に
-- [ ] **シーン rename + slug 編集** — 現在は新規 scene 削除のみ。既存シーンの slug / title 変更が UI に無い (Outline で 🎬 タイトル直接 click → rename prompt を追加)
+- [x] **画像アップロードの drag & drop 対応** ✅ 完了 (PR-AB) — Inspector サムネゾーン + Outline ノード行で画像 drop → 直接アップロード
+- [x] **シーン rename + slug 編集** ✅ 完了 (PR-AB) — Outline シーン行 ✎ ボタンで title + slug を変更 (slug 変更時はファイル rename + `_scene_index.yaml` 更新)
 - [ ] **Inspector で大規模ノード時のパフォーマンス** — 50+ field のテンプレで再描画が重くなる可能性。createMemo の細粒度化
-- [ ] **Lint 6 番目のルール: dialogue の連続発話検知** — 同一キャラ連続セリフ警告
+- [x] **Lint 6 番目のルール: dialogue の連続発話検知** ✅ 完了 (PR-AB) — `consecutive-same-speaker` (info)。stage / aside / 別キャラを挟むと run リセット
 
 ## 🟡 中 (UX 改善)
 
@@ -76,3 +76,4 @@
 | #44 | PR-Y | ID 一覧 (Cmd+I) |
 | #45 | PR-Z | Inspector inline Era selector |
 | #46 | PR-AA | Script visual editor |
+| #47 | PR-AB | 🔴緊急: シーン rename / 画像 drag-drop / 連続発話 lint |

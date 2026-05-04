@@ -189,6 +189,75 @@ export class FsScenarioRepository {
   }
 
   /**
+   * シーンの slug / title を変更する (PR-AB)。
+   * - newSlug が現 slug と異なる場合: ファイルを rename + `_scene_index.yaml` の order を差替
+   * - newTitle が指定されていれば .scn.yaml 内の `plot.title` を更新
+   * sceneId はファイル名と紐付くため、`scene.${newSlug}` に書き換える (脚本参照の who: には影響しない、who: は character の dev_name)。
+   */
+  async renameScene(input: {
+    chapterSlug: string;
+    oldSlug: string;
+    newSlug: string;
+    newTitle?: string | undefined;
+  }): Promise<{ slug: string; title: string }> {
+    const chapterDir = `${SCENARIOS_ROOT}/${input.chapterSlug}`;
+    const oldPath = `${chapterDir}/${input.oldSlug}.scn.yaml`;
+    if (!(await this.adapter.exists(this.handle, oldPath))) {
+      throw new Error(`Scene not found: ${oldPath}`);
+    }
+    const sceneIndexPath = `${chapterDir}/_scene_index.yaml`;
+
+    const slugChanged = input.newSlug !== input.oldSlug;
+    const newPath = `${chapterDir}/${input.newSlug}.scn.yaml`;
+    if (slugChanged && (await this.adapter.exists(this.handle, newPath))) {
+      throw new Error(`Scene slug ${input.newSlug} already exists in ${input.chapterSlug}`);
+    }
+
+    // YAML を読み、必要なら title / sceneId を書き換え
+    const text = await this.adapter.read(this.handle, oldPath);
+    const { value } = parseYaml(text);
+    const v = expectMapping(value, oldPath);
+    if (slugChanged) {
+      v['sceneId'] = `scene.${input.newSlug}`;
+    }
+    let resolvedTitle: string;
+    const plot = isMapping(v['plot'])
+      ? (v['plot'] as { [k: string]: YamlValue })
+      : ({} as { [k: string]: YamlValue });
+    if (input.newTitle !== undefined && input.newTitle.trim() !== '') {
+      plot['title'] = input.newTitle.trim();
+      v['plot'] = plot;
+      resolvedTitle = input.newTitle.trim();
+    } else {
+      resolvedTitle = typeof plot['title'] === 'string' ? plot['title'] : input.newSlug;
+    }
+
+    const updatedText = stringifyYaml(sanitizeYamlTree(v));
+    if (slugChanged) {
+      await this.adapter.write(this.handle, newPath, updatedText);
+      await this.adapter.delete(this.handle, oldPath);
+    } else {
+      await this.adapter.write(this.handle, oldPath, updatedText);
+    }
+
+    // _scene_index.yaml の order 更新 (slug が変わったときのみ)
+    if (slugChanged && (await this.adapter.exists(this.handle, sceneIndexPath))) {
+      const idxText = await this.adapter.read(this.handle, sceneIndexPath);
+      const order = expectStringArray(
+        expectMapping(parseYaml(idxText).value, sceneIndexPath),
+        'scenes',
+      ).map((s) => (s === input.oldSlug ? input.newSlug : s));
+      await this.adapter.write(
+        this.handle,
+        sceneIndexPath,
+        stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order })),
+      );
+    }
+
+    return { slug: input.newSlug, title: resolvedTitle };
+  }
+
+  /**
    * シーン (.scn.yaml) を削除し、`_scene_index.yaml` からも除外する。
    */
   async removeScene(chapterSlug: string, sceneSlug: string): Promise<void> {

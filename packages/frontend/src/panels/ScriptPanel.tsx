@@ -13,6 +13,7 @@ import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptSnippets';
 import { ScriptVisualEditor } from '../script/ScriptVisualEditor';
+import { bumpScriptLintVersion } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
@@ -135,6 +136,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     setSaving(true);
     try {
       await ctx.adapter.write(ctx.handle, ref.path, text);
+      // 連続発話 lint を再評価
+      bumpScriptLintVersion();
     } catch (e) {
       console.error('script save failed', e);
       Toast.error(`脚本の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
