@@ -127,71 +127,71 @@ export const WorkspaceShell: Component = () => {
     });
     PanelFocus.register(api);
 
-    api.addPanel({ id: 'graph-1', component: 'graph', title: 'Graph' });
+    api.addPanel({ id: 'graph-1', component: 'graph', title: '🕸 グラフ' });
     api.addPanel({
       id: 'inspector-1',
       component: 'inspector',
-      title: 'Inspector',
+      title: '📝 インスペクタ',
       position: { referencePanel: 'graph-1', direction: 'right' },
     });
     api.addPanel({
       id: 'outline-1',
       component: 'outline',
-      title: 'Outline',
+      title: '📚 アウトライン',
       position: { referencePanel: 'graph-1', direction: 'below' },
     });
     api.addPanel({
       id: 'synopsis-1',
       component: 'synopsis',
-      title: 'Synopsis',
+      title: '📖 あらすじ',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'script-1',
       component: 'script',
-      title: 'Script: s01_opening',
+      title: '🎬 脚本',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'bench-1',
       component: 'bench',
-      title: 'Graph Bench (PoC-B)',
+      title: '🧪 ベンチ',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'glossary-1',
       component: 'glossary',
-      title: 'Glossary',
+      title: '📘 用語集',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'console-1',
       component: 'console',
-      title: 'Console',
+      title: '⚠ コンソール',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'ai-1',
       component: 'ai',
-      title: 'AI',
+      title: '🤖 AI',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'settings-1',
       component: 'settings',
-      title: 'Settings',
+      title: '⚙ 設定',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'timeline-1',
       component: 'timeline',
-      title: 'Plot Timeline',
+      title: '🗂 プロット',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     api.addPanel({
       id: 'stats-1',
       component: 'stats',
-      title: 'Stats',
+      title: '📊 統計',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   });

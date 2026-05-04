@@ -82,6 +82,44 @@ button {
   box-shadow: var(--ss-focus-ring);
 }
 
+/* PR-X: パネルタブを CUDO 配色で色分け (data-testid = panel id 経由) */
+.dv-tab[data-testid='graph-1'] {
+  border-top: 3px solid var(--ss-accent-blue) !important;
+}
+.dv-tab[data-testid='inspector-1'] {
+  border-top: 3px solid var(--ss-accent-orange) !important;
+}
+.dv-tab[data-testid='outline-1'] {
+  border-top: 3px solid var(--ss-accent-purple) !important;
+}
+.dv-tab[data-testid='synopsis-1'] {
+  border-top: 3px solid var(--ss-accent-purple) !important;
+}
+.dv-tab[data-testid='script-1'] {
+  border-top: 3px solid var(--ss-accent-green) !important;
+}
+.dv-tab[data-testid='timeline-1'] {
+  border-top: 3px solid var(--ss-accent-green) !important;
+}
+.dv-tab[data-testid='glossary-1'] {
+  border-top: 3px solid var(--ss-accent-yellow) !important;
+}
+.dv-tab[data-testid='stats-1'] {
+  border-top: 3px solid var(--ss-accent-sky) !important;
+}
+.dv-tab[data-testid='console-1'] {
+  border-top: 3px solid var(--ss-accent-vermillion) !important;
+}
+.dv-tab[data-testid='ai-1'] {
+  border-top: 3px solid var(--ss-accent-blue) !important;
+}
+.dv-tab[data-testid='settings-1'] {
+  border-top: 3px solid var(--ss-text-muted) !important;
+}
+.dv-tab[data-testid='bench-1'] {
+  border-top: 3px solid var(--ss-text-faint) !important;
+}
+
 /* Dockview の panel background を light に固定 (OS dark に引きずられない) */
 .dockview-theme-light {
   --dv-group-view-background-color: var(--ss-bg);
@@ -1125,47 +1163,154 @@ button {
   color: #a33;
 }
 
-/* Inspector panel */
+/* ===== Inspector (PR-X overhaul) ===== */
 .panel-inspector {
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 .panel-inspector-header {
-  padding: 8px 12px;
-  background: #f4f4f5;
-  border-bottom: 1px solid #e0e0e3;
+  padding: 10px 12px 12px;
+  background: var(--ss-bg-emph);
+  color: var(--ss-text-on-emph);
+  border-bottom: 2px solid var(--ss-accent-blue);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.panel-inspector-template {
+.panel-inspector-header-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 名前を「タグ風」のオレンジバッジで強調 */
+.panel-inspector-name-tag {
+  background: var(--ss-accent-orange);
+  color: var(--ss-bg);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.panel-inspector-id-tag {
+  font-family: 'SF Mono', Consolas, monospace;
   font-size: 11px;
-  color: #888;
+  color: var(--ss-text-on-emph);
+  background: rgba(255, 255, 255, 0.12);
+  padding: 4px 8px;
+  border-radius: 3px;
 }
 
-.panel-inspector-fields {
+.panel-inspector-era-tag {
+  font-size: 11px;
+  color: var(--ss-bg);
+  background: var(--ss-accent-green);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.panel-inspector-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.panel-inspector-actions button {
+  padding: 4px 8px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ss-text-on-emph);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-inspector-actions button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--ss-accent-sky);
+}
+
+.panel-inspector-actions .panel-inspector-delete:hover {
+  background: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
+.panel-inspector-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-inspector-thumb-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-inspector-thumb-button:hover {
+  border-color: var(--ss-accent-sky);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.panel-inspector-thumb-hint {
+  font-size: 10px;
+  color: var(--ss-text-on-emph);
+  opacity: 0.7;
+}
+
+.panel-inspector-template-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ss-text-on-emph);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.panel-inspector-template-pill code {
+  font-size: 10px;
+  opacity: 0.7;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.panel-inspector-scroll {
   flex: 1;
-  overflow: auto;
-  padding: 12px 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .panel-inspector-empty {
   padding: 24px;
-  color: #888;
+  color: var(--ss-text-faint);
   font-size: 13px;
 }
 
 .panel-inspector-hint {
   font-size: 11px;
-  color: #aaa;
+  color: var(--ss-text-faint);
 }
 
 /* Outline panel (M3 暫定一覧) */
@@ -1992,49 +2137,57 @@ button {
   font-family: 'SF Mono', Consolas, monospace;
 }
 
-/* ===== Inspector group collapse (PR-O) ===== */
+/* ===== Inspector group collapse (PR-O / PR-X) ===== */
 .panel-inspector-group {
-  margin-bottom: 8px;
+  margin-bottom: 0;
   border: 1px solid var(--ss-border-soft);
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
+  background: var(--ss-bg);
 }
 
+/* PR-X: グループ見出しを「▼ タグ風」のオレンジバッジ */
 .panel-inspector-group-header {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  background: var(--ss-bg-soft);
+  padding: 4px 12px;
+  margin: 8px 0 0 8px;
+  background: var(--ss-accent-orange);
+  color: var(--ss-bg);
   cursor: pointer;
   user-select: none;
   font-size: 12px;
-  border-bottom: 1px solid var(--ss-border-soft);
+  font-weight: 700;
+  border-radius: 4px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .panel-inspector-group.collapsed .panel-inspector-group-header {
-  border-bottom: none;
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
 }
 
 .panel-inspector-group-header:hover {
-  background: var(--ss-bg-subtle);
+  filter: brightness(1.05);
 }
 
 .panel-inspector-group-toggle {
   font-size: 9px;
-  color: var(--ss-text-faint);
+  color: var(--ss-bg);
   width: 10px;
 }
 
 .panel-inspector-group-title {
-  flex: 1;
-  font-weight: 600;
-  color: var(--ss-text);
+  font-weight: 700;
+  color: var(--ss-bg);
 }
 
 .panel-inspector-group-count {
   font-size: 10px;
-  color: var(--ss-text-faint);
+  color: var(--ss-bg);
+  opacity: 0.7;
   font-family: 'SF Mono', Consolas, monospace;
 }
 
@@ -2047,18 +2200,94 @@ button {
 }
 
 .panel-inspector-group-badge.error {
-  background: var(--ss-bg-error);
+  background: var(--ss-bg);
   color: var(--ss-accent-vermillion);
 }
 
 .panel-inspector-group-badge.variant {
-  background: #f5e6ef;
+  background: var(--ss-bg);
   color: var(--ss-accent-purple);
 }
 
 .panel-inspector-group-body {
-  padding: 8px 10px;
-  background: var(--ss-bg);
+  padding: 8px 12px 12px;
+  background: var(--ss-bg-subtle);
+  border-radius: 4px;
+}
+
+/* ===== Compact field row (PR-X) ===== */
+.panel-inspector-field-row {
+  margin-bottom: 6px;
+}
+
+/* compact: ラベル を inline tag、値 を右に並べる */
+.panel-inspector-field-row--compact .ssf-field {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: start;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.panel-inspector-field-row--compact .ssf-label {
+  display: inline-block;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0;
+  align-self: center;
+}
+
+.panel-inspector-field-row--compact .ssf-control {
+  min-width: 0;
+}
+
+.panel-inspector-field-row--compact .ssf-control input,
+.panel-inspector-field-row--compact .ssf-control select {
+  padding: 4px 8px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.panel-inspector-field-row--compact .ssf-hint {
+  grid-column: 2;
+  margin: 2px 0 0;
+}
+
+.panel-inspector-field-row--compact .ssf-error {
+  grid-column: 2;
+}
+
+/* multiline は full-width、ラベルは上に小さく */
+.panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-label {
+  display: inline-block;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  align-self: flex-start;
+  margin: 0;
+}
+
+.panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-control textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  padding: 6px 8px;
 }
 
 /* PR-L: variant 編集モード */

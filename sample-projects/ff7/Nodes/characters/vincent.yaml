@@ -3,6 +3,7 @@ kind: node
 id: 0101KQRB45ERA8M6RPF9JX47DXX0
 templateId: template.character
 slug: vincent
+thumbnail: Media/vincent.png
 fields:
   gender: male
   tone: formal

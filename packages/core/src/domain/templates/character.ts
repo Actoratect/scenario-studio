@@ -12,9 +12,9 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
     ...NAME_FIELDS,
     {
       id: 'birth_year',
-      label: '生年',
+      label: '年齢',
       type: 'int',
-      description: '物語現在 (0 年) からの相対値',
+      description: '見た目の年齢 (歳)。物語時系列の相対年でも可',
       group: '基本情報',
     },
     {
