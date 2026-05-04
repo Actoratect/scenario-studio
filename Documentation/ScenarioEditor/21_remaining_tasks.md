@@ -14,8 +14,8 @@
 ## 🟡 中 (UX 改善)
 
 - [ ] **Inspector フィールドにドキュメント link / プレビュー** — node_ref フィールドに hover で参照先プレビュー
-- [ ] **Plot Timeline の drag-reorder** — シーンカードを drag で並べ替え (現在は Outline で reorder)
-- [ ] **Plot Timeline で章 drag 並べ替え** — カラム自体の入れ替え
+- [x] **Plot Timeline の drag-reorder** ✅ 完了 (PR-AD) — シーンカード drag で同章内 reorder + 他章への移動
+- [x] **Plot Timeline で章 drag 並べ替え** ✅ 完了 (PR-AD) — カラム header drag で章順入れ替え
 - [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
 - [ ] **Glossary の用語をシーン text 中で自動ハイライト** — 用語 + 表記揺れ違反を inline 表示
 - [ ] **Stats panel に「セリフ密度」グラフ** — 章別 / シーン別の 1 行平均文字数
@@ -78,3 +78,4 @@
 | #46 | PR-AA | Script visual editor |
 | #47 | PR-AB | 🔴緊急: シーン rename / 画像 drag-drop / 連続発話 lint |
 | #48 | PR-AC | 統一トンマナ + Inspector 2列レイアウト + 立ち絵サムネ Crop |
+| #49 | PR-AD | Plot Timeline drag-reorder (シーン + 章) |
