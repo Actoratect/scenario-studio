@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { CommandPaletteRoot } from './global/CommandPalette';
+import { ExportDialogRoot } from './global/ExportDialog';
 import { Toaster } from './global/Toaster';
 import { ProjectService } from './services/ProjectService';
 
@@ -22,6 +23,7 @@ export const App: Component = () => {
       </Suspense>
       <Toaster />
       <CommandPaletteRoot />
+      <ExportDialogRoot />
     </>
   );
 };

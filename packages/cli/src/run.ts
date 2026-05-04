@@ -1,5 +1,6 @@
 import { parseArgs } from './args.js';
 import { exportNode } from './commands/export.js';
+import { exportAllCmd, exportSceneCmd } from './commands/export-scene.js';
 import { stats } from './commands/stats.js';
 import { validate } from './commands/validate.js';
 
@@ -14,9 +15,11 @@ export interface RunIo {
 const HELP = `scenario — Scenario Studio CLI
 
 Usage:
-  scenario validate <project-path> [--format text|json]
-  scenario export   <project-path> --node <id> [--format yaml|json]
-  scenario stats    <project-path> [--format text|json]
+  scenario validate     <project-path> [--format text|json]
+  scenario export       <project-path> --node <id> [--format yaml|json]
+  scenario export-scene <project-path> --chapter <slug> --scene <slug> [--format text|md]
+  scenario export-all   <project-path>           # 全章 / 全シーンを Markdown 結合
+  scenario stats        <project-path> [--format text|json]
   scenario --help
 `;
 
@@ -60,6 +63,43 @@ export async function run(argv: readonly string[], io: RunIo): Promise<number> {
       });
       if (r.exitCode === 0) io.stdout(r.output);
       else io.stderr(r.output);
+      return r.exitCode;
+    }
+    case 'export-scene': {
+      const projectPath = args.positional[0];
+      const chapter = args.flags['chapter'];
+      const scene = args.flags['scene'];
+      if (!projectPath) {
+        io.stderr('export-scene: missing <project-path>');
+        return 2;
+      }
+      if (typeof chapter !== 'string' || chapter === '') {
+        io.stderr('export-scene: missing --chapter <slug>');
+        return 2;
+      }
+      if (typeof scene !== 'string' || scene === '') {
+        io.stderr('export-scene: missing --scene <slug>');
+        return 2;
+      }
+      const fmt = args.flags['format'];
+      const r = await exportSceneCmd({
+        projectPath,
+        chapterSlug: chapter,
+        sceneSlug: scene,
+        format: fmt === 'text' ? 'text' : 'markdown',
+      });
+      if (r.exitCode === 0) io.stdout(r.output);
+      else io.stderr(r.output);
+      return r.exitCode;
+    }
+    case 'export-all': {
+      const projectPath = args.positional[0];
+      if (!projectPath) {
+        io.stderr('export-all: missing <project-path>');
+        return 2;
+      }
+      const r = await exportAllCmd({ projectPath });
+      io.stdout(r.output);
       return r.exitCode;
     }
     case 'stats': {

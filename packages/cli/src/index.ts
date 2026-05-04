@@ -17,4 +17,11 @@ export type { ExportOptions, ExportResult } from './commands/export.js';
 export { stats } from './commands/stats.js';
 export type { StatsOptions, StatsReport, StatsResult } from './commands/stats.js';
 
+export { exportAllCmd, exportSceneCmd } from './commands/export-scene.js';
+export type {
+  ExportAllCmdOptions,
+  ExportCmdResult,
+  ExportSceneCmdOptions,
+} from './commands/export-scene.js';
+
 export { run } from './run.js';
