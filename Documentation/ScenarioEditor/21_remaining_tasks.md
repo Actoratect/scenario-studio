@@ -13,7 +13,7 @@
 
 ## 🟡 中 (UX 改善)
 
-- [ ] **Inspector フィールドにドキュメント link / プレビュー** — node_ref フィールドに hover で参照先プレビュー
+- [x] **Inspector フィールドにドキュメント link / プレビュー** ✅ 完了 (PR-AG) — node_ref に inline preview 行 (サムネ + 名前 + ジャンプ ❘ 参照切れは赤)
 - [x] **Plot Timeline の drag-reorder** ✅ 完了 (PR-AD) — シーンカード drag で同章内 reorder + 他章への移動
 - [x] **Plot Timeline で章 drag 並べ替え** ✅ 完了 (PR-AD) — カラム header drag で章順入れ替え
 - [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
@@ -28,8 +28,8 @@
 
 - [x] **Help / About ダイアログ** ✅ 完了 (PR-AF) — `?` ボタン / version + リンク + クレジット
 - [ ] **設定パネルでテーマ切替** (light / dark / system)
-- [ ] **Tab order を保存** — Dockview のレイアウトを localStorage に永続化
-- [ ] **マルチセレクト in Outline** — 複数ノードを選んで一括削除 / 一括 rename
+- [x] **Tab order を保存** ✅ 完了 (PR-AG) — Dockview layout を localStorage に永続化、ヘッダ ⟳ で初期化
+- [x] **マルチセレクト in Outline** ✅ 完了 (PR-AG) — Cmd/Ctrl/Shift+クリックで複数選択 → 🗑 一括削除 (rename は今回見送り、文字列共通部が無く有用性低)
 - [ ] **キーボードショートカット カスタマイズ**
 - [ ] **i18n: UI 英語 / 中国語切替** (内部識別子は日本語化済みなので外殻のみ)
 
@@ -81,3 +81,4 @@
 | #49 | PR-AD | Plot Timeline drag-reorder (シーン + 章) |
 | #50 | PR-AE | Welcome: FF7 サンプル open + recent pin/削除 |
 | #51 | PR-AF | Glossary auto-highlight + Stats セリフ密度 + Help/About |
+| #52 | PR-AG | Dock layout 永続化 + Outline 複数選択 + node_ref preview |

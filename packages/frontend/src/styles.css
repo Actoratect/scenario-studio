@@ -3590,6 +3590,46 @@ button {
   background: var(--ss-bg-info);
 }
 
+/* PR-AG: Outline 複数選択状態 */
+.panel-outline-node--multi {
+  background: var(--ss-bg-warning);
+  border-color: var(--ss-accent-orange) !important;
+  box-shadow: inset 3px 0 0 var(--ss-accent-orange);
+}
+
+.panel-outline-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 6px 0;
+  background: var(--ss-bg-warning);
+  border: 1px solid var(--ss-accent-orange);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.panel-outline-bulkbar-count {
+  color: var(--ss-accent-vermillion);
+  font-weight: 600;
+}
+
+.panel-outline-bulkbar-action {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-outline-bulkbar-action:hover {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
 /* PR-AB: 画像 drop hover state on Inspector thumb */
 .panel-inspector-thumb-button--drop {
   outline: 2px dashed var(--ss-accent-blue);
@@ -4014,6 +4054,55 @@ button {
 /* PR-AF: Stats 章別 セリフ密度バー (緑系で文字数バーと区別) */
 .panel-stats-bar-fill--density {
   background: var(--ss-accent-green);
+}
+
+/* PR-AG: node_ref フィールドの「リンク先」プレビュー */
+.panel-inspector-ref-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.panel-inspector-ref-preview--missing {
+  background: var(--ss-bg-error);
+  border-color: var(--ss-accent-vermillion);
+  color: var(--ss-accent-vermillion);
+}
+
+.panel-inspector-ref-display {
+  font-weight: 600;
+  color: var(--ss-text);
+}
+
+.panel-inspector-ref-template {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  background: var(--ss-bg);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--ss-border-soft);
+}
+
+.panel-inspector-ref-jump {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-accent-blue);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-inspector-ref-jump:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
 }
 
 /* PR-AF: About / Help dialog */
