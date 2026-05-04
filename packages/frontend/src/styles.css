@@ -1386,6 +1386,94 @@ button {
   padding: 0;
 }
 
+/* PR-Z: Inspector header の右側 stack (テンプレ pill + Era 切替) */
+.panel-inspector-meta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-inspector-era-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-inspector-era-label {
+  font-size: 10px;
+  color: var(--ss-text-on-emph);
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+/* ===== Era selector pills (PR-Z) ===== */
+.ss-era-selector-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.ss-era-selector-pills.scrollable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.ss-era-pill {
+  padding: 3px 10px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ss-text-on-emph);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ss-era-pill:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.ss-era-pill.active {
+  background: var(--ss-accent-green);
+  color: var(--ss-bg);
+  border-color: var(--ss-accent-green);
+  font-weight: 700;
+}
+
+.ss-era-selector-empty {
+  font-size: 11px;
+  color: var(--ss-text-on-emph);
+  opacity: 0.5;
+}
+
+/* ヘッダ外の通常 panel-content 内で使う場合 (Settings 等) は黒背景前提でないので別色 */
+.panel-content .ss-era-pill {
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  border-color: var(--ss-border);
+}
+
+.panel-content .ss-era-pill:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-content .ss-era-pill.active {
+  background: var(--ss-accent-blue);
+  color: var(--ss-bg);
+  border-color: var(--ss-accent-blue);
+}
+
+.ss-era-selector-select {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
 .panel-inspector-scroll {
   flex: 1;
   min-height: 0;

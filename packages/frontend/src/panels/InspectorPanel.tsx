@@ -25,6 +25,7 @@ import { EraContext } from '../services/EraContext';
 import { Toast } from '../services/Toast';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
+import { EraSelector } from '../global/EraSelector';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
@@ -305,10 +306,16 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
               <NodeThumbnail node={node()!} size={120} />
               <span class="panel-inspector-thumb-hint">画像をアップロード</span>
             </button>
-            <span class="panel-inspector-template-pill">
-              {template()!.displayName}
-              <code>{template()!.id}</code>
-            </span>
+            <div class="panel-inspector-meta-stack">
+              <span class="panel-inspector-template-pill">
+                {template()!.displayName}
+                <code>{template()!.id}</code>
+              </span>
+              <div class="panel-inspector-era-row">
+                <span class="panel-inspector-era-label">時間軸切り替え:</span>
+                <EraSelector variant="pills" scrollable={true} />
+              </div>
+            </div>
           </div>
         </header>
         <div class="panel-inspector-scroll">
