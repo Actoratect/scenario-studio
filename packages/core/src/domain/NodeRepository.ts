@@ -24,6 +24,10 @@ export interface NodeRepository {
   rename(id: NodeId, newSlug: string): Promise<void>;
   /** ノードを削除 (参照孤児はここでは検査せず Lint 側で警告)。 */
   delete(id: NodeId): Promise<void>;
+  /** PR-AH: node を保存するときの相対パス (Nodes/<dir>/<slug>.yaml)。 */
+  pathFor(node: ScenarioNode): string;
+  /** PR-AH: 現在の node 内容を YAML 文字列にシリアライズ (write されるはずの内容)。 */
+  serializeForSave(node: ScenarioNode): string;
 }
 
 export interface CreateNodeOptions {
@@ -86,9 +90,16 @@ export class FsNodeRepository implements NodeRepository {
   }
 
   async save(node: ScenarioNode): Promise<void> {
+    await this.adapter.write(this.handle, this.pathFor(node), this.serializeNode(node));
+  }
+
+  pathFor(node: ScenarioNode): string {
     const directory = this.templates.directoryOf(node.templateId as TemplateId);
-    const path = `${NODES_ROOT}/${directory}/${node.slug}.yaml`;
-    await this.adapter.write(this.handle, path, this.serializeNode(node));
+    return `${NODES_ROOT}/${directory}/${node.slug}.yaml`;
+  }
+
+  serializeForSave(node: ScenarioNode): string {
+    return this.serializeNode(node);
   }
 
   async rename(id: NodeId, newSlug: string): Promise<void> {
