@@ -2729,6 +2729,37 @@ button {
   font-family: 'SF Mono', Consolas, monospace;
 }
 
+/* PR-AD: drag-reorder visual states */
+.panel-timeline-column-header {
+  cursor: grab;
+}
+.panel-timeline-column-header:active {
+  cursor: grabbing;
+}
+
+.panel-timeline-drag-handle {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  user-select: none;
+  cursor: grab;
+}
+
+.panel-timeline-column--drop {
+  outline: 2px dashed var(--ss-accent-blue);
+  outline-offset: -3px;
+  background: var(--ss-bg-info);
+}
+
+.panel-timeline-card--drop {
+  outline: 2px dashed var(--ss-accent-blue);
+  outline-offset: -2px;
+}
+
+.panel-timeline-card--busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 /* ===== Inspector group collapse (PR-O / PR-X) ===== */
 .panel-inspector-group {
   margin-bottom: 0;
