@@ -20,18 +20,18 @@
 - [x] **Glossary の用語をシーン text 中で自動ハイライト** ✅ 完了 (PR-AF) — Visual editor 各テキスト下に chip 行 (✓ 検出 / ⚠ 違反)
 - [x] **Stats panel に「セリフ密度」グラフ** ✅ 完了 (PR-AF) — 章別 1 行平均文字数 (緑バー)
 - [x] **Welcome 画面に「FF7 サンプルを開く」ボタン** ✅ 完了 (PR-AE) — Vite plugin で sample を bundle、選択フォルダに展開して開く
-- [ ] **AI でシーン全体の要約生成** — Cmd+Shift+A 等で「このシーンを 1 行で要約」
+- [x] **AI でシーン全体の要約生成** ✅ 完了 (PR-AJ) — Cmd+Shift+A で AiSummaryOverlay 起動 → Show prompt 確認 → 1 行要約 (40 字目安)、コピー可能
 - [x] **Auto-save 競合検知** ✅ 完了 (PR-AH) — ConflictDetector が path 別 snapshot を保持し、上書き直前に disk 内容と diff、不一致時は confirm prompt
 - [x] **Recent project 履歴の管理 UI** ✅ 完了 (PR-AE) — Welcome に 📌 pin / × 削除 (確認 prompt つき)
 
 ## 🟢 小 (Polish)
 
 - [x] **Help / About ダイアログ** ✅ 完了 (PR-AF) — `?` ボタン / version + リンク + クレジット
-- [ ] **設定パネルでテーマ切替** (light / dark / system)
+- [ ] **設定パネルでテーマ切替** (light / dark / system) — *意図的に保留*: PR-AC で「ライト基調固定 + 単一アクセント」のトンマナを慎重に調整したため、dark 版は別途デザインから始める必要あり (CUDO 互換配色の dark variant が未確定)。Phase 2 で改めて
 - [x] **Tab order を保存** ✅ 完了 (PR-AG) — Dockview layout を localStorage に永続化、ヘッダ ⟳ で初期化
 - [x] **マルチセレクト in Outline** ✅ 完了 (PR-AG) — Cmd/Ctrl/Shift+クリックで複数選択 → 🗑 一括削除 (rename は今回見送り、文字列共通部が無く有用性低)
-- [ ] **キーボードショートカット カスタマイズ**
-- [ ] **i18n: UI 英語 / 中国語切替** (内部識別子は日本語化済みなので外殻のみ)
+- [ ] **キーボードショートカット カスタマイズ** — *意図的に保留*: 現在のショートカットは設計確定 (07_window-system §4)。remap UI + 競合検知 + 永続化はそれ自体が中規模機能。実害ある衝突 (Cmd+H 等) は OS 別に手当てしているので Phase 2 まで先送り
+- [ ] **i18n: UI 英語 / 中国語切替** (内部識別子は日本語化済みなので外殻のみ) — *意図的に保留*: 全 panel / overlay / Toast の文字列を `t()` 経由に置換する大手術。Phase 2 で SaaS 検討と同時に着手
 
 ## 🔵 大 (新機能)
 
@@ -84,3 +84,4 @@
 | #52 | PR-AG | Dock layout 永続化 + Outline 複数選択 + node_ref preview |
 | #53 | PR-AH | Synopsis 画像 upload + Auto-save 競合検知 |
 | #54 | PR-AI | Inspector perf — per-field createMemo (大規模ノード対策) |
+| #55 | PR-AJ | AI シーン要約 (Cmd+Shift+A) |

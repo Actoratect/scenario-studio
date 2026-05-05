@@ -14,6 +14,7 @@ import { SettingsPanel } from './panels/SettingsPanel';
 import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { AboutOverlay } from './global/AboutOverlay';
+import { AiSummaryOverlay } from './global/AiSummaryOverlay';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
@@ -127,6 +128,12 @@ export const WorkspaceShell: Component = () => {
     if (e.key === 'i') {
       e.preventDefault();
       IdListOverlay.toggle();
+      return;
+    }
+    // PR-AJ: Cmd+Shift+A — AI シーン要約 (現在選択中の scene について)
+    if (e.shiftKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      AiSummaryOverlay.show();
       return;
     }
     if (!ctx) return;

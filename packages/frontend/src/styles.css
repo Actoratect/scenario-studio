@@ -4158,3 +4158,33 @@ button {
 .ss-about-credits a {
   color: var(--ss-accent-blue);
 }
+
+/* PR-AJ: AI Summary overlay */
+.ss-ai-summary-preview {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+}
+
+.ss-ai-summary-result {
+  padding: 12px 14px;
+  background: var(--ss-bg-info);
+  border: 1px solid var(--ss-accent-sky);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ss-text);
+  margin: 8px 0;
+}
+
+.ss-ai-summary-error {
+  color: var(--ss-accent-vermillion);
+}
