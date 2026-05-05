@@ -1,4 +1,4 @@
-import { createMemo, createResource, For, Show } from 'solid-js';
+import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { parseYaml, type YamlValue } from '@scenario-studio/core';
@@ -27,6 +27,94 @@ interface SceneSummary {
 export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (params) => {
   const ctx = createMemo(() => ProjectService.currentProject());
   const chapters = createMemo(() => ctx()?.project.scenario.chapters ?? []);
+  const [busy, setBusy] = createSignal(false);
+
+  // PR-AD: drag-reorder。Outline と同じ DataTransfer 形式を使う。
+  //   chapter drag: application/x-ss-chapter = "<idx>"
+  //   scene drag:   application/x-ss-scene   = "<chapterSlug>::<sceneIdx>"
+  async function reorderChapters(fromIdx: number, toIdx: number): Promise<void> {
+    const c = ctx();
+    if (!c || fromIdx === toIdx) return;
+    setBusy(true);
+    try {
+      const arr = [...c.project.scenario.chapters];
+      const [moved] = arr.splice(fromIdx, 1);
+      if (!moved) return;
+      arr.splice(toIdx, 0, moved);
+      await c.scenarioRepository.saveProjectIndex(arr.map((ch) => ({ slug: ch.slug })));
+      Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: arr } });
+    } catch (e) {
+      Toast.error(`章の並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reorderScenes(chapterSlug: string, fromIdx: number, toIdx: number): Promise<void> {
+    const c = ctx();
+    if (!c || fromIdx === toIdx) return;
+    const chapter = c.project.scenario.chapters.find((ch) => ch.slug === chapterSlug);
+    if (!chapter) return;
+    setBusy(true);
+    try {
+      const scenes = [...chapter.scenes];
+      const [moved] = scenes.splice(fromIdx, 1);
+      if (!moved) return;
+      scenes.splice(toIdx, 0, moved);
+      await c.scenarioRepository.reorderScenes(
+        chapterSlug,
+        scenes.map((s) => s.slug),
+      );
+      const next = c.project.scenario.chapters.map((ch) =>
+        ch.slug === chapterSlug ? { ...ch, scenes } : ch,
+      );
+      Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: next } });
+    } catch (e) {
+      Toast.error(`シーンの並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveSceneAcross(
+    fromChapter: string,
+    fromIdx: number,
+    toChapter: string,
+    insertAt: number,
+  ): Promise<void> {
+    const c = ctx();
+    if (!c) return;
+    const src = c.project.scenario.chapters.find((ch) => ch.slug === fromChapter);
+    if (!src) return;
+    const moved = src.scenes[fromIdx];
+    if (!moved) return;
+    setBusy(true);
+    try {
+      await c.scenarioRepository.moveScene({
+        fromChapter,
+        toChapter,
+        sceneSlug: moved.slug,
+        insertAt,
+      });
+      const next = c.project.scenario.chapters.map((ch) => {
+        if (ch.slug === fromChapter) {
+          return { ...ch, scenes: ch.scenes.filter((_, i) => i !== fromIdx) };
+        }
+        if (ch.slug === toChapter) {
+          const arr = [...ch.scenes];
+          arr.splice(insertAt, 0, moved);
+          return { ...ch, scenes: arr };
+        }
+        return ch;
+      });
+      Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: next } });
+      Toast.success(`シーン移動: ${fromChapter} → ${toChapter}`);
+    } catch (e) {
+      Toast.error(`シーン移動に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // 全シーンの要約を一括ロード。source は ctx + chapters の組合せ。
   const fetchSource = createMemo(() => {
@@ -98,8 +186,47 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
         >
           <For each={chapters()}>
             {(ch, idx) => (
-              <div class="panel-timeline-column">
-                <div class="panel-timeline-column-header">
+              <div
+                class="panel-timeline-column"
+                onDragOver={(e) => {
+                  // 章 drag (並び替え) または scene drag (他章への末尾追加) を受け付ける
+                  if (
+                    e.dataTransfer?.types.includes('application/x-ss-chapter') ||
+                    e.dataTransfer?.types.includes('application/x-ss-scene')
+                  ) {
+                    e.preventDefault();
+                    e.currentTarget.classList.add('panel-timeline-column--drop');
+                  }
+                }}
+                onDragLeave={(e) => e.currentTarget.classList.remove('panel-timeline-column--drop')}
+                onDrop={(e) => {
+                  e.currentTarget.classList.remove('panel-timeline-column--drop');
+                  const chapRaw = e.dataTransfer?.getData('application/x-ss-chapter');
+                  if (chapRaw) {
+                    e.preventDefault();
+                    void reorderChapters(Number(chapRaw), idx());
+                    return;
+                  }
+                  const sceneRaw = e.dataTransfer?.getData('application/x-ss-scene');
+                  if (sceneRaw) {
+                    const [srcChap, srcIdxStr] = sceneRaw.split('::');
+                    if (srcChap && srcChap !== ch.slug && srcIdxStr !== undefined) {
+                      e.preventDefault();
+                      void moveSceneAcross(srcChap, Number(srcIdxStr), ch.slug, ch.scenes.length);
+                    }
+                  }
+                }}
+              >
+                <div
+                  class="panel-timeline-column-header"
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer?.setData('application/x-ss-chapter', String(idx()));
+                    e.dataTransfer!.effectAllowed = 'move';
+                  }}
+                  title="ドラッグで章を並べ替え"
+                >
+                  <span class="panel-timeline-drag-handle">⋮⋮</span>
                   <span class="panel-timeline-column-num">{idx() + 1}</span>
                   <span class="panel-timeline-column-title">{ch.title}</span>
                   <span class="panel-timeline-column-slug">{ch.slug}</span>
@@ -114,15 +241,50 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                       <li class="panel-timeline-empty-scene">シーン無し (Outline で「+ Scene」)</li>
                     }
                   >
-                    {(sc) => {
+                    {(sc, sIdx) => {
                       const s = (): SceneSummary | undefined =>
                         summaries()?.get(`${ch.slug}/${sc.slug}`);
                       return (
                         <li
                           class="panel-timeline-card"
+                          classList={{ 'panel-timeline-card--busy': busy() }}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer?.setData(
+                              'application/x-ss-scene',
+                              `${ch.slug}::${sIdx()}`,
+                            );
+                            e.dataTransfer!.effectAllowed = 'move';
+                            e.stopPropagation();
+                          }}
+                          onDragOver={(e) => {
+                            if (e.dataTransfer?.types.includes('application/x-ss-scene')) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.currentTarget.classList.add('panel-timeline-card--drop');
+                            }
+                          }}
+                          onDragLeave={(e) =>
+                            e.currentTarget.classList.remove('panel-timeline-card--drop')
+                          }
+                          onDrop={(e) => {
+                            e.currentTarget.classList.remove('panel-timeline-card--drop');
+                            const raw = e.dataTransfer?.getData('application/x-ss-scene');
+                            if (!raw) return;
+                            const [srcChap, srcIdxStr] = raw.split('::');
+                            if (!srcChap || srcIdxStr === undefined) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (srcChap === ch.slug) {
+                              void reorderScenes(ch.slug, Number(srcIdxStr), sIdx());
+                            } else {
+                              void moveSceneAcross(srcChap, Number(srcIdxStr), ch.slug, sIdx());
+                            }
+                          }}
                           onClick={() => s() && activate(s() as SceneSummary)}
                         >
                           <div class="panel-timeline-card-header">
+                            <span class="panel-timeline-drag-handle">⋮</span>
                             <span class="panel-timeline-card-title">{sc.title}</span>
                             <Show when={s()}>
                               {(sum) => (

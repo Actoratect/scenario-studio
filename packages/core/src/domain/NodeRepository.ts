@@ -24,6 +24,10 @@ export interface NodeRepository {
   rename(id: NodeId, newSlug: string): Promise<void>;
   /** ノードを削除 (参照孤児はここでは検査せず Lint 側で警告)。 */
   delete(id: NodeId): Promise<void>;
+  /** PR-AH: node を保存するときの相対パス (Nodes/<dir>/<slug>.yaml)。 */
+  pathFor(node: ScenarioNode): string;
+  /** PR-AH: 現在の node 内容を YAML 文字列にシリアライズ (write されるはずの内容)。 */
+  serializeForSave(node: ScenarioNode): string;
 }
 
 export interface CreateNodeOptions {
@@ -86,9 +90,16 @@ export class FsNodeRepository implements NodeRepository {
   }
 
   async save(node: ScenarioNode): Promise<void> {
+    await this.adapter.write(this.handle, this.pathFor(node), this.serializeNode(node));
+  }
+
+  pathFor(node: ScenarioNode): string {
     const directory = this.templates.directoryOf(node.templateId as TemplateId);
-    const path = `${NODES_ROOT}/${directory}/${node.slug}.yaml`;
-    await this.adapter.write(this.handle, path, this.serializeNode(node));
+    return `${NODES_ROOT}/${directory}/${node.slug}.yaml`;
+  }
+
+  serializeForSave(node: ScenarioNode): string {
+    return this.serializeNode(node);
   }
 
   async rename(id: NodeId, newSlug: string): Promise<void> {
@@ -137,10 +148,23 @@ export class FsNodeRepository implements NodeRepository {
       slug,
       fields,
     };
+    let result: ScenarioNode = node;
     if (typeof v['thumbnail'] === 'string') {
-      return Object.assign({}, node, { thumbnail: v['thumbnail'] });
+      result = Object.assign({}, result, { thumbnail: v['thumbnail'] });
     }
-    return node;
+    // PR-AC: thumbnailRect (x / y / size, 0..1)
+    if (
+      typeof v['thumbnailRect'] === 'object' &&
+      v['thumbnailRect'] !== null &&
+      !Array.isArray(v['thumbnailRect'])
+    ) {
+      const r = v['thumbnailRect'] as { [k: string]: YamlValue };
+      const x = typeof r['x'] === 'number' ? r['x'] : 0;
+      const y = typeof r['y'] === 'number' ? r['y'] : 0;
+      const size = typeof r['size'] === 'number' ? r['size'] : 1;
+      result = Object.assign({}, result, { thumbnailRect: { x, y, size } });
+    }
+    return result;
   }
 
   private serializeNode(node: ScenarioNode): string {
@@ -152,6 +176,15 @@ export class FsNodeRepository implements NodeRepository {
       slug: node.slug,
     };
     if (node.thumbnail !== undefined) out['thumbnail'] = node.thumbnail;
+    // PR-AC: thumbnailRect (clamp 0..1)
+    if (node.thumbnailRect !== undefined) {
+      const r = node.thumbnailRect;
+      out['thumbnailRect'] = {
+        x: clamp01(r.x),
+        y: clamp01(r.y),
+        size: clamp01(r.size),
+      };
+    }
     // FieldValue (Scalar | FieldArray | FieldRecord) は YamlValue の subset だが、
     // 索引署名の不変性ゆえに TS は構造的代入を認めない → as 経由でナロー
     out['fields'] = { ...node.fields } as YamlValue;
@@ -173,4 +206,9 @@ export class FsNodeRepository implements NodeRepository {
 const SLUG_PATTERN = /^[a-z0-9_-]+$/;
 export function isValidSlug(s: string): boolean {
   return SLUG_PATTERN.test(s);
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
 }

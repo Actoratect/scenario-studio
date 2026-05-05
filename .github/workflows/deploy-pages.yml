@@ -1,0 +1,80 @@
+# PR-AK: GitHub Pages 配信 + zip artifact 配布。
+#
+# トリガ:
+#   - push to main → 自動 deploy
+#   - workflow_dispatch (Actions タブから手動) → 任意 branch を deploy
+#
+# 出力:
+#   1. https://<owner>.github.io/<repo>/ で閲覧可能 (要 GitHub Pages 有効化)
+#   2. Actions run の Artifacts セクションから dist の zip ダウンロード可能 (30 日保持)
+#
+# 初回セットアップ:
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions"
+
+name: Deploy GitHub Pages + zip artifact
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Pages へ deploy するか (false なら zip artifact のみ生成)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時 deploy の競合を避ける (古い deploy はキャンセル)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build frontend (sub-path = /scenario-studio/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build (VITE_BASE_PATH=/scenario-studio/)
+        run: pnpm -F @scenario-studio/frontend build
+        env:
+          VITE_BASE_PATH: /scenario-studio/
+
+      # zip 配布: Actions run の Artifacts から誰でもダウンロード可能 (30 日保持)
+      - name: Upload dist as zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenario-studio-frontend-${{ github.sha }}
+          path: packages/frontend/dist/
+          retention-days: 30
+          if-no-files-found: error
+
+      # GitHub Pages へ送る用 (deploy job が次で公開)
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/frontend/dist/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

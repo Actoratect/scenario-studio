@@ -2,6 +2,7 @@ import { SaveScheduler } from './SaveScheduler.js';
 import { ProjectService } from './ProjectService.js';
 import { SaveStatus } from './SaveStatus.js';
 import { Toast } from './Toast.js';
+import { ConflictDetector } from './ConflictDetector.js';
 import type { NodeId } from '@scenario-studio/core';
 
 // 「現在開いているプロジェクト」に紐づく SaveScheduler の singleton。
@@ -22,7 +23,17 @@ function ensureScheduler(): SaveScheduler {
       if (!node) return;
       SaveStatus.markSaving();
       try {
-        await ctx.nodeRepository.save(node);
+        // PR-AH: 上書き前に外部書き換えがないかチェック
+        const path = ctx.nodeRepository.pathFor(node);
+        const ok = await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, path);
+        if (!ok) {
+          SaveStatus.markPending();
+          Toast.info(`保存スキップ: ${path} (外部変更を温存)`, 4000);
+          return;
+        }
+        const content = ctx.nodeRepository.serializeForSave(node);
+        await ctx.adapter.write(ctx.handle, path, content);
+        ConflictDetector.recordSnapshot(ctx.handle, path, content);
         SaveStatus.markSaved();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

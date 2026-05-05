@@ -13,6 +13,8 @@ import { PlotTimelinePanel } from './panels/PlotTimelinePanel';
 import { SettingsPanel } from './panels/SettingsPanel';
 import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
+import { AboutOverlay } from './global/AboutOverlay';
+import { AiSummaryOverlay } from './global/AiSummaryOverlay';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
@@ -61,6 +63,38 @@ function isPanelName(name: string): name is PanelName {
   return name in PANEL_REGISTRY;
 }
 
+// PR-AG: Dockview layout persistence
+const LAYOUT_STORAGE_KEY = 'scenario-studio:dockview-layout';
+
+function loadSavedLayout(): unknown | undefined {
+  if (typeof localStorage === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (!raw) return undefined;
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+function saveLayout(layout: unknown): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function clearSavedLayout(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(LAYOUT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export const WorkspaceShell: Component = () => {
   let host: HTMLDivElement | undefined;
   let api: DockviewApi | undefined;
@@ -96,6 +130,12 @@ export const WorkspaceShell: Component = () => {
       IdListOverlay.toggle();
       return;
     }
+    // PR-AJ: Cmd+Shift+A — AI シーン要約 (現在選択中の scene について)
+    if (e.shiftKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      AiSummaryOverlay.show();
+      return;
+    }
     if (!ctx) return;
     // Cmd+S: 即時 flush
     if (e.key === 's') {
@@ -120,6 +160,86 @@ export const WorkspaceShell: Component = () => {
     }
   }
 
+  function buildDefaultLayout(a: DockviewApi): void {
+    a.addPanel({ id: 'graph-1', component: 'graph', title: '🕸 グラフ' });
+    a.addPanel({
+      id: 'inspector-1',
+      component: 'inspector',
+      title: '📝 インスペクタ',
+      position: { referencePanel: 'graph-1', direction: 'right' },
+    });
+    a.addPanel({
+      id: 'outline-1',
+      component: 'outline',
+      title: '📚 アウトライン',
+      position: { referencePanel: 'graph-1', direction: 'below' },
+    });
+    a.addPanel({
+      id: 'synopsis-1',
+      component: 'synopsis',
+      title: '📖 あらすじ',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'script-1',
+      component: 'script',
+      title: '🎬 脚本',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'bench-1',
+      component: 'bench',
+      title: '🧪 ベンチ',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'glossary-1',
+      component: 'glossary',
+      title: '📘 用語集',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'console-1',
+      component: 'console',
+      title: '⚠ コンソール',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'ai-1',
+      component: 'ai',
+      title: '🤖 AI',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'settings-1',
+      component: 'settings',
+      title: '⚙ 設定',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'timeline-1',
+      component: 'timeline',
+      title: '🗂 プロット',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'stats-1',
+      component: 'stats',
+      title: '📊 統計',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+  }
+
+  /** PR-AG: Dock layout を default に戻す (workspace ヘッダから) */
+  function resetLayout(): void {
+    if (!api) return;
+    if (!window.confirm('Dockview レイアウトを初期状態に戻しますか?')) return;
+    clearSavedLayout();
+    api.clear();
+    buildDefaultLayout(api);
+    Toast.success('レイアウトを初期化しました');
+  }
+
   onMount(() => {
     window.addEventListener('keydown', onKeydown);
     if (!host) return;
@@ -134,73 +254,31 @@ export const WorkspaceShell: Component = () => {
     });
     PanelFocus.register(api);
 
-    api.addPanel({ id: 'graph-1', component: 'graph', title: '🕸 グラフ' });
-    api.addPanel({
-      id: 'inspector-1',
-      component: 'inspector',
-      title: '📝 インスペクタ',
-      position: { referencePanel: 'graph-1', direction: 'right' },
-    });
-    api.addPanel({
-      id: 'outline-1',
-      component: 'outline',
-      title: '📚 アウトライン',
-      position: { referencePanel: 'graph-1', direction: 'below' },
-    });
-    api.addPanel({
-      id: 'synopsis-1',
-      component: 'synopsis',
-      title: '📖 あらすじ',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'script-1',
-      component: 'script',
-      title: '🎬 脚本',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'bench-1',
-      component: 'bench',
-      title: '🧪 ベンチ',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'glossary-1',
-      component: 'glossary',
-      title: '📘 用語集',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'console-1',
-      component: 'console',
-      title: '⚠ コンソール',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'ai-1',
-      component: 'ai',
-      title: '🤖 AI',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'settings-1',
-      component: 'settings',
-      title: '⚙ 設定',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'timeline-1',
-      component: 'timeline',
-      title: '🗂 プロット',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    api.addPanel({
-      id: 'stats-1',
-      component: 'stats',
-      title: '📊 統計',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
+    // PR-AG: 保存済 layout があればそれを復元、無ければ default を構築
+    const saved = loadSavedLayout();
+    let restored = false;
+    if (saved && typeof saved === 'object') {
+      try {
+        api.fromJSON(saved as Parameters<DockviewApi['fromJSON']>[0]);
+        restored = api.panels.length > 0;
+      } catch (e) {
+        console.warn('saved layout restore failed, falling back to default', e);
+      }
+    }
+    if (!restored) buildDefaultLayout(api);
+
+    // 以後の任意 layout 変化を localStorage に保存 (debounced)
+    let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    const persist = (): void => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        if (api) saveLayout(api.toJSON());
+      }, 400);
+    };
+    api.onDidLayoutChange(persist);
+    api.onDidAddPanel(persist);
+    api.onDidRemovePanel(persist);
+    api.onDidActivePanelChange(persist);
   });
 
   onCleanup(() => {
@@ -227,10 +305,24 @@ export const WorkspaceShell: Component = () => {
         </button>
         <button
           class="workspace-export"
+          onClick={() => AboutOverlay.show()}
+          title="このアプリについて / Help"
+        >
+          ?
+        </button>
+        <button
+          class="workspace-export"
           onClick={() => ExportDialog.show()}
           title="脚本を text / Markdown に書き出し (Cmd+E)"
         >
           ⤓ Export
+        </button>
+        <button
+          class="workspace-export"
+          onClick={resetLayout}
+          title="Dockview レイアウトを初期状態に戻す"
+        >
+          ⟳
         </button>
         <button class="workspace-close" onClick={() => ProjectService.close()}>
           プロジェクトを閉じる

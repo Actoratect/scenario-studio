@@ -25,6 +25,41 @@ describe('NodeRepository', () => {
     repo = new FsNodeRepository(adapter, handle, templates);
   });
 
+  it('PR-AC: thumbnailRect round-trips via save → loadAll', async () => {
+    const t = createNode(templates, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'cropped',
+      fields: { display_name: 'クロップ太郎' },
+    });
+    const withRect = {
+      ...t,
+      thumbnail: 'Media/cropped.png',
+      thumbnailRect: { x: 0.2, y: 0.05, size: 0.4 },
+    };
+    await repo.save(withRect);
+    const all = await repo.loadAll();
+    const loaded = all.get(t.id);
+    expect(loaded?.thumbnail).toBe('Media/cropped.png');
+    expect(loaded?.thumbnailRect).toEqual({ x: 0.2, y: 0.05, size: 0.4 });
+  });
+
+  it('PR-AC: thumbnailRect は 0..1 にクランプされる', async () => {
+    const t = createNode(templates, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'over',
+      fields: { display_name: 'オーバー' },
+    });
+    const withRect = {
+      ...t,
+      thumbnail: 'Media/over.png',
+      thumbnailRect: { x: -0.5, y: 1.5, size: 2.0 },
+    };
+    await repo.save(withRect);
+    const all = await repo.loadAll();
+    const loaded = all.get(t.id);
+    expect(loaded?.thumbnailRect).toEqual({ x: 0, y: 1, size: 1 });
+  });
+
   it('save → loadAll round-trips a single node with all base fields', async () => {
     const tarou = createNode(templates, {
       templateId: CHARACTER_TEMPLATE.id,

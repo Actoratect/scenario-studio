@@ -24,10 +24,17 @@ import {
   supportsFileSystemAccess,
   type PickedProject,
 } from '@scenario-studio/adapter-browser';
-import { rememberProject, forgetProject, listRecentProjects } from './recent-projects.js';
+import { FF7_SAMPLE } from 'virtual:ff7-sample';
+import {
+  rememberProject,
+  forgetProject,
+  listRecentProjects,
+  pinProject,
+} from './recent-projects.js';
 import type { RecentProject } from './recent-projects.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
+import { ConflictDetector } from './ConflictDetector.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
 // frontend 全体が `currentProject()` シグナルを購読してリレンダ。
@@ -86,6 +93,32 @@ export const ProjectService = {
   },
 
   /**
+   * PR-AE: FF7 サンプルプロジェクトをユーザの選んだ空フォルダに展開して開く。
+   * Vite plugin (ff7SamplePlugin) が `virtual:ff7-sample` で渡してくる
+   * ファイルツリーを adapter.write* で書き出してから loadProject() する。
+   */
+  async openFf7Sample(): Promise<OpenProjectContext> {
+    setLastError(undefined);
+    const picked = await pickProjectDirectory({ name: 'FF7 (sample)' });
+
+    const entries = Object.entries(FF7_SAMPLE.files);
+    if (entries.length === 0) {
+      throw new Error(
+        'FF7 サンプルが bundle されていません (vite ビルドの sample-projects/ff7 を確認)',
+      );
+    }
+    for (const [path, entry] of entries) {
+      if (entry.kind === 'text') {
+        await picked.adapter.write(picked.handle, path, entry.text);
+      } else {
+        const bin = base64ToBytes(entry.base64);
+        await picked.adapter.writeBytes(picked.handle, path, bin);
+      }
+    }
+    return await openPicked(picked, await loadProject(picked.adapter, picked.handle));
+  },
+
+  /**
    * Recent リストの 1 件を再 open。permission 拒否や未初期化なら null を返す。
    */
   async openRecent(recent: RecentProject): Promise<OpenProjectContext | null> {
@@ -111,9 +144,18 @@ export const ProjectService = {
     await ProjectService.refreshRecent();
   },
 
+  /** PR-AE: 最近リストの 1 件を pin / unpin する。 */
+  async setPinned(id: string, pinned: boolean): Promise<void> {
+    await pinProject(id, pinned);
+    await ProjectService.refreshRecent();
+  },
+
   close(): void {
     const ctx = currentProject();
-    if (ctx) ctx.history.destroy();
+    if (ctx) {
+      ctx.history.destroy();
+      ConflictDetector.clear(ctx.handle);
+    }
     setCurrentProject(undefined);
     setLastError(undefined);
     GraphPositions.clear();
@@ -138,10 +180,20 @@ export const ProjectService = {
   },
 };
 
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放
   const prev = currentProject();
-  if (prev) prev.history.destroy();
+  if (prev) {
+    prev.history.destroy();
+    ConflictDetector.clear(prev.handle);
+  }
 
   const history = new ProjectHistory();
   for (const node of loaded.project.nodes.values()) {
@@ -163,6 +215,9 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   };
   setCurrentProject(ctx);
   GraphPositions.switchProject(picked.handle.id);
+  // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
+  // (load 時点の内容 = 我々が知っている内容)
+  void primeConflictBaseline(ctx);
   return rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,
@@ -170,4 +225,18 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   })
     .then(() => ProjectService.refreshRecent())
     .then(() => ctx);
+}
+
+async function primeConflictBaseline(ctx: OpenProjectContext): Promise<void> {
+  for (const node of ctx.project.nodes.values()) {
+    const path = ctx.nodeRepository.pathFor(node);
+    try {
+      if (await ctx.adapter.exists(ctx.handle, path)) {
+        const text = await ctx.adapter.read(ctx.handle, path);
+        ConflictDetector.recordSnapshot(ctx.handle, path, text);
+      }
+    } catch {
+      // 読み込み失敗は無視 (load 自体は成功しているはずなので例外的)
+    }
+  }
 }
