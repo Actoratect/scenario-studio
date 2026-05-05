@@ -8,6 +8,7 @@ import {
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { ProjectService } from '../services/ProjectService';
+import { scanGlossary } from '../services/GlossaryHighlight';
 
 // 脚本のブロック視覚エディタ (PR-AA)。
 // YAML を見せず、各 script item を「カード」として描画。
@@ -292,6 +293,7 @@ const CharacterLine: Component<{
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
         onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
       />
+      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -301,13 +303,16 @@ const AsideBlock: Component<{
   onChange: (next: ScriptBlock) => void;
 }> = (props) => {
   return (
-    <textarea
-      class="ss-script-aside-text"
-      rows="2"
-      value={props.block.text}
-      placeholder="心の声 / 独白を入力…"
-      onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
-    />
+    <>
+      <textarea
+        class="ss-script-aside-text"
+        rows="2"
+        value={props.block.text}
+        placeholder="心の声 / 独白を入力…"
+        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+      />
+      <GlossaryChips text={props.block.text} />
+    </>
   );
 };
 
@@ -316,13 +321,16 @@ const StageBlock: Component<{
   onChange: (next: ScriptBlock) => void;
 }> = (props) => {
   return (
-    <textarea
-      class="ss-script-stage-text"
-      rows="2"
-      value={props.block.text}
-      placeholder="状況描写 / ステージを入力…"
-      onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
-    />
+    <>
+      <textarea
+        class="ss-script-stage-text"
+        rows="2"
+        value={props.block.text}
+        placeholder="状況描写 / ステージを入力…"
+        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+      />
+      <GlossaryChips text={props.block.text} />
+    </>
   );
 };
 
@@ -445,4 +453,42 @@ const ChoiceBlockView: Component<{
 
 const UnknownBlockView: Component<{ block: ScriptBlock & { kind: 'unknown' } }> = (props) => {
   return <pre class="ss-script-unknown">{JSON.stringify(props.block.raw, null, 2)}</pre>;
+};
+
+/**
+ * PR-AF: テキスト中の Glossary 用語 / 禁止表記を検出して chip 行に表示。
+ * 該当無しなら何も描画しない。
+ */
+const GlossaryChips: Component<{ text: string }> = (props) => {
+  const result = createMemo(() => {
+    const ctx = ProjectService.currentProject();
+    const glossary = ctx?.project.glossary ?? [];
+    return scanGlossary(props.text, glossary);
+  });
+  return (
+    <Show when={result().okTerms.length > 0 || result().violations.length > 0}>
+      <div class="ss-script-glossary-chips">
+        <For each={result().okTerms}>
+          {(term) => (
+            <span
+              class="ss-script-glossary-chip ss-script-glossary-chip--ok"
+              title="用語集に登録済"
+            >
+              ✓ {term}
+            </span>
+          )}
+        </For>
+        <For each={result().violations}>
+          {(v) => (
+            <span
+              class="ss-script-glossary-chip ss-script-glossary-chip--warn"
+              title={`禁止表記: 「${v.match}」→ 正式「${v.term}」を推奨`}
+            >
+              ⚠ {v.match} → {v.term}
+            </span>
+          )}
+        </For>
+      </div>
+    </Show>
+  );
 };

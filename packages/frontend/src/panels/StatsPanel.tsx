@@ -153,6 +153,45 @@ export const StatsPanel: Component<GroupPanelPartInitParameters> = (params) => {
               </section>
 
               <section class="panel-stats-section">
+                <h3>章別 セリフ密度 (1 行あたり平均文字数)</h3>
+                <p class="panel-stats-hint">
+                  低い章 = 短いセリフ多め (テンポ重視) / 高い章 = 長台詞多め (説明寄り) の目安。
+                </p>
+                <Show when={s().byChapter.length > 0} fallback={<p>データなし</p>}>
+                  <ol class="panel-stats-rank">
+                    <For each={s().byChapter}>
+                      {(c) => {
+                        const density = c.lines > 0 ? c.chars / c.lines : 0;
+                        const max = Math.max(
+                          ...s().byChapter.map((x) => (x.lines > 0 ? x.chars / x.lines : 0)),
+                          1,
+                        );
+                        const pct = max === 0 ? 0 : Math.round((density / max) * 100);
+                        return (
+                          <li class="panel-stats-rank-row">
+                            <button
+                              type="button"
+                              class="panel-stats-rank-link"
+                              onClick={() => jumpToChapter(c)}
+                            >
+                              {c.title}
+                            </button>
+                            <div class="panel-stats-bar">
+                              <div
+                                class="panel-stats-bar-fill panel-stats-bar-fill--density"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span class="panel-stats-num">{density.toFixed(1)} 字/行</span>
+                          </li>
+                        );
+                      }}
+                    </For>
+                  </ol>
+                </Show>
+              </section>
+
+              <section class="panel-stats-section">
                 <h3>章別 文字数</h3>
                 <Show when={s().byChapter.length > 0} fallback={<p>データなし</p>}>
                   <ol class="panel-stats-rank">
