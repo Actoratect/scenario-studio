@@ -8,6 +8,7 @@ import {
   type FieldValue,
   type NodeId,
   type ScenarioNode,
+  type ThumbnailRect,
   type ValidationIssue,
 } from '@scenario-studio/core';
 import {
@@ -26,7 +27,7 @@ import { Toast } from '../services/Toast';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
 import { EraSelector } from '../global/EraSelector';
-import { NodeThumbnail } from '../global/NodeThumbnail';
+import { PortraitCropper } from '../global/PortraitCropper';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 // 選択中ノードの編集 UI。
@@ -141,27 +142,37 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     return out;
   });
 
-  /** template.fields を group ごとに集約 (PR-O)。順序は宣言順を維持。 */
-  const fieldGroups = createMemo<readonly { title: string; fields: readonly FieldSchema[] }[]>(
-    () => {
-      const t = template();
-      if (!t) return [];
-      const order: string[] = [];
-      const buckets = new Map<string, FieldSchema[]>();
-      for (const f of t.fields) {
-        const g = f.group ?? '_';
-        if (!buckets.has(g)) {
-          buckets.set(g, []);
-          order.push(g);
-        }
-        buckets.get(g)!.push(f);
+  /** PR-AC: long 系 (multiline_string / markdown) かどうか。Inspector 下段に分ける判定用。 */
+  function isLongField(f: FieldSchema): boolean {
+    return f.type === 'multiline_string' || f.type === 'markdown';
+  }
+
+  /** template.fields を group ごとに集約 (PR-O)。順序は宣言順を維持。
+   *  PR-AC: filter で「上段 (compact)」/「下段 (long)」を分ける。 */
+  function buildGroups(predicate: (f: FieldSchema) => boolean): readonly {
+    title: string;
+    fields: readonly FieldSchema[];
+  }[] {
+    const t = template();
+    if (!t) return [];
+    const order: string[] = [];
+    const buckets = new Map<string, FieldSchema[]>();
+    for (const f of t.fields) {
+      if (!predicate(f)) continue;
+      const g = f.group ?? '_';
+      if (!buckets.has(g)) {
+        buckets.set(g, []);
+        order.push(g);
       }
-      return order.map((g) => ({
-        title: g === '_' ? 'その他' : g,
-        fields: buckets.get(g) ?? [],
-      }));
-    },
-  );
+      buckets.get(g)!.push(f);
+    }
+    return order.map((g) => ({
+      title: g === '_' ? 'その他' : g,
+      fields: buckets.get(g) ?? [],
+    }));
+  }
+  const compactGroups = createMemo(() => buildGroups((f) => !isLongField(f)));
+  const longGroups = createMemo(() => buildGroups(isLongField));
 
   function onFieldBlur(): void {
     const id = SelectionContext.selectedNodeId();
@@ -241,6 +252,22 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     await ThumbnailService.clearForNode(n);
   }
 
+  /** PR-AC: 立ち絵から「丸サムネに使う矩形」を node に保存 */
+  async function saveThumbnailRect(rect: ThumbnailRect): Promise<void> {
+    const n = node();
+    const ctx = ProjectService.currentProject();
+    if (!n || !ctx) return;
+    const updated: ScenarioNode = { ...n, thumbnailRect: rect };
+    try {
+      await ctx.nodeRepository.save(updated);
+      const next = new Map(ctx.project.nodes);
+      next.set(n.id, updated);
+      Object.assign(ctx.project, { nodes: next });
+    } catch (e) {
+      Toast.error(`サムネ位置の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   async function deleteNode(): Promise<void> {
     const n = node();
     const ctx = ProjectService.currentProject();
@@ -283,12 +310,13 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
         <header class="panel-inspector-header">
           <div class="panel-inspector-header-top">
             <span class="panel-inspector-name-tag">{displayName()}</span>
-            <span class="panel-inspector-id-tag" title="ID (脚本の who: で参照)">
+            <span class="panel-inspector-id-tag" title="脚本の who: で参照する ID">
               {devName()}
             </span>
+            <span class="panel-inspector-template-tag">{template()!.displayName}</span>
             <Show when={!EraContext.isBase()}>
               <span class="panel-inspector-era-tag">
-                Era: {EraContext.currentEraId()}
+                ◆ {EraContext.currentEraId()}
                 <Show when={appliedVariantEras().length > 0}>
                   <span class="panel-inspector-variant-active">
                     · variant ({appliedVariantEras().join(' → ')})
@@ -298,13 +326,13 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
             </Show>
             <span class="panel-inspector-actions">
               <button type="button" onClick={() => void renameNode()} title="slug を変更">
-                ✎
+                ✎ slug
               </button>
               <Show when={node()!.thumbnail}>
                 <button
                   type="button"
                   onClick={() => void clearThumbnail()}
-                  title="サムネイル画像を削除"
+                  title="立ち絵 / サムネ画像を削除"
                 >
                   🖼×
                 </button>
@@ -319,54 +347,86 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
               </button>
             </span>
           </div>
-          <div class="panel-inspector-header-meta">
-            <button
-              type="button"
-              class="panel-inspector-thumb-button"
-              classList={{ 'panel-inspector-thumb-button--drop': isDragOver() }}
-              onClick={onPickFile}
-              onDragOver={onThumbDragOver}
-              onDragLeave={onThumbDragLeave}
-              onDrop={onThumbDrop}
-              title="クリックまたは画像を drop でサムネイルをアップロード"
-            >
-              <NodeThumbnail node={node()!} size={120} />
-              <span class="panel-inspector-thumb-hint">
-                {isDragOver() ? '画像を drop してください' : 'クリック / drop で画像'}
-              </span>
-            </button>
-            <div class="panel-inspector-meta-stack">
-              <span class="panel-inspector-template-pill">
-                {template()!.displayName}
-                <code>{template()!.id}</code>
-              </span>
-              <div class="panel-inspector-era-row">
-                <span class="panel-inspector-era-label">時間軸切り替え:</span>
-                <EraSelector variant="pills" scrollable={true} />
-              </div>
-            </div>
+          <div class="panel-inspector-era-row panel-inspector-era-row--top">
+            <span class="panel-inspector-era-label">時間軸:</span>
+            <EraSelector variant="pills" scrollable={true} />
           </div>
         </header>
         <div class="panel-inspector-scroll">
-          <For each={fieldGroups()}>
-            {(group) => (
-              <FieldGroup
-                title={group.title}
-                templateId={template()!.id}
-                fields={group.fields}
-                resolvedFields={resolvedFields()}
-                node={node()!}
-                issues={issues()}
-                project={ProjectService.currentProject()!}
-                refOptions={refOptions()}
-                isVariantMode={!EraContext.isBase()}
-                overrideMap={overrideMap()}
-                onInput={setField}
-                onRemoveOverride={removeOverride}
-                onBlur={onFieldBlur}
-              />
-            )}
-          </For>
+          <div class="panel-inspector-body">
+            {/* 上段: 2 列 (左 = 立ち絵 + サムネ位置 / 右 = compact フィールド) */}
+            <div class="panel-inspector-two-col">
+              <div
+                class="panel-inspector-portrait-col"
+                classList={{ 'panel-inspector-portrait-col--drop': isDragOver() }}
+                onDragOver={onThumbDragOver}
+                onDragLeave={onThumbDragLeave}
+                onDrop={onThumbDrop}
+              >
+                <PortraitCropper
+                  node={node()!}
+                  width={220}
+                  onChange={(rect) => void saveThumbnailRect(rect)}
+                  onUpload={(file) => void uploadThumbnail(file)}
+                />
+                <div class="panel-inspector-portrait-actions">
+                  <button
+                    type="button"
+                    class="panel-inspector-thumb-button"
+                    onClick={onPickFile}
+                    title="ファイル選択ダイアログ"
+                  >
+                    📁 画像を選択
+                  </button>
+                </div>
+              </div>
+              <div class="panel-inspector-compact-col">
+                <For each={compactGroups()}>
+                  {(group) => (
+                    <FieldGroup
+                      title={group.title}
+                      templateId={template()!.id}
+                      fields={group.fields}
+                      resolvedFields={resolvedFields()}
+                      node={node()!}
+                      issues={issues()}
+                      project={ProjectService.currentProject()!}
+                      refOptions={refOptions()}
+                      isVariantMode={!EraContext.isBase()}
+                      overrideMap={overrideMap()}
+                      onInput={setField}
+                      onRemoveOverride={removeOverride}
+                      onBlur={onFieldBlur}
+                    />
+                  )}
+                </For>
+              </div>
+            </div>
+            {/* 下段: 1 列 (long 系: multiline / markdown) */}
+            <Show when={longGroups().length > 0}>
+              <div class="panel-inspector-long-col">
+                <For each={longGroups()}>
+                  {(group) => (
+                    <FieldGroup
+                      title={group.title}
+                      templateId={template()!.id}
+                      fields={group.fields}
+                      resolvedFields={resolvedFields()}
+                      node={node()!}
+                      issues={issues()}
+                      project={ProjectService.currentProject()!}
+                      refOptions={refOptions()}
+                      isVariantMode={!EraContext.isBase()}
+                      overrideMap={overrideMap()}
+                      onInput={setField}
+                      onRemoveOverride={removeOverride}
+                      onBlur={onFieldBlur}
+                    />
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
         </div>
       </Show>
     </div>

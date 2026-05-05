@@ -77,3 +77,4 @@
 | #45 | PR-Z | Inspector inline Era selector |
 | #46 | PR-AA | Script visual editor |
 | #47 | PR-AB | 🔴緊急: シーン rename / 画像 drag-drop / 連続発話 lint |
+| #48 | PR-AC | 統一トンマナ + Inspector 2列レイアウト + 立ち絵サムネ Crop |
