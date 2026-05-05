@@ -27,6 +27,7 @@ import { Toast } from '../services/Toast';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
 import { EraSelector } from '../global/EraSelector';
+import { NodeThumbnail } from '../global/NodeThumbnail';
 import { PortraitCropper } from '../global/PortraitCropper';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 
@@ -686,9 +687,61 @@ const FieldRow: Component<FieldRowProps> = (props) => {
             onInput={(v) => props.onInput(v ?? null)}
             onBlur={props.onBlur}
           />
+          <Show when={typeof props.value === 'string' && props.value !== ''}>
+            <NodeRefPreview targetId={props.value as string} project={props.project} />
+          </Show>
         </Match>
       </Switch>
     </div>
+  );
+};
+
+/**
+ * PR-AG: node_ref フィールドの「リンク先」プレビュー。
+ * サムネ + display_name + テンプレ名 + ジャンプボタンを inline 表示。
+ */
+const NodeRefPreview: Component<{
+  targetId: string;
+  project: NonNullable<ReturnType<typeof ProjectService.currentProject>>;
+}> = (props) => {
+  const target = createMemo(() => props.project.project.nodes.get(props.targetId as never));
+  const display = createMemo<string>(() => {
+    const t = target();
+    if (!t) return '';
+    const v = t.fields['display_name'];
+    return typeof v === 'string' && v !== '' ? v : t.slug;
+  });
+  const templateLabel = createMemo<string>(() => {
+    const t = target();
+    if (!t) return '';
+    return props.project.templates.tryGet(t.templateId as never)?.displayName ?? t.templateId;
+  });
+  return (
+    <Show
+      when={target()}
+      fallback={
+        <div class="panel-inspector-ref-preview panel-inspector-ref-preview--missing">
+          <span>⚠ 参照先が見つかりません</span>
+          <code>{props.targetId}</code>
+        </div>
+      }
+    >
+      {(t) => (
+        <div class="panel-inspector-ref-preview">
+          <NodeThumbnail node={t()} size={28} />
+          <span class="panel-inspector-ref-display">{display()}</span>
+          <span class="panel-inspector-ref-template">{templateLabel()}</span>
+          <button
+            type="button"
+            class="panel-inspector-ref-jump"
+            onClick={() => SelectionContext.selectNode(t().id)}
+            title="このノードを Inspector で開く"
+          >
+            →
+          </button>
+        </div>
+      )}
+    </Show>
   );
 };
 

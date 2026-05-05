@@ -7,6 +7,7 @@ import {
   FACTION_TEMPLATE,
   ITEM_TEMPLATE,
   LOCATION_TEMPLATE,
+  type NodeId,
   type ScenarioNode,
   type TemplateDefinition,
 } from '@scenario-studio/core';
@@ -34,6 +35,48 @@ const NEW_NODE_TEMPLATES: ReadonlyArray<{ template: TemplateDefinition; label: s
 export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [busy, setBusy] = createSignal(false);
   const [newChapterTitle, setNewChapterTitle] = createSignal('新しい章');
+  // PR-AG: Outline 複数選択 (Cmd / Shift+クリックで節点を bulk 選択)
+  const [multiSelected, setMultiSelected] = createSignal<ReadonlySet<NodeId>>(new Set());
+
+  function toggleMulti(id: NodeId, additive: boolean): void {
+    const cur = multiSelected();
+    const next = new Set(cur);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    if (!additive) {
+      // 純粋な click は単一選択に戻す
+      next.clear();
+      next.add(id);
+    }
+    setMultiSelected(next);
+  }
+
+  function clearMulti(): void {
+    setMultiSelected(new Set<NodeId>());
+  }
+
+  async function bulkDelete(): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    const ids = [...multiSelected()];
+    if (!ctx || ids.length === 0) return;
+    if (!window.confirm(`選択中の ${ids.length} 件のノードを削除しますか? (元に戻せません)`))
+      return;
+    setBusy(true);
+    try {
+      for (const id of ids) {
+        await ctx.nodeRepository.delete(id);
+      }
+      const next = new Map(ctx.project.nodes);
+      for (const id of ids) next.delete(id);
+      Object.assign(ctx.project, { nodes: next });
+      Toast.success(`${ids.length} 件のノードを削除`);
+      clearMulti();
+    } catch (e) {
+      Toast.error(`削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const groupedNodes = createMemo(() => {
     const ctx = ProjectService.currentProject();
@@ -503,6 +546,27 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             )}
           </For>
         </div>
+        <Show when={multiSelected().size > 0}>
+          <div class="panel-outline-bulkbar">
+            <span class="panel-outline-bulkbar-count">{multiSelected().size} 件 選択中</span>
+            <button
+              class="panel-outline-bulkbar-action"
+              disabled={busy()}
+              onClick={() => void bulkDelete()}
+              title="選択中のノードを全て削除"
+            >
+              🗑 一括削除
+            </button>
+            <button
+              class="panel-outline-bulkbar-action"
+              disabled={busy()}
+              onClick={clearMulti}
+              title="選択を解除"
+            >
+              × 選択解除
+            </button>
+          </div>
+        </Show>
         <For each={ProjectService.currentProject()?.templates.list() ?? []}>
           {(template) => {
             const items = () => groupedNodes().get(template.id) ?? [];
@@ -518,8 +582,18 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                           classList={{
                             'panel-outline-node--selected':
                               SelectionContext.selectedNodeId() === node.id,
+                            'panel-outline-node--multi': multiSelected().has(node.id),
                           }}
-                          onClick={() => SelectionContext.selectNode(node.id)}
+                          onClick={(e) => {
+                            // Cmd / Ctrl / Shift = multi-select toggle、それ以外は単一選択
+                            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                              e.preventDefault();
+                              toggleMulti(node.id, true);
+                            } else {
+                              if (multiSelected().size > 0) clearMulti();
+                              SelectionContext.selectNode(node.id);
+                            }
+                          }}
                           onDragOver={(e) => {
                             // 画像ファイルなら drop 受容
                             if (e.dataTransfer?.types.includes('Files')) {
