@@ -8,7 +8,7 @@
 
 - [x] **画像アップロードの drag & drop 対応** ✅ 完了 (PR-AB) — Inspector サムネゾーン + Outline ノード行で画像 drop → 直接アップロード
 - [x] **シーン rename + slug 編集** ✅ 完了 (PR-AB) — Outline シーン行 ✎ ボタンで title + slug を変更 (slug 変更時はファイル rename + `_scene_index.yaml` 更新)
-- [ ] **Inspector で大規模ノード時のパフォーマンス** — 50+ field のテンプレで再描画が重くなる可能性。createMemo の細粒度化
+- [x] **Inspector で大規模ノード時のパフォーマンス** ✅ 完了 (PR-AI) — FieldGroup の `<For>` 内で per-field の value/issue/hasOverride を `createMemo` で包み、Era 切替や他 field 編集による DOM patch を field 単位に局所化
 - [x] **Lint 6 番目のルール: dialogue の連続発話検知** ✅ 完了 (PR-AB) — `consecutive-same-speaker` (info)。stage / aside / 別キャラを挟むと run リセット
 
 ## 🟡 中 (UX 改善)
@@ -83,3 +83,4 @@
 | #51 | PR-AF | Glossary auto-highlight + Stats セリフ密度 + Help/About |
 | #52 | PR-AG | Dock layout 永続化 + Outline 複数選択 + node_ref preview |
 | #53 | PR-AH | Synopsis 画像 upload + Auto-save 競合検知 |
+| #54 | PR-AI | Inspector perf — per-field createMemo (大規模ノード対策) |

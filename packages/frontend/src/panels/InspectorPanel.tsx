@@ -539,20 +539,30 @@ const FieldGroup: Component<FieldGroupProps> = (props) => {
       <Show when={!collapsed()}>
         <div class="panel-inspector-group-body">
           <For each={props.fields}>
-            {(field) => (
-              <FieldRow
-                field={field}
-                value={props.resolvedFields[field.id] ?? props.node.fields[field.id]}
-                issue={props.issues.find((i) => i.fieldId === field.id)}
-                project={props.project}
-                refOptions={props.refOptions}
-                isVariantMode={props.isVariantMode}
-                hasOverride={props.overrideMap.has(field.id)}
-                onInput={(v) => props.onInput(field.id, v)}
-                onRemoveOverride={() => props.onRemoveOverride(field.id)}
-                onBlur={props.onBlur}
-              />
-            )}
+            {(field) => {
+              // PR-AI: per-field の値 / issue / override を createMemo で
+              // 包み、Era 切替や他 field 編集による親再評価で DOM が
+              // 不必要に patch されないようにする (fine-grained reactivity)。
+              const value = createMemo(
+                () => props.resolvedFields[field.id] ?? props.node.fields[field.id],
+              );
+              const issue = createMemo(() => props.issues.find((i) => i.fieldId === field.id));
+              const hasOverride = createMemo(() => props.overrideMap.has(field.id));
+              return (
+                <FieldRow
+                  field={field}
+                  value={value()}
+                  issue={issue()}
+                  project={props.project}
+                  refOptions={props.refOptions}
+                  isVariantMode={props.isVariantMode}
+                  hasOverride={hasOverride()}
+                  onInput={(v) => props.onInput(field.id, v)}
+                  onRemoveOverride={() => props.onRemoveOverride(field.id)}
+                  onBlur={props.onBlur}
+                />
+              );
+            }}
           </For>
         </div>
       </Show>
