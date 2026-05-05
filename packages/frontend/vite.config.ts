@@ -84,7 +84,13 @@ function ff7SamplePlugin(): Plugin {
 // 画像は Cache-First (めったに変わらない)、index.html は NetworkFirst (新ビルド即反映)。
 // 詳細: ../../Documentation/ScenarioEditor/12_architecture.md §3.1, §8,
 //       ../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M8
+//
+// PR-AK: GitHub Pages サブパス配信用に base / PWA scope を VITE_BASE_PATH で
+// 切替可能に。dev / Tauri ビルドでは未指定 → '/' のまま。
+const BASE_PATH = process.env['VITE_BASE_PATH'] ?? '/';
+
 export default defineConfig({
+  base: BASE_PATH,
   plugins: [
     solid(),
     cspPlugin(),
@@ -102,8 +108,8 @@ export default defineConfig({
         theme_color: '#1f2937',
         background_color: '#f8f9fb',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: BASE_PATH,
+        scope: BASE_PATH,
         icons: [
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
