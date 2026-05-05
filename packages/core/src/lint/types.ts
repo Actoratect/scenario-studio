@@ -6,6 +6,20 @@
 import type { NodeId } from '../domain/era.js';
 import type { ScenarioNode } from '../domain/node.js';
 import type { TemplateRegistry } from '../domain/templates/index.js';
+import type { ScriptBlock } from '../script/Script.js';
+
+/**
+ * scene を script-aware lint に渡すための入力 (PR-AB)。
+ * frontend 側で全 scene の .scn.yaml を読み、parseSceneYaml() で blocks に
+ * 変換した結果を ScriptScene[] として渡す。
+ */
+export interface ScriptScene {
+  chapterSlug: string;
+  sceneSlug: string;
+  /** 表示用 (UI で chapter / scene を識別) */
+  label: string;
+  blocks: readonly ScriptBlock[];
+}
 
 export type LintSeverity = 'error' | 'warning' | 'info';
 
@@ -22,6 +36,8 @@ export interface LintIssue {
 export interface LintContext {
   nodes: ReadonlyMap<NodeId, ScenarioNode>;
   templates: TemplateRegistry;
+  /** PR-AB: script-aware rule 用。未指定なら scene 系 rule は no-op。 */
+  scenes?: readonly ScriptScene[] | undefined;
 }
 
 export interface LintRule {

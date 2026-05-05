@@ -9,6 +9,7 @@ import {
 import { createNode } from '../domain/NodeRepository.js';
 import type { ScenarioNode } from '../domain/node.js';
 import type { NodeId } from '../domain/era.js';
+import type { ScriptScene } from './types.js';
 
 function ctxFor(nodes: ScenarioNode[]): {
   nodes: Map<NodeId, ScenarioNode>;
@@ -116,6 +117,47 @@ describe('BUILTIN_LINT_RULES', () => {
     const e = new LintEngine([broken]);
     const issues = e.run(ctxFor([]));
     expect(issues[0]?.message).toContain('boom');
+  });
+
+  it('consecutive-same-speaker fires when same character speaks twice in a row', () => {
+    const scenes: ScriptScene[] = [
+      {
+        chapterSlug: 'ch01',
+        sceneSlug: 's01',
+        label: 'ch1 / s1',
+        blocks: [
+          { kind: 'line', who: 'cloud', text: 'こんにちは' },
+          { kind: 'line', who: 'cloud', text: 'いい天気だね' },
+        ],
+      },
+    ];
+    const issues = engine.run({ ...ctxFor([]), scenes });
+    const issue = issues.find((i) => i.ruleId === 'consecutive-same-speaker');
+    expect(issue?.severity).toBe('info');
+    expect(issue?.message).toContain('cloud');
+  });
+
+  it('consecutive-same-speaker does NOT fire when stage block intervenes', () => {
+    const scenes: ScriptScene[] = [
+      {
+        chapterSlug: 'ch01',
+        sceneSlug: 's01',
+        label: 'ch1 / s1',
+        blocks: [
+          { kind: 'line', who: 'cloud', text: 'こんにちは' },
+          { kind: 'stage', text: '〜10秒の間〜' },
+          { kind: 'line', who: 'cloud', text: 'いい天気だね' },
+        ],
+      },
+    ];
+    const issues = engine.run({ ...ctxFor([]), scenes });
+    expect(issues.find((i) => i.ruleId === 'consecutive-same-speaker')).toBeUndefined();
+  });
+
+  it('consecutive-same-speaker is no-op when scenes is undefined', () => {
+    // 旧来の context (scenes 無し) でも他 rule に影響を与えない
+    const issues = engine.run(ctxFor([]));
+    expect(issues.find((i) => i.ruleId === 'consecutive-same-speaker')).toBeUndefined();
   });
 
   it('engine reports no issues for a valid project', () => {

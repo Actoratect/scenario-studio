@@ -16,6 +16,7 @@ import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { SelectionContext } from '../services/SelectionContext';
+import { ThumbnailService } from '../services/ThumbnailService';
 import { Toast } from '../services/Toast';
 
 // M4 Outliner: 章 / シーン階層 (Scenario) と Nodes 一覧の 2 セクション構成。
@@ -117,6 +118,63 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       });
     } catch (e) {
       Toast.error(`章タイトル変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renameScene(
+    chapterSlug: string,
+    sceneSlug: string,
+    currentTitle: string,
+  ): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const newTitle = window.prompt('シーンのタイトル:', currentTitle);
+    if (newTitle === null) return;
+    const newSlug = window.prompt(
+      'シーンの slug (英小文字 / 数字 / _ / -, 空欄で変更しない):',
+      sceneSlug,
+    );
+    if (newSlug === null) return;
+    const trimmedSlug = newSlug.trim();
+    const trimmedTitle = newTitle.trim();
+    if (trimmedSlug === '' || (trimmedSlug === sceneSlug && trimmedTitle === currentTitle)) return;
+    if (!/^[a-z0-9_-]+$/i.test(trimmedSlug)) {
+      Toast.error(`不正な slug: ${trimmedSlug}`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await ctx.scenarioRepository.renameScene({
+        chapterSlug,
+        oldSlug: sceneSlug,
+        newSlug: trimmedSlug,
+        newTitle: trimmedTitle === currentTitle ? undefined : trimmedTitle,
+      });
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === chapterSlug
+          ? {
+              ...c,
+              scenes: c.scenes.map((s) =>
+                s.slug === sceneSlug
+                  ? {
+                      ...s,
+                      slug: result.slug,
+                      title: result.title,
+                      relativePath: `${result.slug}.scn.yaml`,
+                    }
+                  : s,
+              ),
+            }
+          : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+      Toast.success(`シーンを変更: ${sceneSlug} → ${result.slug}`);
+    } catch (e) {
+      Toast.error(`シーン変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -396,6 +454,15 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                           >
                             🎬 {scene.title}
                           </button>
+                          <span class="panel-outline-scene-slug">{scene.slug}</span>
+                          <button
+                            class="panel-outline-rename-scene"
+                            disabled={busy()}
+                            onClick={() => void renameScene(chapter.slug, scene.slug, scene.title)}
+                            title="シーンの名前 / slug を変更"
+                          >
+                            ✎
+                          </button>
                           <button
                             class="panel-outline-delete-scene"
                             disabled={busy()}
@@ -453,6 +520,26 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                               SelectionContext.selectedNodeId() === node.id,
                           }}
                           onClick={() => SelectionContext.selectNode(node.id)}
+                          onDragOver={(e) => {
+                            // 画像ファイルなら drop 受容
+                            if (e.dataTransfer?.types.includes('Files')) {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'copy';
+                              e.currentTarget.classList.add('panel-outline-node--drop');
+                            }
+                          }}
+                          onDragLeave={(e) =>
+                            e.currentTarget.classList.remove('panel-outline-node--drop')
+                          }
+                          onDrop={(e) => {
+                            e.currentTarget.classList.remove('panel-outline-node--drop');
+                            const files = e.dataTransfer?.files;
+                            if (!files || files.length === 0) return;
+                            const file = files[0];
+                            if (!file || !file.type.startsWith('image/')) return;
+                            e.preventDefault();
+                            void ThumbnailService.uploadForNode(node, file, file.name);
+                          }}
                         >
                           <NodeThumbnail node={node} size={20} />
                           <span class="panel-outline-node-label">{node.slug}</span>

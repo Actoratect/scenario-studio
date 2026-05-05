@@ -67,6 +67,57 @@ describe('FsScenarioRepository', () => {
     expect(s.chapters[0]!.scenes[0]!.title).toBe('嵐の城門');
   });
 
+  it('renameScene swaps slug + title and updates _scene_index.yaml', async () => {
+    await repo.addChapter({ slug: 'ch01', title: 'C' });
+    await repo.saveProjectIndex([{ slug: 'ch01' }]);
+    await repo.addScene({ chapterSlug: 'ch01', sceneSlug: 's01_old', title: '元のタイトル' });
+
+    const result = await repo.renameScene({
+      chapterSlug: 'ch01',
+      oldSlug: 's01_old',
+      newSlug: 's01_new',
+      newTitle: '新タイトル',
+    });
+    expect(result.slug).toBe('s01_new');
+    expect(result.title).toBe('新タイトル');
+    expect(await adapter.exists(handle, 'Scenarios/ch01/s01_old.scn.yaml')).toBe(false);
+    expect(await adapter.exists(handle, 'Scenarios/ch01/s01_new.scn.yaml')).toBe(true);
+
+    const idxText = await adapter.read(handle, 'Scenarios/ch01/_scene_index.yaml');
+    expect(idxText).toContain('s01_new');
+    expect(idxText).not.toContain('s01_old');
+
+    const fileText = await adapter.read(handle, 'Scenarios/ch01/s01_new.scn.yaml');
+    expect(fileText).toContain('新タイトル');
+    expect(fileText).toContain('scene.s01_new');
+  });
+
+  it('renameScene rejects when target slug already exists', async () => {
+    await repo.addChapter({ slug: 'ch01', title: 'C' });
+    await repo.saveProjectIndex([{ slug: 'ch01' }]);
+    await repo.addScene({ chapterSlug: 'ch01', sceneSlug: 's01', title: 'A' });
+    await repo.addScene({ chapterSlug: 'ch01', sceneSlug: 's02', title: 'B' });
+    await expect(
+      repo.renameScene({ chapterSlug: 'ch01', oldSlug: 's01', newSlug: 's02' }),
+    ).rejects.toThrow(/already exists/);
+  });
+
+  it('renameScene without slug change updates only title', async () => {
+    await repo.addChapter({ slug: 'ch01', title: 'C' });
+    await repo.saveProjectIndex([{ slug: 'ch01' }]);
+    await repo.addScene({ chapterSlug: 'ch01', sceneSlug: 's01', title: 'A' });
+    const r = await repo.renameScene({
+      chapterSlug: 'ch01',
+      oldSlug: 's01',
+      newSlug: 's01',
+      newTitle: 'B',
+    });
+    expect(r.slug).toBe('s01');
+    expect(r.title).toBe('B');
+    const text = await adapter.read(handle, 'Scenarios/ch01/s01.scn.yaml');
+    expect(text).toContain('B');
+  });
+
   it('respects scene order in _scene_index.yaml', async () => {
     await repo.addChapter({ slug: 'ch01', title: 'C' });
     await repo.saveProjectIndex([{ slug: 'ch01' }]);

@@ -193,6 +193,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
   }
 
   let fileInput: HTMLInputElement | undefined;
+  const [isDragOver, setIsDragOver] = createSignal(false);
 
   async function uploadThumbnail(file: File): Promise<void> {
     const n = node();
@@ -209,6 +210,28 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const file = input.files?.[0];
     if (file) void uploadThumbnail(file);
     input.value = '';
+  }
+
+  function onThumbDragOver(e: DragEvent): void {
+    if (!e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }
+  function onThumbDragLeave(): void {
+    setIsDragOver(false);
+  }
+  function onThumbDrop(e: DragEvent): void {
+    setIsDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file || !file.type.startsWith('image/')) {
+      Toast.error('画像ファイルを drop してください');
+      return;
+    }
+    e.preventDefault();
+    void uploadThumbnail(file);
   }
 
   async function clearThumbnail(): Promise<void> {
@@ -300,11 +323,17 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
             <button
               type="button"
               class="panel-inspector-thumb-button"
+              classList={{ 'panel-inspector-thumb-button--drop': isDragOver() }}
               onClick={onPickFile}
-              title="クリックでサムネイル画像をアップロード"
+              onDragOver={onThumbDragOver}
+              onDragLeave={onThumbDragLeave}
+              onDrop={onThumbDrop}
+              title="クリックまたは画像を drop でサムネイルをアップロード"
             >
               <NodeThumbnail node={node()!} size={120} />
-              <span class="panel-inspector-thumb-hint">画像をアップロード</span>
+              <span class="panel-inspector-thumb-hint">
+                {isDragOver() ? '画像を drop してください' : 'クリック / drop で画像'}
+              </span>
             </button>
             <div class="panel-inspector-meta-stack">
               <span class="panel-inspector-template-pill">

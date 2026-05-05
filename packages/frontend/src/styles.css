@@ -3507,7 +3507,8 @@ button {
   transition: opacity 0.15s;
 }
 
-.panel-outline-scene:hover .panel-outline-delete-scene {
+.panel-outline-scene:hover .panel-outline-delete-scene,
+.panel-outline-scene:hover .panel-outline-rename-scene {
   opacity: 1;
 }
 
@@ -3515,6 +3516,47 @@ button {
   background: var(--ss-bg-error);
   color: var(--ss-accent-vermillion);
   border-color: var(--ss-accent-vermillion);
+}
+
+/* PR-AB: シーン rename ボタン (✎) */
+.panel-outline-rename-scene {
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ss-text-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.panel-outline-rename-scene:hover {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-outline-scene-slug {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-family: var(--ss-font-mono, monospace);
+  opacity: 0.6;
+}
+
+/* PR-AB: 画像 drop hover state on Outline node row */
+.panel-outline-node--drop {
+  outline: 2px dashed var(--ss-accent-blue);
+  outline-offset: -2px;
+  background: var(--ss-bg-info);
+}
+
+/* PR-AB: 画像 drop hover state on Inspector thumb */
+.panel-inspector-thumb-button--drop {
+  outline: 2px dashed var(--ss-accent-blue);
+  outline-offset: -4px;
+  background: var(--ss-bg-info);
 }
 
 /* Inspector header actions */

@@ -172,10 +172,56 @@ const DUPLICATE_SLUG: LintRule = {
   },
 };
 
+/** ルール 6: consecutive-same-speaker — 同一キャラの line が 2 つ連続。
+ * 1 セリフが長すぎ / 不要に分割されているサインで、人間に「束ねる or stage を挟む」を促す。
+ * `aside` `stage` `action` `sfx` `bgm` `choice` を挟むと連続と見做さない。
+ * scenes 配列が ctx に無ければ no-op。 */
+const CONSECUTIVE_SAME_SPEAKER: LintRule = {
+  id: 'consecutive-same-speaker',
+  description: '同一キャラの dialogue が連続している (分割しすぎ / 束ねた方が読みやすい目安)',
+  defaultSeverity: 'info',
+  check(ctx) {
+    const scenes = ctx.scenes;
+    if (!scenes || scenes.length === 0) return [];
+    const issues: LintIssue[] = [];
+    for (const scene of scenes) {
+      let prevWho: string | undefined;
+      let runStartIdx = -1;
+      let runCount = 0;
+      for (let i = 0; i < scene.blocks.length; i++) {
+        const b = scene.blocks[i]!;
+        if (b.kind === 'line') {
+          if (b.who && b.who === prevWho) {
+            runCount++;
+            if (runCount === 2) {
+              issues.push({
+                ruleId: 'consecutive-same-speaker',
+                severity: 'info',
+                message: `[${scene.label}] 同一キャラ "${b.who}" のセリフが連続 (block #${runStartIdx + 1}〜${i + 1})。stage/aside で挟むか、1 行に束ねることを検討`,
+              });
+            }
+          } else {
+            prevWho = b.who;
+            runStartIdx = i;
+            runCount = 1;
+          }
+        } else {
+          // line 以外は run を打ち切る (stage / aside で区切れば連続扱いしない)
+          prevWho = undefined;
+          runStartIdx = -1;
+          runCount = 0;
+        }
+      }
+    }
+    return issues;
+  },
+};
+
 export const BUILTIN_LINT_RULES: readonly LintRule[] = [
   RELATION_TARGET_EXISTS,
   ORPHAN_NODE,
   CIRCULAR_RELATION,
   REQUIRED_FIELD_MISSING,
   DUPLICATE_SLUG,
+  CONSECUTIVE_SAME_SPEAKER,
 ];
