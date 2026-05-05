@@ -19,10 +19,10 @@
 - [ ] **Synopsis Markdown の table / image 対応** — marked は GFM ON だが image アップロード経路無し
 - [ ] **Glossary の用語をシーン text 中で自動ハイライト** — 用語 + 表記揺れ違反を inline 表示
 - [ ] **Stats panel に「セリフ密度」グラフ** — 章別 / シーン別の 1 行平均文字数
-- [ ] **Welcome 画面に「FF7 サンプルを開く」ボタン** — 新規ユーザがすぐ触れる導線
+- [x] **Welcome 画面に「FF7 サンプルを開く」ボタン** ✅ 完了 (PR-AE) — Vite plugin で sample を bundle、選択フォルダに展開して開く
 - [ ] **AI でシーン全体の要約生成** — Cmd+Shift+A 等で「このシーンを 1 行で要約」
 - [ ] **Auto-save 競合検知** — 外部 (他ツール) で同じファイルが編集されたら警告
-- [ ] **Recent project 履歴の管理 UI** — Welcome 画面で削除 / pin
+- [x] **Recent project 履歴の管理 UI** ✅ 完了 (PR-AE) — Welcome に 📌 pin / × 削除 (確認 prompt つき)
 
 ## 🟢 小 (Polish)
 
@@ -79,3 +79,4 @@
 | #47 | PR-AB | 🔴緊急: シーン rename / 画像 drag-drop / 連続発話 lint |
 | #48 | PR-AC | 統一トンマナ + Inspector 2列レイアウト + 立ち絵サムネ Crop |
 | #49 | PR-AD | Plot Timeline drag-reorder (シーン + 章) |
+| #50 | PR-AE | Welcome: FF7 サンプル open + recent pin/削除 |
