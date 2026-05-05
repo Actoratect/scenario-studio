@@ -46,6 +46,12 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: ['⌘', 'S'], description: '即時保存 (debounce 待たず)', category: '編集' },
   // 出力
   { keys: ['⌘', 'E'], description: 'Export ダイアログを開く', category: '出力' },
+  // AI
+  {
+    keys: ['⌘', 'Shift', 'A'],
+    description: '現在のシーンを AI で 1 行要約',
+    category: 'AI',
+  },
   // Script (CodeMirror 内)
   { keys: ['Tab'], description: 'AI 続き提案を確定 (ghost text 表示中)', category: 'Script' },
   {

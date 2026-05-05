@@ -179,6 +179,37 @@ export const AiService = {
   },
 
   /**
+   * シーン全体の 1 行要約を生成 (PR-AJ)。Cmd+Shift+A 等から呼ばれる想定。
+   * Show prompt 必要 (まとまった script 全文を送る) — 呼び側 UI が confirm すること。
+   * unlock 必須 / lock 中は throw。
+   */
+  async requestSceneSummary(sceneText: string): Promise<string> {
+    if (!activeProvider) throw new Error('AI not unlocked. Call unlock() first.');
+    if (status().kind !== 'unlocked') throw new Error('AI not unlocked.');
+    const opt = providerOption(providerId());
+    const systemPrompt =
+      'あなたは日本語シナリオを 1 行 (40 字以内) で要約するエディタアシスタントです。' +
+      '与えられた scene の内容を、登場人物 + 主な出来事 + 結末の 3 要素で 1 行に圧縮してください。' +
+      '余計な前置きや解説は不要、要約 1 行のみ。';
+    setLastError(undefined);
+    try {
+      const response = await activeProvider.complete({
+        systemPrompt,
+        messages: [{ role: 'user', content: sceneText }],
+        model: opt.defaultModel,
+        maxTokens: 120,
+        temperature: 0.3,
+      });
+      const firstLine = response.split(/\r?\n/)[0]?.trim() ?? '';
+      return firstLine || response.trim();
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      setLastError(err);
+      throw err;
+    }
+  },
+
+  /**
    * 脚本 inline 続き提案 (PR-F)。1 行のみ、低 maxTokens、Show prompt 不要。
    * inlineEnabled() == false / unlocked でない場合は undefined を返す (no-op)。
    * AbortSignal で外部からキャンセル可能 (ユーザのキー入力で前リクエスト中断)。
