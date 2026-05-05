@@ -83,7 +83,17 @@ pnpm typecheck              # 全 package の型チェック
 pnpm test                   # vitest
 pnpm -F frontend dev        # Frontend dev server (PoC-A 完了後)
 pnpm -F core build          # Core ビルド
+
+# GitHub Pages サブパスでビルド (PR-AK)
+VITE_BASE_PATH=/scenario-studio/ pnpm -F frontend build
+# Windows PowerShell の場合:
+# $env:VITE_BASE_PATH='/scenario-studio/'; pnpm -F frontend build
 ```
+
+## 配布 (PR-AK)
+
+- **GitHub Pages**: `.github/workflows/deploy-pages.yml` が `main` への push か Actions タブからの手動トリガで `https://<owner>.github.io/<repo>/` に deploy。初回は Settings → Pages → Source: "GitHub Actions" を有効化
+- **zip 配布**: 同 workflow が `dist/` を Actions Artifacts として upload (30 日保持)。誰でも Actions run の Artifacts セクションからダウンロード可能。展開後は任意の static server (例: `npx serve dist`) で配信
 
 ## 関連
 
