@@ -24,6 +24,7 @@ import { OnboardingBanner } from './global/OnboardingBanner';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
+import { UnityReadinessOverlay } from './global/UnityReadinessOverlay';
 import { PanelFocus } from './services/PanelFocus';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
@@ -317,6 +318,13 @@ export const WorkspaceShell: Component = () => {
           title="このアプリについて / Help"
         >
           ?
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => UnityReadinessOverlay.show()}
+          title="Unity Readiness — Phase 2 出力前のチェック"
+        >
+          🎮
         </button>
         <button
           class="workspace-export"
