@@ -157,11 +157,7 @@ ${lintHtml}
 `;
 }
 
-function renderLintSummary(
-  issues: readonly LintIssue[],
-  include: boolean,
-  limit: number,
-): string {
+function renderLintSummary(issues: readonly LintIssue[], include: boolean, limit: number): string {
   if (!include || issues.length === 0) return '';
   const errors = issues.filter((i) => i.severity === 'error');
   const warns = issues.filter((i) => i.severity === 'warning');

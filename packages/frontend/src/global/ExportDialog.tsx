@@ -149,11 +149,7 @@ const ExportDialogUi: Component = () => {
           ? selectedChapter()
           : selectedScene().replace('/', '__');
     const mime =
-      fmt() === 'markdown'
-        ? 'text/markdown'
-        : fmt() === 'review-html'
-          ? 'text/html'
-          : 'text/plain';
+      fmt() === 'markdown' ? 'text/markdown' : fmt() === 'review-html' ? 'text/html' : 'text/plain';
     const blob = new Blob([output()], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
