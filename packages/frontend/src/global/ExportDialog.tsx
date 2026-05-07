@@ -1,7 +1,9 @@
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { buildCharacterLookups, exportProjectAsMarkdown, exportScene } from '@scenario-studio/core';
+import { LintService } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
+import { buildReviewHtml } from '../services/ReviewHtmlExport';
 import { Toast } from '../services/Toast';
 
 // Export dialog (PR-K) — Cmd+E もしくは workspace header の Export ボタンで開く。
@@ -26,7 +28,7 @@ export const ExportDialog = {
 };
 
 type Scope = 'scene' | 'chapter' | 'project';
-type Fmt = 'text' | 'markdown';
+type Fmt = 'text' | 'markdown' | 'review-html';
 
 interface SceneRef {
   chapterSlug: string;
@@ -64,6 +66,19 @@ const ExportDialogUi: Component = () => {
     setBusy(true);
     setOutput('');
     try {
+      // review-html は project 全体専用の配布形式 (UX-5)。
+      if (fmt() === 'review-html') {
+        const html = await buildReviewHtml({
+          adapter: ctx.adapter,
+          handle: ctx.handle,
+          project: ctx.project,
+          issues: LintService.issues(),
+        });
+        setOutput(html);
+        return;
+      }
+      // ここから text / markdown 分岐 (review-html は上で return 済)
+      const exportFmt: 'text' | 'markdown' = fmt() === 'markdown' ? 'markdown' : 'text';
       const lookups = buildCharacterLookups(ctx.project.nodes);
       if (scope() === 'project') {
         const md = await exportProjectAsMarkdown({
@@ -81,14 +96,14 @@ const ExportDialogUi: Component = () => {
           return;
         }
         const lines: string[] = [];
-        lines.push(fmt() === 'markdown' ? `# ${target.title}` : `=== ${target.title} ===`);
+        lines.push(exportFmt === 'markdown' ? `# ${target.title}` : `=== ${target.title} ===`);
         lines.push('');
         for (const sc of target.scenes) {
           const path = `Scenarios/${target.slug}/${sc.relativePath}`;
           if (!(await ctx.adapter.exists(ctx.handle, path))) continue;
           const yaml = await ctx.adapter.read(ctx.handle, path);
           lines.push(
-            exportScene(fmt(), {
+            exportScene(exportFmt, {
               sceneYaml: yaml,
               charactersByDevName: lookups.byDevName,
               charactersBySlug: lookups.bySlug,
@@ -108,7 +123,7 @@ const ExportDialogUi: Component = () => {
       const path = `Scenarios/${ref.chapterSlug}/${ref.sceneSlug}.scn.yaml`;
       const yaml = await ctx.adapter.read(ctx.handle, path);
       setOutput(
-        exportScene(fmt(), {
+        exportScene(exportFmt, {
           sceneYaml: yaml,
           charactersByDevName: lookups.byDevName,
           charactersBySlug: lookups.bySlug,
@@ -124,16 +139,22 @@ const ExportDialogUi: Component = () => {
   function download(): void {
     const ctx = ProjectService.currentProject();
     if (!ctx || output() === '') return;
-    const ext = fmt() === 'markdown' ? 'md' : 'txt';
-    const baseName =
-      scope() === 'project'
+    const ext = fmt() === 'markdown' ? 'md' : fmt() === 'review-html' ? 'html' : 'txt';
+    const isReview = fmt() === 'review-html';
+    const baseName = isReview
+      ? `${ctx.project.settings.name}-review`
+      : scope() === 'project'
         ? ctx.project.settings.name
         : scope() === 'chapter'
           ? selectedChapter()
           : selectedScene().replace('/', '__');
-    const blob = new Blob([output()], {
-      type: fmt() === 'markdown' ? 'text/markdown' : 'text/plain',
-    });
+    const mime =
+      fmt() === 'markdown'
+        ? 'text/markdown'
+        : fmt() === 'review-html'
+          ? 'text/html'
+          : 'text/plain';
+    const blob = new Blob([output()], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -154,42 +175,52 @@ const ExportDialogUi: Component = () => {
     }
   }
 
+  function openHtmlPreview(): void {
+    if (output() === '' || fmt() !== 'review-html') return;
+    const blob = new Blob([output()], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
   return (
     <div class="ss-modal-backdrop" onClick={() => ExportDialog.hide()}>
       <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
         <h3>Export</h3>
 
-        <div class="ss-modal-section">
-          <strong>範囲</strong>
-          <div class="ss-export-radio-group">
-            <label>
-              <input
-                type="radio"
-                checked={scope() === 'project'}
-                onChange={() => setScope('project')}
-              />
-              プロジェクト全体
-            </label>
-            <label>
-              <input
-                type="radio"
-                checked={scope() === 'chapter'}
-                onChange={() => setScope('chapter')}
-              />
-              章
-            </label>
-            <label>
-              <input
-                type="radio"
-                checked={scope() === 'scene'}
-                onChange={() => setScope('scene')}
-              />
-              シーン
-            </label>
+        <Show when={fmt() !== 'review-html'}>
+          <div class="ss-modal-section">
+            <strong>範囲</strong>
+            <div class="ss-export-radio-group">
+              <label>
+                <input
+                  type="radio"
+                  checked={scope() === 'project'}
+                  onChange={() => setScope('project')}
+                />
+                プロジェクト全体
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  checked={scope() === 'chapter'}
+                  onChange={() => setScope('chapter')}
+                />
+                章
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  checked={scope() === 'scene'}
+                  onChange={() => setScope('scene')}
+                />
+                シーン
+              </label>
+            </div>
           </div>
-        </div>
+        </Show>
 
-        <Show when={scope() === 'chapter'}>
+        <Show when={fmt() !== 'review-html' && scope() === 'chapter'}>
           <div class="ss-modal-section">
             <strong>章を選択</strong>
             <select
@@ -204,7 +235,7 @@ const ExportDialogUi: Component = () => {
           </div>
         </Show>
 
-        <Show when={scope() === 'scene'}>
+        <Show when={fmt() !== 'review-html' && scope() === 'scene'}>
           <div class="ss-modal-section">
             <strong>シーンを選択</strong>
             <select
@@ -234,6 +265,14 @@ const ExportDialogUi: Component = () => {
               <input type="radio" checked={fmt() === 'text'} onChange={() => setFmt('text')} />
               プレーンテキスト (.txt)
             </label>
+            <label>
+              <input
+                type="radio"
+                checked={fmt() === 'review-html'}
+                onChange={() => setFmt('review-html')}
+              />
+              レビュー用 HTML (.html, 画像同梱)
+            </label>
           </div>
         </div>
 
@@ -247,6 +286,11 @@ const ExportDialogUi: Component = () => {
             生成
           </button>
           <span class="ss-modal-spacer" />
+          <Show when={fmt() === 'review-html'}>
+            <button type="button" disabled={output() === ''} onClick={openHtmlPreview}>
+              ブラウザでプレビュー
+            </button>
+          </Show>
           <button type="button" disabled={output() === ''} onClick={() => void copyToClipboard()}>
             クリップボードにコピー
           </button>
