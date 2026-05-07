@@ -7,8 +7,9 @@ import type { ScenarioNode } from './node.js';
 describe('defaultFields', () => {
   it('character template defaults', () => {
     const d = defaultFields(CHARACTER_TEMPLATE);
-    expect(d['gender']).toBe('unknown');
-    expect(d['tone']).toBe('casual');
+    // gender / tone は自由入力 string になったため default は無い (undefined)
+    expect(d['gender']).toBeUndefined();
+    expect(d['tone']).toBeUndefined();
     // required fields without defaultValue は default に出ない
     expect(d['display_name']).toBeUndefined();
   });
@@ -66,13 +67,16 @@ describe('validateNode', () => {
     expect(heightIssue?.message).toContain('below min');
   });
 
-  it('flags non-allowed enum value', () => {
+  it('accepts custom enum-like string for gender/tone (= 自由入力)', () => {
+    // gender / tone は free-input になったので、独自値を入れても error にならない
     const node = characterNode({
       display_name: '太郎',
       gender: 'alien',
+      tone: '武人風',
     });
     const issues = validateNode(node, CHARACTER_TEMPLATE);
-    expect(issues.find((i) => i.fieldId === 'gender')?.severity).toBe('error');
+    expect(issues.find((i) => i.fieldId === 'gender')).toBeUndefined();
+    expect(issues.find((i) => i.fieldId === 'tone')).toBeUndefined();
   });
 
   it('flags maxLength overrun on string field', () => {
