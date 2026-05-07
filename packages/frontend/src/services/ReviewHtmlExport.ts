@@ -279,7 +279,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 function anchorId(chapterSlug: string, sceneSlug: string): string {
-  return `scene--${chapterSlug}--${sceneSlug}`.replace(/[^a-zA-Z0-9_\-]/g, '-');
+  return `scene--${chapterSlug}--${sceneSlug}`.replace(/[^a-zA-Z0-9_-]/g, '-');
 }
 
 // marked は <script> を出力しない (option.sanitize は廃止) が、
