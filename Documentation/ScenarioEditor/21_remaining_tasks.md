@@ -3,6 +3,8 @@
 > Phase 1 (M1-M8) + post-MVP A〜AA の合計 28 PR がマージ済。
 > 本ファイルは「**今後やる予定 / 検討中の機能**」を整理。
 > 完了したらここから消す or「✅ 完了 (PR #XX)」を付ける。
+>
+> 2026-05-07 の UX / 機能改善レビューは `22_ux_feature_review.md` に整理。特に Project Health / Script Context Rail / Field Context AI Actions / Local Agent Handoff / Plot Flow Lens / Unity Readiness / Review Package / AI Patch Queue を次の有力候補としている。なお、既定タブ数は増やしすぎず、rail / overlay / 右クリックメニュー / Cmd+K action を優先する。
 
 ## 🔴 緊急度高 (実機運用に直結)
 
@@ -13,6 +15,11 @@
 
 ## 🟡 中 (UX 改善)
 
+- [ ] **タブ増加を抑える UX 方針の反映** — 新機能は既定タブ追加ではなく、既存パネル内 rail / drawer / overlay / 右クリック / Cmd+K action を優先する
+- [ ] **AI 連携の2軸整理** — Developer Local Agent (Codex / IDE / ChatGPT UI handoff) と General External API (課金あり自動生成) を UI / docs で分ける
+- [ ] **画像欄 right-click AI 画像生成** — ChatGPT / Gemini 用 prompt copy と、外部APIでの3案生成 (課金あり) を分けて提供
+- [ ] **テキスト欄 right-click AI 提案** — 選択テキスト / フィールド文脈から 3 案を生成し、差分確認後に置換 / 追記 / コピー
+- [ ] **Local Agent Handoff** — 選択中ノード / シーンの context package を作り、Codex / Claude Code / Cursor / Aider / IDE へ渡して diff を取り込む
 - [x] **Inspector フィールドにドキュメント link / プレビュー** ✅ 完了 (PR-AG) — node_ref に inline preview 行 (サムネ + 名前 + ジャンプ ❘ 参照切れは赤)
 - [x] **Plot Timeline の drag-reorder** ✅ 完了 (PR-AD) — シーンカード drag で同章内 reorder + 他章への移動
 - [x] **Plot Timeline で章 drag 並べ替え** ✅ 完了 (PR-AD) — カラム header drag で章順入れ替え
