@@ -42,7 +42,7 @@
 - [ ] **AI: キャラ性格に基づくセリフ感情推定**
 - [ ] **Voice 録音アシスト** — シーン script を読み上げ TTS で確認
 - [ ] **タイムライン本格 timeline** (横軸 = 時間 / 縦軸 = キャラの存命) — 05_timeline.md §3
-- [ ] **Variant override の bulk 編集** — 複数 Era にまたがる一括 override
+- [x] **Variant override の bulk 編集** ✅ 完了 (PR-AP) — Inspector の variant override 行に「⤴ 他 Era にも適用」ボタン → BulkVariantOverlay で対象 Era を checkbox 選択 → 1 ノード保存で一括書込
 
 ## 完了 (post-MVP A-AA)
 
