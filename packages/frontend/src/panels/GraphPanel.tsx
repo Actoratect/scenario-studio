@@ -163,12 +163,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   });
 
   // 各ノードのサムネイル URL を解決 (PR-Q)。lens 変化時に再計算。
+  // 注意: createResource の source が falsy だと fetcher が呼ばれないため、
+  // lens() を直接 source にすると初期 undefined → 解決しないまま残るバグがある。
+  // 常に object を返し、fetcher 内で nodes 不在を分岐する。
   const [thumbnailUrls] = createResource(
-    () => lens(),
-    async (l) => {
-      if (!l) return new Map<NodeId, string>();
+    () => ({ nodes: lens()?.nodes ?? [] }),
+    async (src) => {
       const out = new Map<NodeId, string>();
-      for (const n of l.nodes) {
+      for (const n of src.nodes) {
         if (!n.thumbnail) continue;
         const url = await ThumbnailService.resolveUrl(n.thumbnail);
         if (url) out.set(n.id, url);

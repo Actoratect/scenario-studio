@@ -245,6 +245,7 @@ key は WebCrypto + PBKDF2 で暗号化保存 (詳細: `16_security.md`)。
 │   ├── synopsis.md               # プロジェクト全体のあらすじ (Markdown)
 │   ├── synopsis-images/          # synopsis 内に貼った画像
 │   ├── ch01_<slug>/              # 章フォルダ — slug は a-z0-9_ のみ
+│   │   ├── _index.yaml           # 章のメタ (title / summary)。任意 (無くても scenes があれば slug が title になる)
 │   │   ├── _scene_index.yaml     # シーン順
 │   │   ├── synopsis.md           # 章のあらすじ (任意)
 │   │   ├── s01_<slug>.scn.yaml   # 各シーン
@@ -310,6 +311,20 @@ chapters:
 
 プロジェクト全体のあらすじ (Markdown 自由形式)。画像を貼るときは
 `synopsis-images/<filename>.png` に置いて `![](synopsis-images/foo.png)` で参照。
+
+#### `Scenarios/<chapter>/_index.yaml`
+
+章のメタ (任意ファイル)。無くても `_scene_index.yaml` か `*.scn.yaml` があれば章として認識され、
+タイトルは slug がそのまま使われる。後で title / summary を付けたくなったらこれを足す。
+
+```yaml
+schemaVersion: 1
+kind: chapter
+id: chapter.ch01_midgar_bombing
+slug: ch01_midgar_bombing
+title: '第 1 章: 八番魔晄炉'
+summary: AVALANCHE による魔晄炉爆破。元ソルジャー クラウドが傭兵として参加する。
+```
 
 #### `Scenarios/<chapter>/_scene_index.yaml`
 
@@ -529,6 +544,7 @@ relations:
 - **`schemaVersion: 1` を省略しない** — Loader が拒否する。
 - **kind を省略しない** — `kind: node` / `kind: era` / `kind: scene_index` / `kind: glossary` / `kind: relations` / `kind: scenario_project` のいずれか必須。
 - **node_ref で存在しない id を書かない** — Lint が `node-ref-missing` で警告。Inspector に赤く出る。
+- **章フォルダは空にしない** — `_index.yaml` も `_scene_index.yaml` も `*.scn.yaml` も無いと章ごとロードから漏れる (= 0.1.0 までは silently、以降も「scene 0 件 + index 無し」のみ skip)。最低 1 つの scene か `_index.yaml` を置いておく。
 
 ### 8.7 検証 (作ったあと走らせるべき)
 
