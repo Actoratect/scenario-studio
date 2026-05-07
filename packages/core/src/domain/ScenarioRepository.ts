@@ -5,6 +5,7 @@ import {
   chapterId,
   sceneId,
   type Chapter,
+  type ChapterLoadError,
   type ScenarioStructure,
   type SceneMeta,
 } from './scenario.js';
@@ -33,7 +34,7 @@ export class FsScenarioRepository {
     const projectExists = await this.adapter.exists(this.handle, PROJECT_FILE);
     if (!projectExists) {
       // 未初期化プロジェクト: 空の Scenarios。M4 では Outline 側に「章を追加」UI を出す。
-      return { projectSynopsis: synopsis, chapters: [] };
+      return { projectSynopsis: synopsis, chapters: [], errors: [] };
     }
     const projectText = await this.adapter.read(this.handle, PROJECT_FILE);
     const { value } = parseYaml(projectText);
@@ -41,11 +42,23 @@ export class FsScenarioRepository {
     const chapterSlugs = expectStringArray(v, 'chapters');
 
     const chapters: Chapter[] = [];
+    const errors: ChapterLoadError[] = [];
     for (const slug of chapterSlugs) {
-      const chapter = await this.loadChapter(slug);
-      if (chapter) chapters.push(chapter);
+      // 章単位で try/catch — 1 つ壊れても他の章 + プロジェクト全体の load を継続する。
+      // エラーは ScenarioStructure.errors に積まれ、UI 層 (ProjectService 経由) で
+      // Toast 警告される。
+      try {
+        const chapter = await this.loadChapter(slug);
+        if (chapter) chapters.push(chapter);
+      } catch (e) {
+        errors.push({
+          scope: slug,
+          path: `${SCENARIOS_ROOT}/${slug}/`,
+          message: e instanceof Error ? (e.message.split('\n')[0] ?? String(e)) : String(e),
+        });
+      }
     }
-    return { projectSynopsis: synopsis, chapters };
+    return { projectSynopsis: synopsis, chapters, errors };
   }
 
   async saveSynopsis(text: string): Promise<void> {

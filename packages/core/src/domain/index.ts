@@ -33,7 +33,14 @@ export { createNode, FsNodeRepository, isValidSlug } from './NodeRepository.js';
 export { FsEraRepository } from './EraRepository.js';
 
 // Scenario hierarchy (M4)
-export type { Chapter, ChapterId, ScenarioStructure, SceneId, SceneMeta } from './scenario.js';
+export type {
+  Chapter,
+  ChapterId,
+  ChapterLoadError,
+  ScenarioStructure,
+  SceneId,
+  SceneMeta,
+} from './scenario.js';
 export { chapterId, sceneId } from './scenario.js';
 export { FsScenarioRepository } from './ScenarioRepository.js';
 
