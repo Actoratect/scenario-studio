@@ -13,6 +13,7 @@ export type {
 } from './types.js';
 export { NAME_FIELDS, templateId } from './types.js';
 export { CHARACTER_TEMPLATE } from './character.js';
+export { EVENT_TEMPLATE } from './event.js';
 export { FACTION_TEMPLATE } from './faction.js';
 export { ITEM_TEMPLATE } from './item.js';
 export { LOCATION_TEMPLATE } from './location.js';

@@ -33,6 +33,7 @@ import { EraSelector } from '../global/EraSelector';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { PortraitCropper } from '../global/PortraitCropper';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
+import { deriveGlossary } from '../services/GlossaryHighlight';
 
 // 選択中ノードの編集 UI。
 // テンプレート schema を読んで対応する form プリミティブを並べ、
@@ -605,7 +606,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
       typeof props.node.fields['display_name'] === 'string'
         ? (props.node.fields['display_name'] as string)
         : props.node.slug;
-    const glossaryTerms = (props.project.project.glossary ?? []).map((g) => g.term);
+    const glossaryTerms = deriveGlossary(props.project.project).map((g) => g.term);
     const ctx: FieldAiContext = {
       target: { kind: 'node-field', nodeId: props.node.id, fieldId: props.field.id },
       ...(typeof props.value === 'string' ? { currentValue: props.value } : {}),

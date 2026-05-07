@@ -14,7 +14,7 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
       id: 'birth_year',
       label: '年齢',
       type: 'int',
-      description: '見た目の年齢 (歳)。物語時系列の相対年でも可',
+      description: '見た目の年齢 (歳)',
       group: '基本情報',
     },
     {

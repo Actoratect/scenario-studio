@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { CHARACTER_TEMPLATE, type ParsedScene, type ScenarioNode } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
-import { scanGlossary } from '../services/GlossaryHighlight';
+import { deriveGlossary, scanGlossary } from '../services/GlossaryHighlight';
 import { LintService } from '../services/LintService';
 import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
@@ -106,7 +106,7 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
         okTerms: [] as readonly string[],
         violations: [] as readonly { match: string; term: string }[],
       };
-    return scanGlossary(sceneText(), ctx.project.glossary ?? []);
+    return scanGlossary(sceneText(), deriveGlossary(ctx.project));
   });
 
   /** Lint issues — 現在 scene に関連しそうなもののみ filter。

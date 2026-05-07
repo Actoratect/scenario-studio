@@ -12,8 +12,7 @@ import { SelectionContext } from '../services/SelectionContext';
 type Hit =
   | { kind: 'node'; nodeId: string; label: string; sub: string }
   | { kind: 'chapter'; chapterSlug: string; label: string; sub: string }
-  | { kind: 'scene'; chapterSlug: string; sceneSlug: string; label: string; sub: string }
-  | { kind: 'glossary'; term: string; label: string; sub: string };
+  | { kind: 'scene'; chapterSlug: string; sceneSlug: string; label: string; sub: string };
 
 const [open, setOpen] = createSignal(false);
 
@@ -76,16 +75,6 @@ const CommandPaletteUi: Component = () => {
         }
       }
     }
-    for (const t of ctx.project.glossary) {
-      if (q === '' || `${t.term} ${t.aliases.join(' ')}`.toLowerCase().includes(q)) {
-        all.push({
-          kind: 'glossary',
-          term: t.term,
-          label: t.term,
-          sub: `glossary${t.aliases.length > 0 ? ' · alt: ' + t.aliases.join(', ') : ''}`,
-        });
-      }
-    }
     return all.slice(0, 50);
   });
 
@@ -105,9 +94,6 @@ const CommandPaletteUi: Component = () => {
           label: hit.label,
         });
         PanelFocus.focus('script-1');
-        break;
-      case 'glossary':
-        PanelFocus.focus('glossary-1');
         break;
     }
     CommandPalette.hide();
@@ -152,7 +138,7 @@ const CommandPaletteUi: Component = () => {
           ref={inputRef}
           type="text"
           class="ss-cmd-palette-input"
-          placeholder="ノード / 章 / シーン / 用語を検索…"
+          placeholder="ノード / 章 / シーンを検索…"
           value={query()}
           onInput={(e) => {
             setQuery(e.currentTarget.value);

@@ -1,66 +1,49 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SaveScheduler } from './SaveScheduler.js';
 import { nodeId } from '@scenario-studio/core';
 
-describe('SaveScheduler', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+// PR (ux-overhaul): 自動 debounce flush は廃止し、手動 flush ベースに変更。
+// schedule() は dirty マークだけ、flush は flushAll() / flushNow() 呼び出し時のみ走る。
 
-  it('flushes after debounceMs idle', () => {
+describe('SaveScheduler (manual mode)', () => {
+  it('schedule does not auto-flush', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
     expect(flush).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(499);
-    expect(flush).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(flush).toHaveBeenCalledOnce();
-    expect(flush).toHaveBeenCalledWith(nodeId('a'));
+    expect(s.pendingCount).toBe(1);
   });
 
-  it('multiple schedules within debounceMs collapse into one flush', () => {
+  it('multiple schedules collapse into single dirty entry', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
-    vi.advanceTimersByTime(200);
-    s.schedule(nodeId('a')); // reset timer
-    vi.advanceTimersByTime(400);
-    expect(flush).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(100);
-    expect(flush).toHaveBeenCalledOnce();
+    s.schedule(nodeId('a'));
+    expect(s.pendingCount).toBe(1);
   });
 
   it('schedules per-node are independent', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
-    vi.advanceTimersByTime(100);
     s.schedule(nodeId('b'));
-    vi.advanceTimersByTime(400); // a の 500ms 経過
-    expect(flush).toHaveBeenCalledTimes(1);
-    expect(flush).toHaveBeenCalledWith(nodeId('a'));
-    vi.advanceTimersByTime(100); // b の 500ms 経過
-    expect(flush).toHaveBeenCalledTimes(2);
-    expect(flush).toHaveBeenLastCalledWith(nodeId('b'));
+    expect(s.pendingCount).toBe(2);
+    expect(s.pendingIds()).toContain(nodeId('a'));
+    expect(s.pendingIds()).toContain(nodeId('b'));
   });
 
-  it('flushNow runs immediately and clears the timer', () => {
+  it('flushNow runs the handler and clears dirty (sync)', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
     s.flushNow(nodeId('a'));
     expect(flush).toHaveBeenCalledOnce();
-    vi.advanceTimersByTime(1000);
-    expect(flush).toHaveBeenCalledOnce(); // 二度走らない
+    expect(s.pendingCount).toBe(0);
   });
 
-  it('flushAll empties all pending', () => {
+  it('flushAll empties all pending (sync)', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
     s.schedule(nodeId('b'));
     s.schedule(nodeId('c'));
@@ -70,12 +53,11 @@ describe('SaveScheduler', () => {
     expect(s.pendingCount).toBe(0);
   });
 
-  it('destroy cancels pending timers without flushing', () => {
+  it('destroy clears dirty without flushing', () => {
     const flush = vi.fn();
-    const s = new SaveScheduler({ debounceMs: 500, flush });
+    const s = new SaveScheduler({ flush });
     s.schedule(nodeId('a'));
     s.destroy();
-    vi.advanceTimersByTime(1000);
     expect(flush).not.toHaveBeenCalled();
     expect(s.pendingCount).toBe(0);
   });
@@ -83,10 +65,9 @@ describe('SaveScheduler', () => {
   it('forwards async flush errors to onError', async () => {
     const onError = vi.fn();
     const flush = vi.fn(() => Promise.reject(new Error('boom')));
-    const s = new SaveScheduler({ debounceMs: 100, flush, onError });
+    const s = new SaveScheduler({ flush, onError });
     s.schedule(nodeId('a'));
-    vi.advanceTimersByTime(100);
-    // microtask flush
+    s.flushNow(nodeId('a'));
     await Promise.resolve();
     await Promise.resolve();
     expect(onError).toHaveBeenCalledOnce();

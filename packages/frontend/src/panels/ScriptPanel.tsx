@@ -14,26 +14,18 @@ import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptSnippets';
 import { ScriptContextRail } from '../script/ScriptContextRail';
 import { ScriptVisualEditor } from '../script/ScriptVisualEditor';
+import { KNOWN_EMOTIONS } from '../script/emotions';
 import { bumpScriptLintVersion } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
+import { DirtyTracker } from '../services/DirtyTracker';
 
 // 脚本エディタ Panel。
 // PR-AA: 既定は「視覚編集モード (visual)」— YAML を見せず、各ブロックをカードで描画。
 //        「raw YAML モード (raw)」も切替可で CodeMirror を表示 (上級ユーザ向け)。
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §5
-
-const KNOWN_EMOTIONS: readonly string[] = [
-  'happy',
-  'sad',
-  'angry',
-  'tired',
-  'suspicious',
-  'surprised',
-  'embarrassed',
-  'calm',
-];
+// 感情ラベルは ../script/emotions.ts に集約 (日本語化)。
 
 interface SceneRef {
   chapterSlug: string;
@@ -61,7 +53,6 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   function setModeAndPersist(m: EditorMode): void {
     setMode(m);
@@ -120,15 +111,16 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     }
   }
 
+  /** PR (ux-overhaul): 自動保存廃止。dirty マークだけ立てて、保存は明示 (Cmd+S / 保存ボタン)。 */
   function scheduleSave(text: string): void {
     setDoc(text);
-    if (saveTimer) clearTimeout(saveTimer);
     const target = scene();
     if (!target) return;
-    saveTimer = setTimeout(() => {
-      saveTimer = undefined;
-      void saveNow(target, text);
-    }, 500);
+    DirtyTracker.mark({
+      key: target.path,
+      label: target.label,
+      saveFn: () => saveNow(target, doc()),
+    });
   }
 
   async function saveNow(ref: SceneRef, text: string): Promise<void> {
@@ -137,11 +129,13 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     setSaving(true);
     try {
       await ctx.adapter.write(ctx.handle, ref.path, text);
+      DirtyTracker.clear(ref.path);
       // 連続発話 lint を再評価
       bumpScriptLintVersion();
     } catch (e) {
       console.error('script save failed', e);
       Toast.error(`脚本の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
     } finally {
       setSaving(false);
     }
@@ -183,6 +177,14 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const blocks = [...cur.blocks, defaultBlock(kind, defaultWho)];
     commitParsed({ ...cur, blocks });
   }
+  function onInsertBlock(index: number, kind: ScriptBlock['kind']): void {
+    const cur = parsed();
+    const defaultWho = characterSlugs()[0] ?? '';
+    const blocks = [...cur.blocks];
+    const clamped = Math.max(0, Math.min(index, blocks.length));
+    blocks.splice(clamped, 0, defaultBlock(kind, defaultWho));
+    commitParsed({ ...cur, blocks });
+  }
 
   onMount(() => {
     if (!host) return;
@@ -216,10 +218,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   });
 
   onCleanup(() => {
-    if (saveTimer) clearTimeout(saveTimer);
-    const ref = scene();
-    const text = doc();
-    if (ref) void saveNow(ref, text);
+    // PR (ux-overhaul): 自動保存廃止。close 時の dirty は DirtyTracker に残し、
+    // 「閉じる時にユーザに保存を促す」のはヘッダ側の責務に集約。
     view?.destroy();
   });
 
@@ -329,6 +329,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
             onDeleteBlock={onDeleteBlock}
             onMoveBlock={onMoveBlock}
             onAppendBlock={onAppendBlock}
+            onInsertBlock={onInsertBlock}
           />
         </div>
         <ScriptContextRail
@@ -351,7 +352,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
 function defaultBlock(kind: ScriptBlock['kind'], defaultWho: string): ScriptBlock {
   switch (kind) {
     case 'line':
-      return { kind: 'line', who: defaultWho, emotion: 'calm', text: '' };
+      return { kind: 'line', who: defaultWho, emotion: '穏やか', text: '' };
     case 'stage':
       return { kind: 'stage', text: '' };
     case 'aside':
