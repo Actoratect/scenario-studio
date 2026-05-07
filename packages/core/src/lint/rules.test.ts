@@ -160,6 +160,97 @@ describe('BUILTIN_LINT_RULES', () => {
     expect(issues.find((i) => i.ruleId === 'consecutive-same-speaker')).toBeUndefined();
   });
 
+  it('PR-AO missing-thumbnail fires for character without thumbnail', () => {
+    const tmpl = new TemplateRegistry();
+    const t = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'no_image',
+      fields: { display_name: '画像なし太郎' },
+    });
+    const issues = engine.run(ctxFor([t]));
+    expect(issues.find((i) => i.ruleId === 'missing-thumbnail')?.severity).toBe('info');
+  });
+
+  it('PR-AO missing-thumbnail does NOT fire for character with thumbnail', () => {
+    const tmpl = new TemplateRegistry();
+    const t = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'with_image',
+      fields: { display_name: '画像あり' },
+    });
+    const withThumb = { ...t, thumbnail: 'Media/with_image.png' };
+    const issues = engine.run(ctxFor([withThumb]));
+    expect(issues.find((i) => i.ruleId === 'missing-thumbnail')).toBeUndefined();
+  });
+
+  it('PR-AO empty-script fires for scene with 0 blocks', () => {
+    const scenes: ScriptScene[] = [
+      { chapterSlug: 'ch01', sceneSlug: 's01', label: 'ch1 / s1', blocks: [] },
+    ];
+    const issues = engine.run({ ...ctxFor([]), scenes });
+    expect(issues.find((i) => i.ruleId === 'empty-script')?.severity).toBe('info');
+  });
+
+  it('PR-AO empty-script does NOT fire for scene with blocks', () => {
+    const scenes: ScriptScene[] = [
+      {
+        chapterSlug: 'ch01',
+        sceneSlug: 's01',
+        label: 'ch1 / s1',
+        blocks: [{ kind: 'stage', text: 'opening' }],
+      },
+    ];
+    const issues = engine.run({ ...ctxFor([]), scenes });
+    expect(issues.find((i) => i.ruleId === 'empty-script')).toBeUndefined();
+  });
+
+  it('PR-AO script-unknown-who fires when who: is not a valid character slug / dev_name', () => {
+    const tmpl = new TemplateRegistry();
+    const cloud = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'cloud',
+      fields: { display_name: 'クラウド', dev_name: 'Cloud' },
+    });
+    const scenes: ScriptScene[] = [
+      {
+        chapterSlug: 'ch01',
+        sceneSlug: 's01',
+        label: 'ch1 / s1',
+        blocks: [
+          { kind: 'line', who: 'Cloud', text: 'やあ' }, // dev_name 経由で valid
+          { kind: 'line', who: 'sephiroth', text: '...' }, // 該当なし → warning
+        ],
+      },
+    ];
+    const issues = engine.run({ ...ctxFor([cloud]), scenes });
+    const unknown = issues.find((i) => i.ruleId === 'script-unknown-who');
+    expect(unknown?.severity).toBe('warning');
+    expect(unknown?.message).toContain('sephiroth');
+  });
+
+  it('PR-AO script-unknown-who collapses duplicates within same scene', () => {
+    const tmpl = new TemplateRegistry();
+    const cloud = createNode(tmpl, {
+      templateId: CHARACTER_TEMPLATE.id,
+      slug: 'cloud',
+      fields: { display_name: 'クラウド' },
+    });
+    const scenes: ScriptScene[] = [
+      {
+        chapterSlug: 'ch01',
+        sceneSlug: 's01',
+        label: 'ch1 / s1',
+        blocks: [
+          { kind: 'line', who: 'ghost', text: 'A' },
+          { kind: 'line', who: 'ghost', text: 'B' },
+          { kind: 'line', who: 'ghost', text: 'C' },
+        ],
+      },
+    ];
+    const issues = engine.run({ ...ctxFor([cloud]), scenes });
+    expect(issues.filter((i) => i.ruleId === 'script-unknown-who').length).toBe(1);
+  });
+
   it('engine reports no issues for a valid project', () => {
     const tmpl = new TemplateRegistry();
     const f = createNode(tmpl, {
