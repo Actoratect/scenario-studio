@@ -287,6 +287,8 @@ class AddressablesScenarioPostprocessor : AssetPostprocessor {
 ユーザの強調ポイント。**Claude Code / Cursor / Codex / Aider / Continue / 他なんでも** が **リポジトリ内テキストを直接読み書きできる** ことを最大化。
 特定のエージェントに依存せず、汎用的な「コーディングエージェント」が動けば必ず使える設計。
 
+これは補助的な便利機能ではなく、Unity 統合の中核価値とする。開発者はローカルに Codex / コーディングAI / IDE を入れ、Scenario Studio の GUI で構造を見ながら、AI にはリポジトリ内の YAML / C# / TS を直接編集させる。Unity 側は AssetPostprocessor / Bridge / Hot Reload で変更を即ゲーム実装へ反映する。
+
 ### 6.1 LLM フレンドリーな配置
 
 - すべての YAML が **規模が小さく**、AI のコンテキストに乗る (`08_file-format.md`)

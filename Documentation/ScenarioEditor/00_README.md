@@ -2,6 +2,7 @@
 
 ブラウザ・デスクトップ・Unity Editor の **3 ターゲットで動く** 大規模シナリオエディタの設計集。
 本職のシナリオライター/ゲーム企業の企画・シナリオ部署が日常的に使う機能を踏まえ、AI コーディング前提で設計。
+特に開発者は、ローカル環境に Codex / Claude Code / Cursor / Aider / IDE などのコーディングAIを入れ、リポジトリ内の YAML / Markdown / C# / TS を直接読み書きしながら制作を回す想定。
 
 > **当面の方針 (確定)**: SaaS 化は **棚上げ (Phase X)**。Phase 0〜4 (約 1.5 年) は **ツールとしての完成度** を最優先で作り込む。
 > **AI プロバイダは特定ベンダーに固定しない**。Claude API / Claude Code / Codex / OpenAI / Gemini / Ollama 等を抽象越しに切替。
@@ -30,6 +31,8 @@
 | 18  | [Unity 統合](./18_unity-integration.md)                   | Asset 自動生成、開発側 AI 連携、Inspector/Find Usages           |
 | 19  | [Phase 0 振り返り](./19_phase0_retrospective.md)           | 9 PoC の結果サマリ、tech stack 確定、open questions の更新       |
 | 20  | [Phase 1 実装計画](./20_phase1_implementation_plan.md)     | MVP の done 定義、8 milestone、依存グラフ、リスク台帳            |
+| 21  | [残タスクリスト](./21_remaining_tasks.md)                  | post-MVP 後の残タスク、保留中の UX / 大型機能                   |
+| 22  | [UX / 機能改善レビュー](./22_ux_feature_review.md)          | post-MVP の使い勝手改善、チーム理解、AI + 個人制作向けの次候補   |
 
 > **読む順番のおすすめ**: 全体像 → `01` → `02` → `15` (プラットフォーム方針) → `18` (Unity 価値) → `11` (AI 抽象) → `16` (セキュリティ) → `03`〜`12` (個別設計) → `13`〜`14`
 
@@ -44,13 +47,15 @@
 7. **ローカライズとエクスポートは前提** — キー、ID、翻訳メモリを最初から仕込む
 8. **オフラインファースト** — クラウド非依存で動く
 9. **Unity は「データを実装にそのまま流せる場所」** — Asset 自動生成、Inspector/Find Usages、開発側 AI (Claude Code 等) がリポジトリ内 YAML を読み書き
-10. **AI は何でも使える** — `LlmProvider` (API 直叩き) + `IAgentRunner` (CLI 起動) の 2 抽象で、Claude API / Claude Code / Codex / OpenAI / Gemini / Ollama / 任意エージェント を切替
-11. **セキュリティは設計初期から** — ブラウザ公開を見据え、CSP/暗号化/最小権限を早期に
-12. **SaaS 化は棚上げ** — まずローカルツールとして抜きん出る。Phase 4 完了後に判断
+10. **ローカルAIワークベンチ前提** — 開発者の PC に Codex / Claude Code / Cursor / Aider / IDE が入っている状態を first-class とし、エディタ内AIだけに閉じない
+11. **AI は何でも使える** — `LlmProvider` (API 直叩き) + `IAgentRunner` (CLI 起動) の 2 抽象で、Claude API / Claude Code / Codex / OpenAI / Gemini / Ollama / 任意エージェント を切替
+12. **セキュリティは設計初期から** — ブラウザ公開を見据え、CSP/暗号化/最小権限を早期に
+13. **SaaS 化は棚上げ** — まずローカルツールとして抜きん出る。Phase 4 完了後に判断
 
 ## 想定ユーザ
 
 - 個人〜小規模チームのシナリオライター・企画
+- ローカルに Codex / Claude Code / Cursor / Aider / IDE を入れて、AI と一緒にゲーム制作を回す開発者
 - ゲーム会社のシナリオ/企画部署 (複数人協業)
 - 同人ゲーム・ノベルゲーム制作者
 - 設定資料集を作りたい世界観構築者
