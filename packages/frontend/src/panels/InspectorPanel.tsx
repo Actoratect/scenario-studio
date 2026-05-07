@@ -4,6 +4,7 @@ import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
   resolveNode,
   validateNode,
+  type FieldAiContext,
   type FieldSchema,
   type FieldValue,
   type NodeId,
@@ -23,6 +24,7 @@ import {
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
+import { FieldAiActions } from '../services/FieldAiActions';
 import { Toast } from '../services/Toast';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
@@ -557,6 +559,7 @@ const FieldGroup: Component<FieldGroupProps> = (props) => {
                   refOptions={props.refOptions}
                   isVariantMode={props.isVariantMode}
                   hasOverride={hasOverride()}
+                  node={props.node}
                   onInput={(v) => props.onInput(field.id, v)}
                   onRemoveOverride={() => props.onRemoveOverride(field.id)}
                   onBlur={props.onBlur}
@@ -580,6 +583,8 @@ interface FieldRowProps {
   isVariantMode: boolean;
   /** 当該 Era で当該フィールドに直接 override が定義されているか。 */
   hasOverride: boolean;
+  /** PR-AR: 右クリック AI で渡す ScenarioNode (FieldAiContext を組み立てる)。 */
+  node: ScenarioNode;
   onInput: (v: FieldValue) => void;
   onRemoveOverride: () => void;
   onBlur: () => void;
@@ -592,6 +597,30 @@ const FieldRow: Component<FieldRowProps> = (props) => {
     description: props.field.description,
     error: props.issue?.severity === 'error' ? props.issue.message : undefined,
   }));
+
+  /** PR-AR: テキスト系フィールドの右クリック AI コンテキスト。 */
+  function openTextAiMenu(e: MouseEvent): void {
+    const display =
+      typeof props.node.fields['display_name'] === 'string'
+        ? (props.node.fields['display_name'] as string)
+        : props.node.slug;
+    const glossaryTerms = (props.project.project.glossary ?? []).map((g) => g.term);
+    const ctx: FieldAiContext = {
+      target: { kind: 'node-field', nodeId: props.node.id, fieldId: props.field.id },
+      ...(typeof props.value === 'string' ? { currentValue: props.value } : {}),
+      projectContext: {
+        nodeSlug: props.node.slug,
+        displayName: display,
+        templateId: props.node.templateId,
+        eraId: EraContext.currentEraId(),
+        glossaryTerms,
+        relatedNodes: [],
+      },
+    };
+    FieldAiActions.openTextMenu(e, ctx, {
+      onAccept: (text) => props.onInput(text),
+    });
+  }
   // PR-X: short type は default compact (ラベル: 値 の inline 表示)
   const isCompact = (): boolean => {
     if (props.field.compact !== undefined) return props.field.compact;
@@ -639,6 +668,9 @@ const FieldRow: Component<FieldRowProps> = (props) => {
             value={typeof props.value === 'string' ? props.value : undefined}
             onInput={props.onInput}
             onBlur={props.onBlur}
+            onContextMenu={
+              props.field.type === 'string' ? (e: MouseEvent) => openTextAiMenu(e) : undefined
+            }
             maxLength={
               props.field.type === 'string'
                 ? (props.field as { maxLength?: number }).maxLength
@@ -652,6 +684,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
             value={typeof props.value === 'string' ? props.value : undefined}
             onInput={props.onInput}
             onBlur={props.onBlur}
+            onContextMenu={(e: MouseEvent) => openTextAiMenu(e)}
             maxLength={
               props.field.type === 'multiline_string'
                 ? (props.field as { maxLength?: number }).maxLength

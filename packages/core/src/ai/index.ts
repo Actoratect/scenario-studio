@@ -8,13 +8,21 @@ export type {
   AgentRunner,
   AgentScope,
   AgentTask,
+  FieldAiContext,
   GitPatch,
+  ImageGenerationCandidate,
+  ImageGenerationProvider,
   LlmCapabilities,
   LlmMessage,
   LlmProvider,
   LlmRequest,
   LlmRole,
+  TextSuggestionCandidate,
+  TextSuggestionPreset,
+  TextSuggestionPresetId,
 } from './types.js';
+
+export { TEXT_SUGGESTION_PRESETS } from './text-presets.js';
 
 export { AgentRunnerError, LlmProviderError } from './types.js';
 

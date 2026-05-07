@@ -320,6 +320,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       <div class="panel-script-content" style={{ display: mode() === 'visual' ? 'block' : 'none' }}>
         <ScriptVisualEditor
           parsed={parsed()}
+          chapterSlug={scene()?.chapterSlug}
+          sceneSlug={scene()?.sceneSlug}
           onChangeBlock={onChangeBlock}
           onDeleteBlock={onDeleteBlock}
           onMoveBlock={onMoveBlock}

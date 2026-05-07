@@ -5,8 +5,15 @@ import {
   encryptApiKey,
   OpenAiProvider,
   OllamaProvider,
+  TEXT_SUGGESTION_PRESETS,
 } from '@scenario-studio/core';
-import type { LlmMessage, LlmProvider } from '@scenario-studio/core';
+import type {
+  FieldAiContext,
+  LlmMessage,
+  LlmProvider,
+  TextSuggestionCandidate,
+  TextSuggestionPresetId,
+} from '@scenario-studio/core';
 import { clearKeyBlob, loadKeyBlob, saveKeyBlob } from './ai-key-store.js';
 
 // AI Service (M8) — keyVault → unlock → Provider 構築 → prompt 送信。
@@ -179,6 +186,60 @@ export const AiService = {
   },
 
   /**
+   * PR-AR: テキスト欄右クリック → 3 案提案。
+   * 単一プリセット (短く / 自然に / 口調強め 等) を選び、temperature 違いで
+   * 3 案を並列生成。Show prompt 確認は呼び側 UI で行う想定。
+   * unlock 必須。
+   */
+  async requestTextSuggestions(
+    context: FieldAiContext,
+    presetId: TextSuggestionPresetId,
+  ): Promise<readonly TextSuggestionCandidate[]> {
+    if (!activeProvider) throw new Error('AI not unlocked. Call unlock() first.');
+    if (status().kind !== 'unlocked') throw new Error('AI not unlocked.');
+    const preset = TEXT_SUGGESTION_PRESETS.find((p) => p.id === presetId);
+    if (!preset) throw new Error(`Unknown text preset: ${presetId}`);
+    const opt = providerOption(providerId());
+    const systemPrompt =
+      `あなたはシナリオ執筆を支援する日本語アシスタントです。\n` +
+      `タスク: ${preset.instruction}\n` +
+      `重要:\n` +
+      `- 与えられた以外のメタ情報を勝手に追加しない\n` +
+      `- 出力は書き換え後のテキスト 1 つだけ。前置きや「以下が候補です」等は不要\n` +
+      `- 改行は元テキストの構造を保つ範囲で\n`;
+    const userPrompt = buildFieldUserPrompt(context);
+    const provider = activeProvider;
+    setLastError(undefined);
+    // 3 並列生成: temperature を 0.3 / 0.6 / 0.9 で振って多様性を出す
+    const temperatures = [0.3, 0.6, 0.9];
+    const labels = ['案1: 控えめ', '案2: バランス', '案3: 大胆'];
+    try {
+      const results = await Promise.all(
+        temperatures.map((t) =>
+          provider.complete({
+            systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }],
+            model: opt.defaultModel,
+            maxTokens: 600,
+            temperature: t,
+          }),
+        ),
+      );
+      return results.map((text, i) => ({
+        id: `cand-${Date.now()}-${i}`,
+        label: labels[i] ?? `案${i + 1}`,
+        text: text.trim(),
+      }));
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      setLastError(err);
+      throw err;
+    }
+  },
+
+  textSuggestionPresets: TEXT_SUGGESTION_PRESETS,
+
+  /**
    * シーン全体の 1 行要約を生成 (PR-AJ)。Cmd+Shift+A 等から呼ばれる想定。
    * Show prompt 必要 (まとまった script 全文を送る) — 呼び側 UI が confirm すること。
    * unlock 必須 / lock 中は throw。
@@ -245,3 +306,66 @@ export const AiService = {
     }
   },
 };
+
+/**
+ * PR-AR: FieldAiContext から user prompt を組み立てる。
+ * 構造化された「対象 / 現在値 / 周辺 / プロジェクト文脈」を Markdown で並べる。
+ */
+function buildFieldUserPrompt(c: FieldAiContext): string {
+  const parts: string[] = [];
+  parts.push(`## 編集対象`);
+  switch (c.target.kind) {
+    case 'node-field':
+      parts.push(`- 種別: ノードフィールド`);
+      parts.push(`- nodeId: ${c.target.nodeId}`);
+      parts.push(`- fieldId: ${c.target.fieldId}`);
+      break;
+    case 'script-block':
+      parts.push(`- 種別: 脚本ブロック ${c.target.field}`);
+      parts.push(`- 章: ${c.target.chapterSlug}`);
+      parts.push(`- シーン: ${c.target.sceneSlug}`);
+      parts.push(`- ブロック index: ${c.target.blockIndex}`);
+      break;
+    case 'synopsis':
+      parts.push(`- 種別: あらすじ Markdown`);
+      parts.push(`- path: ${c.target.path}`);
+      break;
+  }
+  if (c.projectContext.displayName) {
+    parts.push(`- 関連キャラ表示名: ${c.projectContext.displayName}`);
+  }
+  if (c.projectContext.nodeSlug) {
+    parts.push(`- ノード slug: ${c.projectContext.nodeSlug}`);
+  }
+  if (c.projectContext.eraId) {
+    parts.push(`- 現在 Era: ${c.projectContext.eraId}`);
+  }
+  if (c.projectContext.glossaryTerms.length > 0) {
+    parts.push(`- 用語集: ${c.projectContext.glossaryTerms.join(', ')}`);
+  }
+  if (c.selectedText && c.selectedText !== c.currentValue) {
+    parts.push('');
+    parts.push(`## 選択範囲 (この部分を書き換える)`);
+    parts.push('```');
+    parts.push(c.selectedText);
+    parts.push('```');
+    parts.push(`## 全体 (参考)`);
+    parts.push('```');
+    parts.push(c.currentValue ?? '');
+    parts.push('```');
+  } else {
+    parts.push('');
+    parts.push(`## 現在の値 (これを書き換える)`);
+    parts.push('```');
+    parts.push(c.currentValue ?? '');
+    parts.push('```');
+  }
+  if (c.surroundingText) {
+    parts.push('');
+    parts.push(`## 前後の文脈 (参考、書き換えない)`);
+    parts.push('```');
+    parts.push(c.surroundingText);
+    parts.push('```');
+  }
+  return parts.join('\n');
+}
