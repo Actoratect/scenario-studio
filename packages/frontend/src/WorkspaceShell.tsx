@@ -1,4 +1,4 @@
-import { lazy, onCleanup, onMount } from 'solid-js';
+import { lazy, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
@@ -21,10 +21,12 @@ import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
 import { IdListOverlay } from './global/IdListOverlay';
 import { OnboardingBanner } from './global/OnboardingBanner';
+import { ProjectHealthOverlay } from './global/ProjectHealthOverlay';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
 import { PanelFocus } from './services/PanelFocus';
+import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
@@ -304,6 +306,28 @@ export const WorkspaceShell: Component = () => {
         </span>
         <EraSlider />
         <SaveStatusBadge />
+        <button
+          class="workspace-export workspace-health"
+          classList={{
+            'workspace-health--has-error': ProjectHealth.snapshot().counts.error > 0,
+            'workspace-health--has-warning':
+              ProjectHealth.snapshot().counts.error === 0 &&
+              ProjectHealth.snapshot().counts.warning > 0,
+          }}
+          onClick={() => ProjectHealthOverlay.show()}
+          title="プロジェクト ヘルス (Lint / 不足項目 / 章別 進捗)"
+        >
+          🩺
+          <Show
+            when={
+              ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning > 0
+            }
+          >
+            <span class="workspace-health-badge">
+              {ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning}
+            </span>
+          </Show>
+        </button>
         <button
           class="workspace-export"
           onClick={() => ShortcutsOverlay.show()}
