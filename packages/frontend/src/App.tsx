@@ -7,6 +7,7 @@ import { AboutOverlayRoot } from './global/AboutOverlay';
 import { AiCandidateOverlayRoot } from './global/AiCandidateOverlay';
 import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
+import { BulkVariantOverlayRoot } from './global/BulkVariantOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { LocalAgentHandoffOverlayRoot } from './global/LocalAgentHandoffOverlay';
 import { ProjectHealthOverlayRoot } from './global/ProjectHealthOverlay';
@@ -44,6 +45,7 @@ export const App: Component = () => {
       <ProjectHealthOverlayRoot />
       <UnityReadinessOverlayRoot />
       <AiPatchQueueOverlayRoot />
+      <BulkVariantOverlayRoot />
       <AiCandidateOverlayRoot />
       <ContextMenuRoot />
     </>
