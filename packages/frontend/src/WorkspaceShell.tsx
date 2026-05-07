@@ -21,6 +21,7 @@ import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
 import { IdListOverlay } from './global/IdListOverlay';
+import { LocalAgentHandoffOverlay } from './global/LocalAgentHandoffOverlay';
 import { OnboardingBanner } from './global/OnboardingBanner';
 import { ProjectHealthOverlay } from './global/ProjectHealthOverlay';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
@@ -140,6 +141,12 @@ export const WorkspaceShell: Component = () => {
     if (e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       AiSummaryOverlay.show();
+      return;
+    }
+    // PR-AU: Cmd+Shift+H — Local Agent Handoff
+    if (e.shiftKey && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      LocalAgentHandoffOverlay.show();
       return;
     }
     // PR-AY: Cmd+Shift+Q — AI Patch Queue
@@ -335,6 +342,13 @@ export const WorkspaceShell: Component = () => {
               {ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning}
             </span>
           </Show>
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => LocalAgentHandoffOverlay.show()}
+          title="ローカル AI に依頼 (Cmd+Shift+H)"
+        >
+          🤝
         </button>
         <button
           class="workspace-export"
