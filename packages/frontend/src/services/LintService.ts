@@ -67,4 +67,7 @@ const issues = createMemo<readonly LintIssue[]>(() => {
 export const LintService = {
   issues,
   registeredRuleIds: engine.registeredRuleIds,
+  /** PR-AV: Plot Flow Lens 等の他コンポーネントが scene blocks を読むための公開アクセサ。
+   *  load 中は undefined。 */
+  scenes: (): readonly ScriptScene[] | undefined => scenesResource(),
 };
