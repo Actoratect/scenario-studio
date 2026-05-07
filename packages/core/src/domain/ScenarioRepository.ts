@@ -5,6 +5,7 @@ import {
   chapterId,
   sceneId,
   type Chapter,
+  type ChapterLoadError,
   type ScenarioStructure,
   type SceneMeta,
 } from './scenario.js';
@@ -33,7 +34,7 @@ export class FsScenarioRepository {
     const projectExists = await this.adapter.exists(this.handle, PROJECT_FILE);
     if (!projectExists) {
       // 未初期化プロジェクト: 空の Scenarios。M4 では Outline 側に「章を追加」UI を出す。
-      return { projectSynopsis: synopsis, chapters: [] };
+      return { projectSynopsis: synopsis, chapters: [], errors: [] };
     }
     const projectText = await this.adapter.read(this.handle, PROJECT_FILE);
     const { value } = parseYaml(projectText);
@@ -41,11 +42,23 @@ export class FsScenarioRepository {
     const chapterSlugs = expectStringArray(v, 'chapters');
 
     const chapters: Chapter[] = [];
+    const errors: ChapterLoadError[] = [];
     for (const slug of chapterSlugs) {
-      const chapter = await this.loadChapter(slug);
-      if (chapter) chapters.push(chapter);
+      // 章単位で try/catch — 1 つ壊れても他の章 + プロジェクト全体の load を継続する。
+      // エラーは ScenarioStructure.errors に積まれ、UI 層 (ProjectService 経由) で
+      // Toast 警告される。
+      try {
+        const chapter = await this.loadChapter(slug);
+        if (chapter) chapters.push(chapter);
+      } catch (e) {
+        errors.push({
+          scope: slug,
+          path: `${SCENARIOS_ROOT}/${slug}/`,
+          message: e instanceof Error ? (e.message.split('\n')[0] ?? String(e)) : String(e),
+        });
+      }
     }
-    return { projectSynopsis: synopsis, chapters };
+    return { projectSynopsis: synopsis, chapters, errors };
   }
 
   async saveSynopsis(text: string): Promise<void> {
@@ -335,15 +348,26 @@ script:
   private async loadChapter(slug: string): Promise<Chapter | undefined> {
     const dir = `${SCENARIOS_ROOT}/${slug}`;
     const indexPath = `${dir}/_index.yaml`;
-    if (!(await this.adapter.exists(this.handle, indexPath))) return undefined;
-    const text = await this.adapter.read(this.handle, indexPath);
-    const { value } = parseYaml(text);
-    const v = expectMapping(value, indexPath);
-    const id = chapterId(typeof v['id'] === 'string' ? v['id'] : `chapter.${slug}`);
-    const title = typeof v['title'] === 'string' ? v['title'] : slug;
-    const summary = typeof v['summary'] === 'string' ? v['summary'] : undefined;
+    // _index.yaml が無くても scenes が読めれば章として load する。
+    // 旧仕様では undefined を返して silently 章ごと落としていたため、
+    // 「シーンがあるのに脚本が表示されない」という事故を起こしていた。
+    let id = chapterId(`chapter.${slug}`);
+    let title = slug;
+    let summary: string | undefined;
+    if (await this.adapter.exists(this.handle, indexPath)) {
+      const text = await this.adapter.read(this.handle, indexPath);
+      const { value } = parseYaml(text);
+      const v = expectMapping(value, indexPath);
+      id = chapterId(typeof v['id'] === 'string' ? v['id'] : `chapter.${slug}`);
+      title = typeof v['title'] === 'string' ? v['title'] : slug;
+      summary = typeof v['summary'] === 'string' ? v['summary'] : undefined;
+    }
 
     const scenes = await this.loadScenes(dir);
+    // 章フォルダ自体が空 (scenes 0 件 + _index.yaml も無し) の場合のみ章として認めない
+    if (scenes.length === 0 && !(await this.adapter.exists(this.handle, indexPath))) {
+      return undefined;
+    }
     const chapter: Chapter = { id, slug, title, scenes };
     return summary !== undefined ? { ...chapter, summary } : chapter;
   }

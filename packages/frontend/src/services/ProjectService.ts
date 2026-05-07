@@ -35,6 +35,7 @@ import type { RecentProject } from './recent-projects.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
+import { Toast } from './Toast.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
 // frontend 全体が `currentProject()` シグナルを購読してリレンダ。
@@ -218,6 +219,20 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
   // (load 時点の内容 = 我々が知っている内容)
   void primeConflictBaseline(ctx);
+  // 章単位で発生した非致命的 load エラーを Toast で警告。
+  // (壊れた章は ScenarioStructure.errors に積まれており、他の章は load 済み)
+  const loadErrors = loaded.project.scenario.errors;
+  if (loadErrors.length > 0) {
+    const head = loadErrors.slice(0, 3);
+    const rest = loadErrors.length - head.length;
+    const summary = head.map((e) => `${e.scope}: ${e.message}`).join(' / ');
+    const tail = rest > 0 ? ` … 他 ${rest} 件` : '';
+    Toast.error(
+      `${loadErrors.length} 件の章を読み込めませんでした (skip): ${summary}${tail}`,
+      8000,
+    );
+    console.warn('[ProjectService] chapter load errors:', loadErrors);
+  }
   return rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,

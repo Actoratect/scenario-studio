@@ -28,9 +28,25 @@ export interface Chapter {
   scenes: readonly SceneMeta[];
 }
 
+/**
+ * 章 / シーン load 時に発生した非致命的エラー (= 1 ファイル壊れていても他は読める)。
+ * ProjectLoader 経由で UI 層に渡され、Toast / Console で警告表示される。
+ */
+export interface ChapterLoadError {
+  /** 失敗した章 / scene の slug (chapter slug or `chapter/scene` 形式)。 */
+  scope: string;
+  /** どのファイルで起きたか (相対 path)。 */
+  path: string;
+  /** ユーザー向けの 1 行メッセージ (parser のエラーメッセージ等)。 */
+  message: string;
+}
+
 export interface ScenarioStructure {
   /** プロジェクト全体の synopsis.md (なければ空文字)。 */
   projectSynopsis: string;
   /** order 順に並んだ章 (`_project.yaml` の chapters で管理)。 */
   chapters: readonly Chapter[];
+  /** 読込中に発生した非致命的エラー (= 該当章 / scene を skip した)。
+   *  プロジェクト自体は load 成功扱いとする。 */
+  errors: readonly ChapterLoadError[];
 }
