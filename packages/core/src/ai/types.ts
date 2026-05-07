@@ -108,6 +108,91 @@ export interface AgentRunner {
   stream?(task: AgentTask, signal?: AbortSignal): AsyncIterable<AgentEvent>;
 }
 
+// ===== Field Context AI Actions (PR-AR / 22_ux_feature_review.md §G5) =====
+
+/**
+ * テキスト欄 / 画像欄の右クリック AI が、AI Service に渡す文脈。
+ * UI 層が編集対象とプロジェクト内の関連情報を集約してから渡す。
+ */
+export interface FieldAiContext {
+  /** 編集対象の場所。これを見て candidate 採用後の保存経路を切替える。 */
+  target:
+    | { kind: 'node-field'; nodeId: string; fieldId: string }
+    | {
+        kind: 'script-block';
+        chapterSlug: string;
+        sceneSlug: string;
+        blockIndex: number;
+        field: 'text' | 'prompt';
+      }
+    | { kind: 'synopsis'; path: string };
+
+  /** カーソル選択範囲のテキスト (省略時は currentValue 全体を対象)。 */
+  selectedText?: string;
+  /** フィールドの現在値 (テキスト系のみ)。 */
+  currentValue?: string;
+  /** スクリプトブロック等で前後の文脈 (前 N ブロック + 後 1 ブロック等)。 */
+  surroundingText?: string;
+
+  /** プロジェクト内の関連メタ — prompt の品質を上げる。 */
+  projectContext: {
+    nodeSlug?: string;
+    displayName?: string;
+    templateId?: string;
+    eraId?: string;
+    glossaryTerms: readonly string[];
+    relatedNodes: readonly string[];
+  };
+}
+
+/** テキスト欄向け 3 案のプリセット (案 1 / 案 2 / 案 3 のラベル)。 */
+export type TextSuggestionPresetId =
+  | 'natural'
+  | 'short'
+  | 'character-voice'
+  | 'translation-context'
+  | 'fix-glossary';
+
+export interface TextSuggestionPreset {
+  id: TextSuggestionPresetId;
+  label: string;
+  /** systemPrompt / instruction の補完文。AI が「3 案を出す」前提で使う。 */
+  instruction: string;
+}
+
+export interface TextSuggestionCandidate {
+  id: string;
+  /** "自然に" / "短く" / "口調強め" 等の表示ラベル。 */
+  label: string;
+  text: string;
+  /** AI が「なぜこう書き換えたか」の補足 (省略可)。 */
+  rationale?: string;
+}
+
+/** 画像生成 candidate (PR-AR では型のみ。実装は Phase 後段)。 */
+export interface ImageGenerationCandidate {
+  id: string;
+  label: string;
+  mimeType: 'image/png' | 'image/webp' | 'image/jpeg';
+  bytes: Uint8Array;
+  prompt: string;
+  providerId: string;
+}
+
+export interface ImageGenerationProvider {
+  readonly id: string;
+  readonly displayName: string;
+  generate(
+    req: {
+      prompt: string;
+      n: 3;
+      size: 'thumbnail' | 'portrait' | 'background';
+      referenceImage?: Blob;
+    },
+    signal?: AbortSignal,
+  ): Promise<readonly ImageGenerationCandidate[]>;
+}
+
 // ===== 共通エラー =====
 
 export class LlmProviderError extends Error {

@@ -6,6 +6,8 @@ export interface TextInputProps extends FormFieldProps {
   value: string | undefined;
   onInput?: ((v: string) => void) | undefined;
   onBlur?: (() => void) | undefined;
+  /** PR-AR: 右クリック時のハンドラ (AI 提案メニュー等)。 */
+  onContextMenu?: ((e: MouseEvent) => void) | undefined;
   disabled?: boolean | undefined;
   placeholder?: string | undefined;
   /** 任意の最大文字数。超え警告は親 (Inspector) 側の error 表示に委ねる。 */
@@ -25,6 +27,7 @@ export const TextInput: Component<TextInputProps> = (props) => {
         maxLength={props.maxLength}
         onInput={(e) => props.onInput?.(e.currentTarget.value)}
         onBlur={() => props.onBlur?.()}
+        onContextMenu={(e) => props.onContextMenu?.(e)}
       />
     </FormField>
   );
@@ -45,6 +48,7 @@ export const MultilineInput: Component<TextInputProps & { rows?: number | undefi
         rows={props.rows ?? 4}
         onInput={(e) => props.onInput?.(e.currentTarget.value)}
         onBlur={() => props.onBlur?.()}
+        onContextMenu={(e) => props.onContextMenu?.(e)}
       />
     </FormField>
   );

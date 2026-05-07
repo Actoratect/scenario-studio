@@ -1,12 +1,15 @@
 import { createMemo, For, Match, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import {
+  type FieldAiContext,
   type ParsedScene,
   type ScriptBlock,
   type ScriptBlockChoice,
   type ScriptBlockChoiceOption,
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
+import { EraContext } from '../services/EraContext';
+import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
 import { scanGlossary } from '../services/GlossaryHighlight';
 
@@ -26,6 +29,9 @@ import { scanGlossary } from '../services/GlossaryHighlight';
 
 export interface ScriptVisualEditorProps {
   parsed: ParsedScene;
+  /** PR-AR: 右クリック AI で渡す scene 識別子。未指定時は AI メニューを表示しない。 */
+  chapterSlug?: string | undefined;
+  sceneSlug?: string | undefined;
   /** ブロック更新コールバック (idx + 新 block)。 */
   onChangeBlock: (idx: number, next: ScriptBlock) => void;
   /** ブロック削除。 */
@@ -34,6 +40,46 @@ export interface ScriptVisualEditorProps {
   onMoveBlock: (idx: number, delta: -1 | 1) => void;
   /** kind 指定で新規ブロックを末尾に追加。 */
   onAppendBlock: (kind: ScriptBlock['kind']) => void;
+}
+
+/**
+ * PR-AR: 右クリック AI 用の context を組み立てるヘルパ。
+ * scene 内で前後 1 ブロックを surroundingText に詰める。
+ */
+function buildBlockAiContext(
+  parsed: ParsedScene,
+  blockIndex: number,
+  chapterSlug: string,
+  sceneSlug: string,
+  currentText: string,
+): FieldAiContext {
+  const ctx = ProjectService.currentProject();
+  const before = blockIndex > 0 ? parsed.blocks[blockIndex - 1] : undefined;
+  const after = blockIndex < parsed.blocks.length - 1 ? parsed.blocks[blockIndex + 1] : undefined;
+  const surrounding: string[] = [];
+  if (before && 'text' in before && typeof before.text === 'string') {
+    surrounding.push(`前: ${before.text}`);
+  }
+  if (after && 'text' in after && typeof after.text === 'string') {
+    surrounding.push(`後: ${after.text}`);
+  }
+  const glossaryTerms = (ctx?.project.glossary ?? []).map((g) => g.term);
+  return {
+    target: {
+      kind: 'script-block',
+      chapterSlug,
+      sceneSlug,
+      blockIndex,
+      field: 'text',
+    },
+    currentValue: currentText,
+    ...(surrounding.length > 0 ? { surroundingText: surrounding.join('\n') } : {}),
+    projectContext: {
+      eraId: EraContext.currentEraId(),
+      glossaryTerms,
+      relatedNodes: parsed.cast,
+    },
+  };
 }
 
 const KIND_META: Record<ScriptBlock['kind'], { icon: string; label: string; color: string }> = {
@@ -73,6 +119,9 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
               idx={i()}
               total={props.parsed.blocks.length}
               cast={props.parsed.cast}
+              parsed={props.parsed}
+              chapterSlug={props.chapterSlug}
+              sceneSlug={props.sceneSlug}
               onChange={(next) => props.onChangeBlock(i(), next)}
               onDelete={() => props.onDeleteBlock(i())}
               onMove={(delta) => props.onMoveBlock(i(), delta)}
@@ -105,6 +154,9 @@ interface ScriptBlockCardProps {
   idx: number;
   total: number;
   cast: readonly string[];
+  parsed: ParsedScene;
+  chapterSlug?: string | undefined;
+  sceneSlug?: string | undefined;
   onChange: (next: ScriptBlock) => void;
   onDelete: () => void;
   onMove: (delta: -1 | 1) => void;
@@ -148,18 +200,30 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
               characters={characters()}
               findChar={findCharByIdentifier}
               onChange={props.onChange}
+              parsed={props.parsed}
+              blockIndex={props.idx}
+              chapterSlug={props.chapterSlug}
+              sceneSlug={props.sceneSlug}
             />
           </Match>
           <Match when={props.block.kind === 'aside'}>
             <AsideBlock
               block={props.block as ScriptBlock & { kind: 'aside' }}
               onChange={props.onChange}
+              parsed={props.parsed}
+              blockIndex={props.idx}
+              chapterSlug={props.chapterSlug}
+              sceneSlug={props.sceneSlug}
             />
           </Match>
           <Match when={props.block.kind === 'stage'}>
             <StageBlock
               block={props.block as ScriptBlock & { kind: 'stage' }}
               onChange={props.onChange}
+              parsed={props.parsed}
+              blockIndex={props.idx}
+              chapterSlug={props.chapterSlug}
+              sceneSlug={props.sceneSlug}
             />
           </Match>
           <Match when={props.block.kind === 'sfx'}>
@@ -233,6 +297,10 @@ const CharacterLine: Component<{
   characters: readonly { id: string; slug: string; devName: string; display: string }[];
   findChar: (id: string) => { id: string; display: string } | undefined;
   onChange: (next: ScriptBlock) => void;
+  parsed: ParsedScene;
+  blockIndex: number;
+  chapterSlug?: string | undefined;
+  sceneSlug?: string | undefined;
 }> = (props) => {
   const ctx = createMemo(() => ProjectService.currentProject());
   const charNode = createMemo(() => {
@@ -292,6 +360,19 @@ const CharacterLine: Component<{
         value={props.block.text}
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
         onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onContextMenu={(e) => {
+          if (!props.chapterSlug || !props.sceneSlug) return;
+          const ctx = buildBlockAiContext(
+            props.parsed,
+            props.blockIndex,
+            props.chapterSlug,
+            props.sceneSlug,
+            props.block.text,
+          );
+          FieldAiActions.openTextMenu(e, ctx, {
+            onAccept: (text) => props.onChange({ ...props.block, text }),
+          });
+        }}
       />
       <GlossaryChips text={props.block.text} />
     </>
@@ -301,6 +382,10 @@ const CharacterLine: Component<{
 const AsideBlock: Component<{
   block: ScriptBlock & { kind: 'aside' };
   onChange: (next: ScriptBlock) => void;
+  parsed: ParsedScene;
+  blockIndex: number;
+  chapterSlug?: string | undefined;
+  sceneSlug?: string | undefined;
 }> = (props) => {
   return (
     <>
@@ -310,6 +395,19 @@ const AsideBlock: Component<{
         value={props.block.text}
         placeholder="心の声 / 独白を入力…"
         onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onContextMenu={(e) => {
+          if (!props.chapterSlug || !props.sceneSlug) return;
+          const ctx = buildBlockAiContext(
+            props.parsed,
+            props.blockIndex,
+            props.chapterSlug,
+            props.sceneSlug,
+            props.block.text,
+          );
+          FieldAiActions.openTextMenu(e, ctx, {
+            onAccept: (text) => props.onChange({ ...props.block, text }),
+          });
+        }}
       />
       <GlossaryChips text={props.block.text} />
     </>
@@ -319,6 +417,10 @@ const AsideBlock: Component<{
 const StageBlock: Component<{
   block: ScriptBlock & { kind: 'stage' };
   onChange: (next: ScriptBlock) => void;
+  parsed: ParsedScene;
+  blockIndex: number;
+  chapterSlug?: string | undefined;
+  sceneSlug?: string | undefined;
 }> = (props) => {
   return (
     <>
@@ -328,6 +430,19 @@ const StageBlock: Component<{
         value={props.block.text}
         placeholder="状況描写 / ステージを入力…"
         onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onContextMenu={(e) => {
+          if (!props.chapterSlug || !props.sceneSlug) return;
+          const ctx = buildBlockAiContext(
+            props.parsed,
+            props.blockIndex,
+            props.chapterSlug,
+            props.sceneSlug,
+            props.block.text,
+          );
+          FieldAiActions.openTextMenu(e, ctx, {
+            onAccept: (text) => props.onChange({ ...props.block, text }),
+          });
+        }}
       />
       <GlossaryChips text={props.block.text} />
     </>

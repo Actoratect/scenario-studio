@@ -5528,3 +5528,189 @@ button {
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* ============================================================
+ * PR-AR: 右クリック ContextMenu + AI 3 案 Overlay
+ * ============================================================ */
+.ss-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  /* backdrop は透明 (操作の邪魔をしない)。click で menu を閉じる */
+}
+
+.ss-context-menu {
+  position: absolute;
+  min-width: 180px;
+  max-width: 280px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 4px 0;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ss-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--ss-text);
+}
+
+.ss-context-menu-item:hover:not(:disabled),
+.ss-context-menu-item--hover {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+}
+
+.ss-context-menu-item--disabled,
+.ss-context-menu-item:disabled {
+  color: var(--ss-text-faint);
+  cursor: not-allowed;
+}
+
+.ss-context-menu-item--danger {
+  color: var(--ss-accent-vermillion);
+}
+
+.ss-context-menu-item--danger:hover:not(:disabled) {
+  background: var(--ss-bg-error);
+  color: var(--ss-accent-vermillion);
+}
+
+.ss-context-menu-icon {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ss-context-menu-label {
+  flex: 1;
+}
+
+.ss-context-menu-hint {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
+.ss-context-menu-separator {
+  height: 1px;
+  background: var(--ss-border-soft);
+  margin: 4px 0;
+}
+
+/* AI Candidate Overlay */
+.ss-ai-candidate-current {
+  margin: 6px 0;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+}
+
+.ss-ai-candidate-current summary {
+  cursor: pointer;
+  color: var(--ss-text-muted);
+}
+
+.ss-ai-candidate-current pre {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.ss-ai-candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ss-ai-candidate-item {
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--ss-bg-subtle);
+}
+
+.ss-ai-candidate-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ss-ai-candidate-label {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ss-accent-sky);
+}
+
+.ss-ai-candidate-len {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  margin-left: auto;
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
+.ss-ai-candidate-text {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ss-ai-candidate-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ss-ai-candidate-actions button {
+  padding: 2px 10px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ss-ai-candidate-actions button[data-variant='primary'] {
+  background: var(--ss-accent-blue);
+  color: var(--ss-text-on-emph);
+  border-color: var(--ss-accent-blue);
+}
+
+.ss-ai-candidate-actions button:hover:not([data-variant='primary']) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}

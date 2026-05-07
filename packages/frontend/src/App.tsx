@@ -1,8 +1,10 @@
 import { Show, Suspense } from 'solid-js';
 import type { Component } from 'solid-js';
+import { ContextMenuRoot } from '@scenario-studio/ui-kit';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { AboutOverlayRoot } from './global/AboutOverlay';
+import { AiCandidateOverlayRoot } from './global/AiCandidateOverlay';
 import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { BulkVariantOverlayRoot } from './global/BulkVariantOverlay';
@@ -44,6 +46,8 @@ export const App: Component = () => {
       <UnityReadinessOverlayRoot />
       <AiPatchQueueOverlayRoot />
       <BulkVariantOverlayRoot />
+      <AiCandidateOverlayRoot />
+      <ContextMenuRoot />
     </>
   );
 };
