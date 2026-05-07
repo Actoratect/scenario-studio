@@ -26,6 +26,7 @@ import { ProjectHealthOverlay } from './global/ProjectHealthOverlay';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
+import { UnityReadinessOverlay } from './global/UnityReadinessOverlay';
 import { PanelFocus } from './services/PanelFocus';
 import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
@@ -355,6 +356,13 @@ export const WorkspaceShell: Component = () => {
           title="このアプリについて / Help"
         >
           ?
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => UnityReadinessOverlay.show()}
+          title="Unity Readiness — Phase 2 出力前のチェック"
+        >
+          🎮
         </button>
         <button
           class="workspace-export"
