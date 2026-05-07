@@ -1737,59 +1737,59 @@ button {
  *   - ID / template / era も「色つきタグ」を抑え、最低限の境界線のみ
  *   - 余白を増やし密度を下げる (Touhou 妖夢 SS でフィードバックされた「見にくさ」対策)
  * ============================================================ */
+/* PR-AQ: header の縦余白を圧縮 (10/8 → 5/4)、tag 類も padding 削減 */
 .panel-inspector-header {
-  padding: 10px 14px 8px;
+  padding: 5px 12px 4px;
   background: var(--ss-bg-soft);
   color: var(--ss-text);
   border-bottom: 1px solid var(--ss-border-soft);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   flex-shrink: 0;
 }
 
 .panel-inspector-header-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 /* 名前は色べた塗りではなくサイズ + weight で強調 */
 .panel-inspector-name-tag {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--ss-text);
-  letter-spacing: 0.02em;
-  padding: 0 2px;
+  letter-spacing: 0.01em;
+  padding: 0;
 }
 
 .panel-inspector-id-tag {
   font-family: 'SF Mono', Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ss-text-muted);
   background: var(--ss-bg);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 3px;
   border: 1px solid var(--ss-border-soft);
 }
 
 .panel-inspector-template-tag {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ss-text-muted);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid var(--ss-border-soft);
   background: var(--ss-bg);
 }
 
-/* Era タグは「現在 base ではない」アクセントとして残す。
-   ベタ塗りではなく、左にダイヤ ◆ + uniform border-tinted accent。 */
+/* Era タグは「現在 base ではない」アクセントとして残す。 */
 .panel-inspector-era-tag {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ss-accent-blue);
   background: var(--ss-bg-info);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 3px;
   font-weight: 600;
   border: 1px solid var(--ss-accent-sky);
@@ -1808,8 +1808,8 @@ button {
 }
 
 .panel-inspector-actions button {
-  padding: 3px 10px;
-  font-size: 11px;
+  padding: 1px 7px;
+  font-size: 10px;
   background: var(--ss-bg);
   color: var(--ss-text);
   border: 1px solid var(--ss-border);
@@ -1846,7 +1846,7 @@ button {
 }
 
 .panel-inspector-era-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ss-text-muted);
   white-space: nowrap;
 }
@@ -1865,10 +1865,11 @@ button {
   max-width: 100%;
 }
 
-/* PR-AC: Inspector header もライト色基調になったので Era pill も統一仕様に */
+/* PR-AC: Inspector header もライト色基調になったので Era pill も統一仕様に
+   PR-AQ: padding を圧縮 (3/10 → 1/8) */
 .ss-era-pill {
-  padding: 3px 10px;
-  font-size: 11px;
+  padding: 1px 8px;
+  font-size: 10px;
   background: var(--ss-bg);
   color: var(--ss-text-muted);
   border: 1px solid var(--ss-border);
@@ -1909,10 +1910,10 @@ button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  /* PR-AQ: padding は body 側で受けるので scroll 自体は no padding */
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
 .panel-inspector-empty {
@@ -2388,10 +2389,11 @@ button {
 }
 
 /* PR-AC: 立ち絵脇の「📁 画像を選択」ボタン (file picker 起動)。
-   PortraitCropper の下に配置されるため compact なテキストボタン。 */
+   PortraitCropper の下に配置されるため compact なテキストボタン。
+   PR-AQ で padding 圧縮。 */
 .panel-inspector-thumb-button {
-  padding: 4px 10px;
-  font-size: 11px;
+  padding: 1px 8px;
+  font-size: 10px;
   background: var(--ss-bg);
   color: var(--ss-text-muted);
   border: 1px solid var(--ss-border);
@@ -2798,18 +2800,19 @@ button {
   background: var(--ss-bg);
 }
 
-/* PR-X: グループ見出しを「▼ タグ風」のオレンジバッジ */
+/* PR-X: グループ見出しを「▼ タグ風」のオレンジバッジ
+   PR-AQ: padding / margin を圧縮 (4/12/8 → 2/8/2) */
 .panel-inspector-group-header {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  margin: 8px 0 0 8px;
+  gap: 4px;
+  padding: 2px 8px;
+  margin: 2px 0 0 4px;
   background: var(--ss-accent-orange);
   color: var(--ss-bg);
   cursor: pointer;
   user-select: none;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   border-radius: 4px;
   border-bottom-left-radius: 0;
@@ -2861,31 +2864,33 @@ button {
   color: var(--ss-accent-purple);
 }
 
+/* PR-AQ: body padding を 8/12/12 → 4/8/6 に圧縮 */
 .panel-inspector-group-body {
-  padding: 8px 12px 12px;
+  padding: 4px 8px 6px;
   background: var(--ss-bg-subtle);
   border-radius: 4px;
 }
 
-/* ===== Compact field row (PR-X) ===== */
+/* ===== Compact field row (PR-X / PR-AQ) ===== */
+/* PR-AQ: row 間隔 6 → 1px、各 row の vertical padding を 4 → 1px に圧縮 */
 .panel-inspector-field-row {
-  margin-bottom: 6px;
+  margin-bottom: 1px;
 }
 
 /* compact: ラベル を inline tag、値 を右に並べる */
 .panel-inspector-field-row--compact .ssf-field {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  align-items: start;
-  gap: 6px;
-  padding: 4px 0;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
 }
 
 .panel-inspector-field-row--compact .ssf-label {
   display: inline-block;
   background: var(--ss-bg-soft);
   color: var(--ss-text);
-  padding: 4px 8px;
+  padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
   font-weight: 600;
@@ -2900,7 +2905,7 @@ button {
 
 .panel-inspector-field-row--compact .ssf-control input,
 .panel-inspector-field-row--compact .ssf-control select {
-  padding: 4px 8px;
+  padding: 2px 6px;
   font-size: 12px;
   width: 100%;
   box-sizing: border-box;
@@ -2908,26 +2913,28 @@ button {
 
 .panel-inspector-field-row--compact .ssf-hint {
   grid-column: 2;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
+  font-size: 10px;
 }
 
 .panel-inspector-field-row--compact .ssf-error {
   grid-column: 2;
+  font-size: 10px;
 }
 
 /* multiline は full-width、ラベルは上に小さく */
 .panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 0;
+  gap: 2px;
+  padding: 2px 0;
 }
 
 .panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-label {
   display: inline-block;
   background: var(--ss-bg-soft);
   color: var(--ss-text);
-  padding: 3px 10px;
+  padding: 1px 8px;
   border-radius: 3px;
   font-size: 11px;
   font-weight: 600;
@@ -2938,17 +2945,14 @@ button {
 .panel-inspector-field-row:not(.panel-inspector-field-row--compact) .ssf-control textarea {
   width: 100%;
   box-sizing: border-box;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: 12px;
+  padding: 4px 6px;
+  line-height: 1.45;
 }
 
-/* PR-L: variant 編集モード */
-.panel-inspector-field-row {
-  margin-bottom: 6px;
-}
-
+/* PR-L: variant 編集モード — PR-AQ で padding 圧縮 */
 .panel-inspector-field-row--era-mode {
-  padding: 6px 8px;
+  padding: 2px 4px;
   border: 1px dashed transparent;
   border-radius: 4px;
 }
@@ -2961,9 +2965,9 @@ button {
 .panel-inspector-field-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: 11px;
+  gap: 4px;
+  margin-bottom: 1px;
+  font-size: 10px;
 }
 
 .panel-inspector-variant-badge {
@@ -3842,22 +3846,23 @@ button {
  * PR-AC: Inspector 2-col (portrait + compact) / 1-col (long fields) レイアウト
  * + PortraitCropper (立ち絵 + 丸サムネのクロップ位置を視覚的に指定)
  * ============================================================ */
+/* PR-AQ: body / col の paddings + gap を圧縮 (一画面に映る情報を増やす) */
 .panel-inspector-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
+  gap: 6px;
+  padding: 6px 8px 8px;
 }
 
 .panel-inspector-two-col {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 16px;
+  grid-template-columns: 200px 1fr;
+  gap: 8px;
   align-items: start;
 }
 
-/* 狭い幅 (< 560px) では 1 列に折り返す */
-@media (max-width: 560px) {
+/* 狭い幅 (< 520px) では 1 列に折り返す */
+@media (max-width: 520px) {
   .panel-inspector-two-col {
     grid-template-columns: 1fr;
   }
@@ -3866,8 +3871,8 @@ button {
 .panel-inspector-portrait-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 4px;
+  padding: 4px;
   background: var(--ss-bg-soft);
   border: 1px solid var(--ss-border-soft);
   border-radius: 4px;
@@ -3886,30 +3891,30 @@ button {
 .panel-inspector-portrait-actions {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .panel-inspector-compact-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
 .panel-inspector-long-col {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   border-top: 1px solid var(--ss-border-soft);
-  padding-top: 12px;
+  padding-top: 6px;
 }
 
-/* PortraitCropper */
+/* PortraitCropper — PR-AQ で gap 圧縮 */
 .ss-portrait-cropper {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   align-items: center;
 }
 
@@ -3941,18 +3946,18 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 220px;
+  gap: 4px;
+  height: 160px;
   background: var(--ss-bg);
   border: 2px dashed var(--ss-border);
   border-radius: 4px;
   color: var(--ss-text-faint);
   text-align: center;
-  padding: 12px;
+  padding: 8px;
 }
 
 .ss-portrait-empty-icon {
-  font-size: 32px;
+  font-size: 24px;
   opacity: 0.5;
 }
 
@@ -4001,7 +4006,7 @@ button {
 }
 
 .ss-portrait-action {
-  padding: 2px 8px;
+  padding: 1px 6px;
   font-size: 10px;
   background: var(--ss-bg);
   color: var(--ss-text-muted);
@@ -4021,12 +4026,12 @@ button {
 }
 
 .ss-portrait-hint {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ss-text-faint);
   text-align: center;
   flex-basis: 100%;
-  margin-top: 2px;
-  line-height: 1.4;
+  margin-top: 0;
+  line-height: 1.3;
 }
 
 /* ss-node-thumb で crop 表示するときは <span> なので img と同じく block */
