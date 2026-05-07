@@ -369,7 +369,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
               >
                 <PortraitCropper
                   node={node()!}
-                  width={220}
+                  width={184}
                   onChange={(rect) => void saveThumbnailRect(rect)}
                   onUpload={(file) => void uploadThumbnail(file)}
                 />
