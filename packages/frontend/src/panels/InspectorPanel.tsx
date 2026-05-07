@@ -26,6 +26,7 @@ import { EraContext } from '../services/EraContext';
 import { Toast } from '../services/Toast';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
+import { BulkVariantOverlay } from '../global/BulkVariantOverlay';
 import { EraSelector } from '../global/EraSelector';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { PortraitCropper } from '../global/PortraitCropper';
@@ -628,6 +629,24 @@ const FieldRow: Component<FieldRowProps> = (props) => {
               title="この Era の override を解除してベース値に戻す"
             >
               × override 解除
+            </button>
+            <button
+              type="button"
+              class="panel-inspector-variant-bulk"
+              onClick={() => {
+                const nodeId = SelectionContext.selectedNodeId();
+                if (!nodeId || props.value === undefined) return;
+                BulkVariantOverlay.show({
+                  nodeId,
+                  fieldId: props.field.id,
+                  fieldLabel: props.field.label,
+                  sourceEraId: EraContext.currentEraId(),
+                  value: props.value,
+                });
+              }}
+              title="この override 値を別の Era にも一括適用 (PR-AP)"
+            >
+              ⤴ 他 Era にも適用
             </button>
           </Show>
         </div>
