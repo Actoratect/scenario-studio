@@ -1,7 +1,22 @@
 # Scenario Studio — 使い方ガイド
 
+> **対象バージョン**: 0.1.0 (Phase 1 + post-MVP A〜AY)
+> **更新日**: 2026-05-08
+> **対象アプリ**: Scenario Studio (Pro / デスクトップ版)。スマホ版 = `Scenario Studio Mini` は別途 [`23_scenario_studio_mini.md`](./ScenarioEditor/23_scenario_studio_mini.md) を参照
+
 このドキュメントは「Scenario Studio を実際に書く側 / レビューする側」が読むためのガイドです。
-技術設計は `Documentation/ScenarioEditor/` の 00-22 章を参照してください。
+技術設計は `Documentation/ScenarioEditor/` の 00-23 章を参照してください。
+
+## 更新履歴 (このガイドに反映済の変更)
+
+| 版    | 日付       | 主な変更                                                                 |
+|------|------------|---------------------------------------------------------------------------|
+| 0.1.0 | 2026-05-08 | Phase 1 + post-MVP A〜AY を反映。本ガイド初版                               |
+|      |            | - UX-1〜6, 8 (🩺 Health / Script Rail / Plot Flow / 🎮 Unity / Review HTML / 📝 Patch / 🤝 Handoff) |
+|      |            | - キャラ「描写」群を再構成 (`tagline` / `personality` / `keywords` / `dialogue_sample` / `possessions`) + 「メモ」群追加 |
+|      |            | - `gender` / `tone` / Relation `type` を自由入力化 (旧 enum はプリセット扱い) |
+|      |            | - PortraitCropper のドラッグ反映バグ修正 + 「サムネ登録: 📐 全身 / 🙂 顔」改名 |
+|      |            | - Mini (スマホ版) の計画を追加 — 同データ運用                              |
 
 ---
 
@@ -362,20 +377,48 @@ id: 0101KQRB45DV3ZPN2GG4YZS32J0D       # ULID — 既存と衝突しない値
 templateId: template.character
 slug: aerith                            # ファイル名と一致
 fields:
+  # 基本情報
   display_name: エアリス・ゲインズブール    # 表示用 (UI / Export で使用)
   reading: えありす・げいんずぶーる         # 読み仮名
   dev_name: Aerith                       # script の who で参照する英字内部名
-  gender: female                         # enum: male / female / nonbinary / unknown
-  tone: casual                           # enum: casual / polite / formal / rough / archaic
-  first_person: わたし                    # 一人称 (口調確認用)
+  gender: female                         # 自由入力 (例: male / female / 中性 / 不明)
   birth_year: -2                         # 物語時系列の相対年 (整数可)
   height: 163                            # 数値 (cm)
-  appearance: ピンクのリボンで髪を結った...  # multiline 可
-  personality: 太陽のように朗らかで...       # multiline 可
+
+  # 話し方
+  first_person: わたし                    # 一人称 (口調確認用)
+  tone: casual                           # 自由入力 (例: casual / 丁寧 / 武人風 / 古風)
+
+  # 描写 (新)
+  tagline: 古代種最後の生き残り、太陽のような少女   # 一言でいえば...
+  personality: 太陽のように朗らかで芯が強い。星の声を聞く力を持つ。
+  keywords: 朗らか、星の声、好奇心、芯が強い、健気
+  dialogue_sample: |
+    「わたし、覚えてるよ」
+    「行こ、クラウド。星が呼んでる」
+  possessions: |
+    ・古代種の杖
+    ・教会の白い花
+
+  # 関係
   faction: 0101KQRB45CY0ZGV70XMJEPFY5NK  # node_ref → factions/<slug>.yaml の id
+
+  # メモ (自由記入)
+  memo: 取材メモ / TODO / 仮置きアイデアなど
+
+  # 補足 (旧データ互換)
+  appearance: ピンクのリボンで髪を結った...  # 旧版で使っていた外見欄。データがあれば
+                                          # Inspector に「外見 (旧)」として表示される
 thumbnail: Media/aerith.png              # 任意。キャラサムネ画像パス (相対)
-thumbnailRect: { x: 10, y: 0, w: 100, h: 100 }  # 任意。立ち絵から丸サムネを切り抜く矩形
+thumbnailRect: { x: 0.1, y: 0, size: 0.6 }  # 任意。立ち絵から丸サムネを切り抜く矩形 (0..1 normalized)
 ```
+
+> **0.1.0 で変わった点**:
+> - `gender` / `tone` は **自由入力** (旧 enum 値も互換)
+> - 「描写」は `tagline` / `personality` / `keywords` / `dialogue_sample` / `possessions` の 5 項目に再構成
+> - `memo` 群を新設 — 自由記入欄
+> - `appearance` は旧データ保護のため「補足」群に残置 (新規入力は `tagline` 推奨)
+> - `thumbnailRect` は `{ x, y, size }` (0..1 normalized) — 旧 `{ x, y, w, h }` 表記のドキュメント例は誤りでした
 
 #### `Nodes/locations/<slug>.yaml`
 
@@ -479,9 +522,13 @@ relations:
   - id: rel.01KQRB45JB...                # 任意の一意 ID
     source: 0101...                       # node id (character)
     target: 0101...                       # node id
-    type: friend                          # friend / enemy / family / mentor / love / rival / etc.
+    type: friend                          # 自由入力。プリセット = parent / child / friend / enemy / member_of
     label: 幼馴染                          # 任意。表示用ラベル
 ```
+
+> **0.1.0 で変わった点**: `type` は **自由入力** (任意文字列)。
+> プリセット 5 種は UI のクイック選択用に残置、独自タイプ (例: `師弟` / `ライバル` / `契約関係`) も保存可能。
+> 未知の type は `getRelationType` で symmetric (= 双方向対称) として扱われる。
 
 ### 8.4 Script block 種別 (scene の `script` 配列)
 
@@ -511,7 +558,9 @@ relations:
 |---|---|---|
 | 「新キャラ ◯◯ を追加して」 | `Nodes/characters/<slug>.yaml` 新規 | display_name / dev_name / slug を埋める。faction は既存 id を参照 (なければ後付け) |
 | 「◯章 △番目に新シーン」 | `Scenarios/<ch>/<scene>.scn.yaml` 新規 + `_scene_index.yaml` 更新 | scene 中で参照する who は dev_name / slug いずれか実在 |
-| 「キャラ A の口調を変えて」 | `Nodes/characters/A.yaml` の `tone` / `first_person` | 過去 scene の line も整合性チェック (Lint が拾う) |
+| 「キャラ A の口調を変えて」 | `Nodes/characters/A.yaml` の `tone` (自由入力) / `first_person` / `dialogue_sample` | 過去 scene の line も整合性チェック (Lint が拾う) |
+| 「キャラ A にメモを残しておく」 | `Nodes/characters/A.yaml` の `memo` フィールドに追記 | 自由記入欄。Lint / Export では参照されない |
+| 「キャラ A の所持品を追加」 | `Nodes/characters/A.yaml` の `possessions` を多行で更新 | `・` 始まり箇条書きが見やすい |
 | 「用語『◯◯』の表記揺れを禁止に」 | `Glossary/terms.yaml` の forbidden に追加 | 既存 scene 内の forbidden 表記は Patch Queue で一括修正可 |
 | 「Era B 時点ではキャラ A は子供」 | `Nodes/characters/A.yaml` の `variants:` に era.B のオーバーライドを追加 | base はそのまま、差分のみ書く |
 | 「シーンに分岐を追加」 | `<scene>.scn.yaml` の script に `kind: choice` ブロック追加 | 各 option の then 先 scene が実在することを確認 |
@@ -560,6 +609,8 @@ relations:
 - **タブを最大化しない癖**: ScriptPanel だけ全画面にしても Rail がコンテキストを補ってくれます。Inspector を毎回切り替える必要は減ります。
 - **Era は base 共通 + 差分**: 全項目を Era に書かない。base に書ける情報は base に。
 - **YAML を直接いじっていい**: アプリ起動中でも、外部エディタで `.scn.yaml` を直接編集 → 保存すると ConflictDetector が検知し、上書きを止めて prompt します。
+- **キャラの「描写」は 5 項目を分担して埋める**: `tagline` (一言要約) → `personality` (性格詳細) → `keywords` (タグ) → `dialogue_sample` (口調確認のサンプルセリフ) → `possessions` (持ち物)。AI に渡すとき各項目が分かれていると prompt の質が上がります。
+- **「メモ」群は仕様確定前のアイデア置き場**: 取材メモ / 仮置きアイデア / TODO は `memo` フィールドに。Lint / Export では参照されないので汚しても OK。
 
 ### 直すとき
 
@@ -582,6 +633,8 @@ relations:
 - **AI が動かない**: AI panel が unlock 状態か確認。ロック中だと Patch Queue / 右クリック AI も「lock」表示。
 - **Layout が崩れた**: ヘッダ ⟳ で初期化。
 - **文字化け**: YAML / Markdown は UTF-8 前提。外部エディタで保存する際は BOM なし UTF-8 で。
+- **立ち絵の crop 枠が動かない / 前のキャラの画像が残る**: 0.1.0 で修正済 (PR #74)。古いビルドを使っているなら最新を pull してください。
+- **キャラ Inspector で「外見 (旧)」群が表示される**: 0.1.0 以前に書いた `appearance` フィールドが残っているケース。新規入力は「描写」群の `tagline` 推奨。データを移したあとは YAML から `appearance` を削除すれば「補足」群は消えます。
 
 ---
 
