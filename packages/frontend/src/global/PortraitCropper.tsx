@@ -25,13 +25,16 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
   const [hoverDrop, setHoverDrop] = createSignal(false);
   const [imgSize, setImgSize] = createSignal<{ w: number; h: number } | undefined>(undefined);
 
-  // node.thumbnail を URL に解決
-  const source = createMemo(() => {
-    const t = props.node.thumbnail;
-    return t ? { id: props.node.id, thumbnail: t } : null;
-  });
+  // node.thumbnail を URL に解決。
+  // 注意: createResource は source が falsy だと fetcher を呼ばず前回値を保持する。
+  // 「画像ありキャラ → なしキャラ」切替で前の URL が残るバグの原因なので、
+  // source は常に object を返し、fetcher 内で thumbnail 不在を分岐する。
+  const source = createMemo(() => ({
+    id: props.node.id,
+    thumbnail: props.node.thumbnail ?? '',
+  }));
   const [url] = createResource(source, async (src) => {
-    if (!src) return undefined;
+    if (!src.thumbnail) return undefined;
     return ThumbnailService.resolveUrl(src.thumbnail);
   });
 
@@ -158,55 +161,53 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
           >
             <img src={u()} alt="" class="ss-portrait-img" onLoad={onImgLoad} draggable={false} />
             <Show when={displaySize()}>
-              {(sz) => {
-                const r = rect();
-                const left = r.x * sz().w;
-                const top = r.y * sz().h;
-                const wpx = r.size * sz().w;
-                const hpx = r.size * sz().h;
-                return (
+              {(sz) => (
+                // 注意: rect() / sz() は style 属性式の中で読むことで、
+                // ドラッグ中の setRect に反応して left/top/width/height が更新される。
+                // 関数本体で `const r = rect()` と先に読んでしまうと、Show の children は
+                // 一度しか再評価されず drag 中に位置が更新されなくなる (bug 1)。
+                <div
+                  class="ss-portrait-crop"
+                  classList={{ 'ss-portrait-crop--dragging': dragMode() !== undefined }}
+                  style={{
+                    left: `${rect().x * sz().w}px`,
+                    top: `${rect().y * sz().h}px`,
+                    width: `${rect().size * sz().w}px`,
+                    height: `${rect().size * sz().h}px`,
+                  }}
+                  onMouseDown={(e) => startDrag(e, 'move')}
+                  title="ドラッグでサムネ位置を移動"
+                >
                   <div
-                    class="ss-portrait-crop"
-                    classList={{ 'ss-portrait-crop--dragging': dragMode() !== undefined }}
-                    style={{
-                      left: `${left}px`,
-                      top: `${top}px`,
-                      width: `${wpx}px`,
-                      height: `${hpx}px`,
-                    }}
-                    onMouseDown={(e) => startDrag(e, 'move')}
-                    title="ドラッグでサムネ位置を移動"
-                  >
-                    <div
-                      class="ss-portrait-crop-handle"
-                      onMouseDown={(e) => startDrag(e, 'resize-br')}
-                      title="ドラッグでサムネサイズを変更"
-                    />
-                  </div>
-                );
-              }}
+                    class="ss-portrait-crop-handle"
+                    onMouseDown={(e) => startDrag(e, 'resize-br')}
+                    title="ドラッグでサムネサイズを変更"
+                  />
+                </div>
+              )}
             </Show>
           </div>
         )}
       </Show>
       <div class="ss-portrait-actions">
+        <span class="ss-portrait-actions-label">サムネ登録:</span>
         <button
           type="button"
           class="ss-portrait-action"
           onClick={resetRect}
-          title="サムネを画像全体に戻す"
+          title="画像全体をサムネとして登録"
         >
-          全体
+          📐 全身
         </button>
         <button
           type="button"
           class="ss-portrait-action"
           onClick={squareRect}
-          title="顔まわりサイズの目安"
+          title="顔まわりサイズのプリセットでサムネ登録"
         >
-          顔
+          🙂 顔
         </button>
-        <span class="ss-portrait-hint">サムネ枠を drag して位置を、右下ハンドルでサイズを調整</span>
+        <span class="ss-portrait-hint">枠を drag で位置、右下ハンドルでサイズ調整</span>
       </div>
     </div>
   );
