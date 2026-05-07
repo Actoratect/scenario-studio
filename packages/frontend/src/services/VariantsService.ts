@@ -97,4 +97,33 @@ export const VariantsService = {
     const variant = node.variants?.find((v) => v.eraId === eraId);
     return !!(variant?.fieldsOverride && fieldId in variant.fieldsOverride);
   },
+
+  /** PR-AP: 同じ値を複数 Era にまとめて適用する。
+   *  各 Era の variant に fieldsOverride を 1 ノード保存 = 1 disk write で済ませる。 */
+  async bulkSetFieldOverride(
+    nodeId: NodeId,
+    eraIds: readonly EraId[],
+    fieldId: string,
+    value: FieldValue,
+  ): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx || eraIds.length === 0) return;
+    const node = ctx.project.nodes.get(nodeId);
+    if (!node) return;
+    let next = node;
+    for (const eraId of eraIds) {
+      const variant = findOrCreateVariant(next, eraId);
+      const nextOverride: { [k: string]: FieldValue } = {
+        ...(variant.fieldsOverride ?? {}),
+        [fieldId]: value,
+      };
+      const nextVariant: NodeVariant = { ...variant, fieldsOverride: nextOverride };
+      next = withReplacedVariant(next, nextVariant);
+    }
+    try {
+      await persistNode(next);
+    } catch (e) {
+      Toast.error(`bulk variant 更新に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  },
 };
