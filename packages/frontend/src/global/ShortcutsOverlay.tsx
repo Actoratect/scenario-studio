@@ -52,6 +52,11 @@ const SHORTCUTS: readonly Shortcut[] = [
     description: '現在のシーンを AI で 1 行要約',
     category: 'AI',
   },
+  {
+    keys: ['⌘', 'Shift', 'H'],
+    description: 'ローカル AI (Codex/Claude/Cursor 等) へのプロンプト引き継ぎ',
+    category: 'AI',
+  },
   // Script (CodeMirror 内)
   { keys: ['Tab'], description: 'AI 続き提案を確定 (ghost text 表示中)', category: 'Script' },
   {
