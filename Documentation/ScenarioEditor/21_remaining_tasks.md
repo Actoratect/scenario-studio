@@ -41,7 +41,7 @@
 - [ ] **AI: 章/シーン まるごと生成** (Show prompt 確認後)
 - [ ] **AI: キャラ性格に基づくセリフ感情推定**
 - [ ] **Voice 録音アシスト** — シーン script を読み上げ TTS で確認
-- [ ] **タイムライン本格 timeline** (横軸 = 時間 / 縦軸 = キャラの存命) — 05_timeline.md §3
+- [x] **タイムライン本格 timeline** ✅ MVP 完了 (PR-AM) — Era Timeline panel: 横軸 = Era / 縦軸 = キャラ、生存 / variant / 死亡をマトリクス化、セル click で Era 切替 + キャラ選択。年単位ズーム / イベントピン / リレーション期間は将来拡張
 - [x] **Variant override の bulk 編集** ✅ 完了 (PR-AP) — Inspector の variant override 行に「⤴ 他 Era にも適用」ボタン → BulkVariantOverlay で対象 Era を checkbox 選択 → 1 ノード保存で一括書込
 
 ## 完了 (post-MVP A-AA)
@@ -85,3 +85,7 @@
 | #53 | PR-AH | Synopsis 画像 upload + Auto-save 競合検知 |
 | #54 | PR-AI | Inspector perf — per-field createMemo (大規模ノード対策) |
 | #55 | PR-AJ | AI シーン要約 (Cmd+Shift+A) |
+| #56 | PR-AK | GitHub Pages deploy + zip artifact 配布 |
+| #57 | sync | post-MVP chain (AC..AK) を main へ同期 |
+| #58 | PR-AL | portable zip — root-path build + README 同梱 |
+| #—  | PR-AM | Era Timeline panel (横軸=Era × 縦軸=キャラ ガント) |

@@ -6,3 +6,5 @@ export type { LensEdge, LensNode, LensPayload } from './relationship-lens.js';
 export { computeRelationshipLens } from './relationship-lens.js';
 export type { LayoutOptions, NodePosition } from './layout.js';
 export { deterministicCircularLayout } from './layout.js';
+export type { PlotFlowAnalysis, PlotFlowOptions } from './plot-flow-lens.js';
+export { computePlotFlowLens } from './plot-flow-lens.js';
