@@ -6,6 +6,7 @@ import { AboutOverlayRoot } from './global/AboutOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { LocalAgentHandoffOverlayRoot } from './global/LocalAgentHandoffOverlay';
+import { ProjectHealthOverlayRoot } from './global/ProjectHealthOverlay';
 import { ExportDialogRoot } from './global/ExportDialog';
 import { IdListOverlayRoot } from './global/IdListOverlay';
 import { SearchOverlayRoot } from './global/SearchOverlay';
@@ -36,6 +37,7 @@ export const App: Component = () => {
       <AboutOverlayRoot />
       <AiSummaryOverlayRoot />
       <LocalAgentHandoffOverlayRoot />
+      <ProjectHealthOverlayRoot />
     </>
   );
 };
