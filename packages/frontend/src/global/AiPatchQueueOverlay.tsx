@@ -67,12 +67,17 @@ const Ui: Component = () => {
       <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
         <h3>📝 AI Patch Queue</h3>
         <p class="ss-patch-help">
-          AI / 用語スキャナが提案した変更を、行ごとに承認 / 却下します。承認した変更は
-          通常の Undo に乗ります。
+          AI / 用語スキャナが提案した変更を、行ごとに承認 / 却下します。承認した変更は 通常の Undo
+          に乗ります。
         </p>
 
         <div class="ss-modal-actions">
-          <button type="button" disabled={busy()} onClick={runScan} title="Glossary forbidden を全 node text field でスキャン">
+          <button
+            type="button"
+            disabled={busy()}
+            onClick={runScan}
+            title="Glossary forbidden を全 node text field でスキャン"
+          >
             🔎 用語修正スキャン
           </button>
           <span class="ss-modal-spacer" />
@@ -100,7 +105,8 @@ const Ui: Component = () => {
           when={AiPatchQueue.all().length > 0}
           fallback={
             <p class="ss-patch-empty">
-              patch がありません。「用語修正スキャン」を実行するか、フィールドの右クリック AI から提案を queue に積んでください。
+              patch がありません。「用語修正スキャン」を実行するか、フィールドの右クリック AI
+              から提案を queue に積んでください。
             </p>
           }
         >

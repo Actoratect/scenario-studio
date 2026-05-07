@@ -76,9 +76,7 @@ function dedupeKey(p: EnqueuePatchInput): string {
 function enqueue(input: EnqueuePatchInput): AiPatch | undefined {
   // 同じ (node, field, after) で pending な patch があれば二重登録しない
   const key = dedupeKey(input);
-  const existing = patches().find(
-    (p) => p.status === 'pending' && dedupeKey({ ...p }) === key,
-  );
+  const existing = patches().find((p) => p.status === 'pending' && dedupeKey({ ...p }) === key);
   if (existing) return existing;
   const patch: AiPatch = {
     id: genId(),
@@ -95,7 +93,13 @@ function enqueue(input: EnqueuePatchInput): AiPatch | undefined {
   return patch;
 }
 
-function bumpProject(ctx: { project: { nodes: ReadonlyMap<NodeId, unknown> }; history: { get(id: NodeId): { toRecord(): Record<string, FieldValue> } | undefined } }, id: NodeId): void {
+function bumpProject(
+  ctx: {
+    project: { nodes: ReadonlyMap<NodeId, unknown> };
+    history: { get(id: NodeId): { toRecord(): Record<string, FieldValue> } | undefined };
+  },
+  id: NodeId,
+): void {
   const store = ctx.history.get(id);
   if (!store) return;
   const oldNode = ctx.project.nodes.get(id) as { [k: string]: unknown } | undefined;
@@ -132,24 +136,20 @@ async function accept(id: string): Promise<void> {
   const currentRecord = store.toRecord();
   const current = currentRecord[patch.target.fieldId];
   if (!isEqualFieldValue(current, patch.before)) {
-    setPatches((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)),
+    setPatches((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)));
+    Toast.info(
+      `patch をスキップ: ${patch.target.nodeSlug}.${patch.target.fieldId} は既に変更されています`,
     );
-    Toast.info(`patch をスキップ: ${patch.target.nodeSlug}.${patch.target.fieldId} は既に変更されています`);
     return;
   }
   store.set(patch.target.fieldId, patch.after);
   bumpProject(ctx, patch.target.nodeId);
   useSaveScheduler().schedule(patch.target.nodeId);
-  setPatches((prev) =>
-    prev.map((p) => (p.id === id ? { ...p, status: 'accepted' } : p)),
-  );
+  setPatches((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'accepted' } : p)));
 }
 
 function reject(id: string): void {
-  setPatches((prev) =>
-    prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)),
-  );
+  setPatches((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)));
 }
 
 function clear(): void {
@@ -178,8 +178,7 @@ function rejectAll(): void {
 // pending / pendingCount は memo ではなく直接 derive する。
 // createMemo は外部 (test など) から呼んだ時に「reactive owner なし」で
 // stale 値を返すケースがあるため、明示的な derive 関数で signal を読む。
-const pending: Accessor<readonly AiPatch[]> = () =>
-  patches().filter((p) => p.status === 'pending');
+const pending: Accessor<readonly AiPatch[]> = () => patches().filter((p) => p.status === 'pending');
 
 const all: Accessor<readonly AiPatch[]> = patches;
 
