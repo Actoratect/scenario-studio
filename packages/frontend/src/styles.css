@@ -4416,3 +4416,139 @@ button {
   border-radius: 3px;
   font-size: 11px;
 }
+
+/* PR-AY: AI Patch Queue Overlay */
+.ss-patch-help {
+  color: var(--ss-text-soft);
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+}
+.ss-patch-count {
+  font-size: 0.85rem;
+  color: var(--ss-text-soft);
+  align-self: center;
+  margin-right: 8px;
+}
+.ss-patch-empty {
+  color: var(--ss-text-soft);
+  font-size: 0.9rem;
+  padding: 24px;
+  text-align: center;
+  background: var(--ss-bg-soft);
+  border-radius: 6px;
+}
+.ss-patch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.ss-patch-item {
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--ss-bg);
+}
+.ss-patch-item.ss-patch-accepted {
+  opacity: 0.55;
+  background: var(--ss-bg-soft);
+}
+.ss-patch-item.ss-patch-rejected {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.ss-patch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+.ss-patch-source {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.ss-patch-target {
+  font-size: 0.85rem;
+}
+.ss-patch-field {
+  color: var(--ss-text-soft);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+.ss-patch-summary {
+  flex: 1 1 auto;
+  color: var(--ss-text);
+}
+.ss-patch-status {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+.ss-patch-status-pending {
+  color: var(--ss-warn, #b97000);
+  border-color: var(--ss-warn, #b97000);
+}
+.ss-patch-status-accepted {
+  color: var(--ss-ok, #1f7f4d);
+  border-color: var(--ss-ok, #1f7f4d);
+}
+.ss-patch-status-rejected {
+  color: var(--ss-text-soft);
+  border-color: var(--ss-border-soft);
+}
+.ss-patch-rationale {
+  color: var(--ss-text-soft);
+  font-size: 0.8rem;
+  margin: 0 0 6px;
+}
+.ss-patch-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ss-patch-diff-side {
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--ss-bg-soft);
+}
+.ss-patch-diff-before {
+  background: #fdecef;
+  border-color: #f5c2c8;
+}
+.ss-patch-diff-after {
+  background: #e6f4ea;
+  border-color: #bfdfc6;
+}
+.ss-patch-diff-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--ss-text-soft);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+.ss-patch-diff pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.ss-patch-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

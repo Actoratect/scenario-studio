@@ -15,6 +15,7 @@ import { SettingsPanel } from './panels/SettingsPanel';
 import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { AboutOverlay } from './global/AboutOverlay';
+import { AiPatchQueueOverlay } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlay } from './global/AiSummaryOverlay';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
@@ -25,6 +26,7 @@ import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
 import { PanelFocus } from './services/PanelFocus';
+import { AiPatchQueue } from './services/AiPatchQueue';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
@@ -136,6 +138,12 @@ export const WorkspaceShell: Component = () => {
     if (e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       AiSummaryOverlay.show();
+      return;
+    }
+    // PR-AY: Cmd+Shift+Q — AI Patch Queue
+    if (e.shiftKey && e.key.toLowerCase() === 'q') {
+      e.preventDefault();
+      AiPatchQueueOverlay.toggle();
       return;
     }
     if (!ctx) return;
@@ -317,6 +325,14 @@ export const WorkspaceShell: Component = () => {
           title="このアプリについて / Help"
         >
           ?
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => AiPatchQueueOverlay.show()}
+          title="AI Patch Queue (Cmd+Shift+Q)"
+        >
+          📝 Patch
+          {AiPatchQueue.pendingCount() > 0 ? ` (${AiPatchQueue.pendingCount()})` : ''}
         </button>
         <button
           class="workspace-export"

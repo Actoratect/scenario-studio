@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { AboutOverlayRoot } from './global/AboutOverlay';
+import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { ExportDialogRoot } from './global/ExportDialog';
@@ -34,6 +35,7 @@ export const App: Component = () => {
       <ShortcutsOverlayRoot />
       <AboutOverlayRoot />
       <AiSummaryOverlayRoot />
+      <AiPatchQueueOverlayRoot />
     </>
   );
 };
