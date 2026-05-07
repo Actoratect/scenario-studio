@@ -2394,6 +2394,10 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* 立ち絵 (= 縦長) は中央 (= 胸あたり) を出すと顔が外れがち。
+     上寄せにして顔が枠内に入りやすくする。
+     thumbnailRect で精密に決めたい場合は PortraitCropper で枠 drag する。 */
+  object-position: center top;
   display: block;
 }
 

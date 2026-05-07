@@ -36,11 +36,18 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
   // PR-AC: thumbnailRect が指定されていれば、background-image で crop 表示。
   // size: 0..1 (rect size, 1 で全体)。背景サイズは (1/size)*100% で拡大、
   // background-position は rect の中心が円の中心に来るよう % 計算。
+  //
+  // 注意: rect が「画像全体」(size=1, x=0, y=0) を指している場合は
+  // background-image で 100% 等倍貼りすると立ち絵が縦長で歪んで見える。
+  // この場合は cropStyle を返さず <img object-fit:cover> 経路に倒す
+  // (= center を顔向けにクロップ表示)。
   const cropStyle = (): { [k: string]: string } | undefined => {
     const u = url();
     const rect = props.node.thumbnailRect;
     if (!u || !rect) return undefined;
     const cropSize = rect.size > 0 ? rect.size : 1;
+    // 「実質クロップなし」= フル画像を指している → object-fit:cover に倒す
+    if (cropSize >= 0.999 && rect.x <= 0.001 && rect.y <= 0.001) return undefined;
     const scalePct = (1 / cropSize) * 100;
     // crop の左上 (rect.x, rect.y) を thumbnail の左上に持ってくる:
     // background-position-x = -(rect.x / (1 - cropSize)) * 100% (when cropSize < 1)
