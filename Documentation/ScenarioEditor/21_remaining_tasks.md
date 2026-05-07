@@ -49,7 +49,7 @@
 - [ ] **AI: キャラ性格に基づくセリフ感情推定**
 - [ ] **Voice 録音アシスト** — シーン script を読み上げ TTS で確認
 - [x] **タイムライン本格 timeline** ✅ MVP 完了 (PR-AM) — Era Timeline panel: 横軸 = Era / 縦軸 = キャラ、生存 / variant / 死亡をマトリクス化、セル click で Era 切替 + キャラ選択。年単位ズーム / イベントピン / リレーション期間は将来拡張
-- [ ] **Variant override の bulk 編集** — 複数 Era にまたがる一括 override
+- [x] **Variant override の bulk 編集** ✅ 完了 (PR-AP) — Inspector の variant override 行に「⤴ 他 Era にも適用」ボタン → BulkVariantOverlay で対象 Era を checkbox 選択 → 1 ノード保存で一括書込
 
 ## 完了 (post-MVP A-AA)
 
