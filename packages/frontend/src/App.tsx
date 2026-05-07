@@ -6,6 +6,7 @@ import { AboutOverlayRoot } from './global/AboutOverlay';
 import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
+import { ProjectHealthOverlayRoot } from './global/ProjectHealthOverlay';
 import { ExportDialogRoot } from './global/ExportDialog';
 import { IdListOverlayRoot } from './global/IdListOverlay';
 import { SearchOverlayRoot } from './global/SearchOverlay';
@@ -35,6 +36,7 @@ export const App: Component = () => {
       <ShortcutsOverlayRoot />
       <AboutOverlayRoot />
       <AiSummaryOverlayRoot />
+      <ProjectHealthOverlayRoot />
       <AiPatchQueueOverlayRoot />
     </>
   );
