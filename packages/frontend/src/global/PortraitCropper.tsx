@@ -38,15 +38,34 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     return ThumbnailService.resolveUrl(src.thumbnail);
   });
 
-  // crop rect (0..1 normalized)。空 default で開始し、node 切替で createEffect 経由 sync。
+  // crop rect (0..1 normalized)。空 default で開始し、node 切替 / image load で sync。
   const [rect, setRect] = createSignal<ThumbnailRect>({ x: 0, y: 0, size: 1 });
+
+  /**
+   * 画像 dims が判明している時点で rect を **真の正方形が image 内に収まる範囲** に
+   * クランプする。size は image WIDTH の 0..1 で、square 高さ = size / aspectWH。
+   * 縦長画像 (aspectWH < 1) で size=1 のままだと sizeInH > 1 になり、Y 移動が
+   * マイナス領域に clamp されて「下に動かない」「resize で一気に縮む」バグになる。
+   * 初期化時に必ず通すことで両症状を絶つ。
+   */
+  function clampRectToImage(raw: ThumbnailRect, img: { w: number; h: number }): ThumbnailRect {
+    const aspectWH = img.w / img.h; // 縦長 → < 1, 横長 → > 1
+    const maxSizeFitsInH = aspectWH; // size はこれ以下だと sizeInH ≤ 1
+    const maxSize = Math.max(0.05, Math.min(1, maxSizeFitsInH));
+    const size = Math.max(0.05, Math.min(raw.size, maxSize));
+    const sizeInH = size / aspectWH;
+    const x = Math.max(0, Math.min(1 - size, raw.x));
+    const y = Math.max(0, Math.min(Math.max(0, 1 - sizeInH), raw.y));
+    return { x, y, size };
+  }
 
   // node が切り替わったら rect を再 initialize
   createEffect(() => {
-    // props.node.id を tracked dependency にして node 切替を検知
     const _id = props.node.id;
     void _id;
-    setRect(props.node.thumbnailRect ?? { x: 0, y: 0, size: 1 });
+    const stored = props.node.thumbnailRect ?? { x: 0, y: 0, size: 1 };
+    const img = imgSize();
+    setRect(img ? clampRectToImage(stored, img) : stored);
   });
 
   // 描画サイズ計算: width に揃え、画像アスペクトで height を決定
@@ -59,7 +78,10 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
 
   function onImgLoad(e: Event): void {
     const img = e.currentTarget as HTMLImageElement;
-    setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+    const dims = { w: img.naturalWidth, h: img.naturalHeight };
+    setImgSize(dims);
+    // image dims が判明したタイミングで rect も再クランプ
+    setRect((cur) => clampRectToImage(cur, dims));
   }
 
   // crop rect の意味: x/y は画像 (width/height) の 0..1。

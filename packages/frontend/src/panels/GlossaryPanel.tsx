@@ -31,6 +31,8 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
     try {
       await ctx.glossaryRepository.save(next);
       Object.assign(ctx.project, { glossary: next });
+      // signal を bump → For が再描画される (これが無いと ＋ ボタンで挿入しても画面に出ない)
+      ProjectService.touch();
     } catch (e) {
       console.error('glossary save failed', e);
       Toast.error(`用語集の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -130,7 +132,16 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
           when={(ProjectService.currentProject()?.project.glossary ?? []).length > 0}
           fallback={<p class="panel-glossary-empty">用語が登録されていません。</p>}
         >
-          <table>
+          <table class="panel-glossary-table">
+            {/* 列幅は colgroup で割合指定。境界 drag でリサイズしたい場合は将来 JS 化。
+                table-layout: fixed と組み合わせて、列の widthが安定するようにする。 */}
+            <colgroup>
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: 'auto' }} />
+              <col style={{ width: '32px' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>用語</th>

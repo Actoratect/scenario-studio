@@ -272,6 +272,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       const next = new Map(ctx.project.nodes);
       next.set(n.id, updated);
       Object.assign(ctx.project, { nodes: next });
+      // Graph / 脚本 サムネへの即時反映: Solid signal を bump して
+      // 依存 memo (lens / thumbnailUrls 等) を再評価させる。
+      ProjectService.touch();
       Toast.success('サムネを保存しました', 1200);
     } catch (e) {
       Toast.error(`サムネ位置の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);

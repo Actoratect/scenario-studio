@@ -3579,6 +3579,17 @@ button {
   font-size: 12px;
 }
 
+/* PR-0508 b: colgroup での列幅指定が効くよう table-layout を fixed に。
+   各セルは overflow-hidden + textareaで内容に合わせて折返し可能 (input は 1 行)。 */
+.panel-glossary-table {
+  table-layout: fixed;
+}
+.panel-glossary-table td,
+.panel-glossary-table th {
+  overflow: hidden;
+  word-break: break-word;
+}
+
 .panel-glossary th {
   text-align: left;
   border-bottom: 1px solid #e0e0e3;
