@@ -404,6 +404,35 @@ Phase X: SaaS 化  [棚上げ]  需要確認・意思決定後に着手
 
 ---
 
+## Phase Y (並走 track): Scenario Studio Mini (スマホ版)
+
+→ 詳細: [`23_scenario_studio_mini.md`](./23_scenario_studio_mini.md)
+
+Pro (デスクトップ版) と **同じデータ** を扱うスマホファーストの軽量クライアント。
+別アプリとして並走し、Phase 1〜5 のいずれかに依存せず、Phase 1 完了以降に余剰リソースで進めることを想定。
+
+| 段階 | スコープ | 期間目安 |
+|---|---|---|
+| **Mi-0 (PoC)**    | PWA で「アウトライン閲覧 + Review HTML 表示」                          | 2〜3 週   |
+| **Mi-1 (α)**      | + シーン synopsis 編集 + ZIP / Git 同期                                 | 1〜2 ヶ月 |
+| **Mi-2 (β)**      | + キャラ Inspector / 用語集 / Lint / AI 1 行提案                         | 1〜2 ヶ月 |
+| **Mi-3 (1.0)**    | + レビュアー協業 (コメント / 付箋) / Capacitor native 配布               | 2〜3 ヶ月 |
+
+スコープの基本方針:
+- **書く UX を絞る**: シーン synopsis / 一部 field のみ編集可。Graph / Era CRUD / Patch Queue は Pro 専用
+- **データは破壊しない**: 知らない field / kind を保持して書き戻す (Pro が後から拡張した機能を壊さない)
+- **同期は外部委譲**: Working Copy / a-Shell / WebDAV / 任意クラウド経由。SaaS は棚上げ前提
+
+着手判断トリガ:
+- Pro Phase 1 完了 (済) → Phase 2 着手後の余剰リソースで Mi-0 を試す
+- ライターが「Pro が手元にない時でも書きたい」場面を実際に訴える
+- レビュアー / 監督から「スマホで読みたい」要望が複数出る (Review HTML だけでは足りない局面)
+
+撤退 / 縮退:
+- File System 同期手段を確保できない → ZIP-only / 閲覧専用 (Reader) に縮退
+
+---
+
 ## 工数見積 (粗い、SaaS 除外)
 
 | Phase | 期間 | 累計 | エンジニア工数目安 |
