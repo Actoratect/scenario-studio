@@ -3252,9 +3252,16 @@ button {
   background: var(--ss-bg-soft);
   border-bottom: 1px solid var(--ss-border-soft);
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 4px;
   color: var(--ss-text-muted);
+}
+
+.panel-graph-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .panel-graph-stats {
@@ -3270,6 +3277,70 @@ button {
   font-size: 12px;
   cursor: pointer;
   user-select: none;
+}
+
+/* PR-AN: テンプレ別 visibility toggle + 検索 */
+.panel-graph-filter-label {
+  font-size: 11px;
+  color: var(--ss-text-muted);
+}
+
+.panel-graph-filter-toggle {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s,
+    opacity 0.12s;
+}
+
+.panel-graph-filter-toggle:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+
+.panel-graph-filter-toggle--off {
+  opacity: 0.4;
+  background: var(--ss-bg-soft);
+  text-decoration: line-through;
+}
+
+.panel-graph-search {
+  flex: 1;
+  min-width: 180px;
+  max-width: 320px;
+  margin-left: auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+}
+
+.panel-graph-search:focus-visible {
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-graph-search-clear {
+  padding: 0 6px;
+  background: var(--ss-bg);
+  color: var(--ss-text-muted);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-graph-search-clear:hover {
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
 }
 
 .panel-graph-era-toggle input[type='checkbox'] {
