@@ -3,6 +3,7 @@ import type { Component } from 'solid-js';
 import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { AboutOverlayRoot } from './global/AboutOverlay';
+import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
 import { LocalAgentHandoffOverlayRoot } from './global/LocalAgentHandoffOverlay';
@@ -40,6 +41,7 @@ export const App: Component = () => {
       <LocalAgentHandoffOverlayRoot />
       <ProjectHealthOverlayRoot />
       <UnityReadinessOverlayRoot />
+      <AiPatchQueueOverlayRoot />
     </>
   );
 };
