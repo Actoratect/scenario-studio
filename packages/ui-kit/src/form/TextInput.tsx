@@ -1,4 +1,4 @@
-import { createEffect } from 'solid-js';
+import { createEffect, on } from 'solid-js';
 import type { Component } from 'solid-js';
 import { FormField } from './FormField';
 import type { FormFieldProps } from './FormField';
@@ -36,9 +36,15 @@ export const TextInput: Component<TextInputProps> = (props) => {
 
 /**
  * 自動リサイズ textarea。改行数に応じて高さが伸びる。
- * - CSS `field-sizing: content` (Chrome/Edge 123+) で第 1 候補
- * - JS で scrollHeight 同期する fallback (全ブラウザ)
- * - props.rows は **最小行数** として扱う (= 空でも ___rows___ 行の高さは確保)
+ *
+ * 実装方針: **JS の scrollHeight 同期のみ** (CSS `field-sizing: content` は
+ * inline style の `el.style.height` と競合してかえって動かないことがあるため不採用)。
+ *
+ * リサイズ tigger:
+ *   - 初回マウント (ref callback)
+ *   - props.value 外部変化 (createEffect + on で確実に tracking)
+ *   - ユーザー入力 (input イベント)
+ *   - すべて `requestAnimationFrame` 経由で layout 後に scrollHeight を測る。
  */
 export const MultilineInput: Component<TextInputProps & { rows?: number | undefined }> = (
   props,
@@ -48,27 +54,32 @@ export const MultilineInput: Component<TextInputProps & { rows?: number | undefi
   function autoResize(): void {
     const el = ref;
     if (!el) return;
-    // height: auto に戻してから scrollHeight を採用。padding/border 込みで取りたいので
-    // box-sizing: border-box 前提 (CSS で既に設定済)。
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    // height を 0 に潰してから scrollHeight を読むことで「content より小さい現在 height」
+    // による誤検知を防ぐ。box-sizing: border-box 前提 (CSS 側で設定済)。
+    el.style.height = '0px';
+    // 強制 reflow → scrollHeight 安定
+    void el.offsetHeight;
+    el.style.height = `${el.scrollHeight + 2}px`; // +2 px for border buffer
   }
 
-  // props.value が外部から変化したとき (= 別ノード切替 / 初期 hydrate) も
-  // 内容に合わせて高さを更新する。tracked: props.value だけ。
-  createEffect(() => {
-    // 依存登録のため props.value を読む
-    void props.value;
-    // DOM 反映後に scrollHeight を測りたいので microtask で 1 tick 遅らせる
-    queueMicrotask(autoResize);
-  });
+  // props.value が外部から変化したとき (= 別ノード切替 / 初期 hydrate / プログラマ
+  // 変更) も内容に合わせて高さを更新する。on() で tracking 対象を明示。
+  createEffect(
+    on(
+      () => props.value,
+      () => {
+        // DOM 更新後の layout を待ってから測る
+        requestAnimationFrame(autoResize);
+      },
+    ),
+  );
 
   return (
     <FormField {...props} inputId={props.fieldId}>
       <textarea
         ref={(el) => {
           ref = el;
-          queueMicrotask(autoResize);
+          requestAnimationFrame(autoResize);
         }}
         id={props.fieldId}
         class="ssf-textarea ssf-textarea--autosize"

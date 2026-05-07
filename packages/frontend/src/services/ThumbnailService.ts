@@ -51,13 +51,17 @@ export const ThumbnailService = {
       const next = new Map(ctx.project.nodes);
       next.set(node.id, updated);
       Object.assign(ctx.project, { nodes: next });
-      // cache を invalidate (新画像で URL を再生成)
-      const key = cacheKey(ctx.handle.id, path);
-      const cur = urlCache().get(key);
-      if (cur) URL.revokeObjectURL(cur);
+      // cache を invalidate (新画像で URL を再生成)。同パスの cropped url も。
       const updatedCache = new Map(urlCache());
-      updatedCache.delete(key);
+      for (const [k, v] of urlCache()) {
+        if (k.includes(path)) {
+          URL.revokeObjectURL(v);
+          updatedCache.delete(k);
+        }
+      }
       setUrlCache(updatedCache);
+      // signal を bump して Inspector / Graph / 脚本 サムネを即時更新
+      ProjectService.touch();
       Toast.success(`サムネイル更新: ${node.slug}`);
     } catch (e) {
       Toast.error(`サムネイル保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -133,6 +137,7 @@ export const ThumbnailService = {
       const next = new Map(ctx.project.nodes);
       next.set(node.id, updated);
       Object.assign(ctx.project, { nodes: next });
+      ProjectService.touch();
       Toast.success(`サムネイル削除: ${node.slug}`);
     } catch (e) {
       Toast.error(`サムネイル削除に失敗: ${e instanceof Error ? e.message : String(e)}`);

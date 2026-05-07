@@ -50,13 +50,32 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
    */
   function clampRectToImage(raw: ThumbnailRect, img: { w: number; h: number }): ThumbnailRect {
     const aspectWH = img.w / img.h; // 縦長 → < 1, 横長 → > 1
-    const maxSizeFitsInH = aspectWH; // size はこれ以下だと sizeInH ≤ 1
-    const maxSize = Math.max(0.05, Math.min(1, maxSizeFitsInH));
-    const size = Math.max(0.05, Math.min(raw.size, maxSize));
+    // size を maxFitSize にすると square が image 高さ / 幅いっぱいになり、
+    // y / x の移動余地が 0 になる → 「下に動かせない」「resize で広げられない」
+    // 症状になる。デフォルト未指定の場合は意図的に小さくして余地を残す。
+    const maxFitSize = Math.max(0.05, Math.min(1, aspectWH));
+    const isUninit = raw.size >= 0.999 && raw.x <= 0.001 && raw.y <= 0.001;
+    let size: number;
+    let xRaw: number;
+    let yRaw: number;
+    if (isUninit) {
+      // 中央 50% 幅の square + 上寄せ (= 顔位置の目安) を初期値に
+      size = Math.min(maxFitSize, 0.5);
+      xRaw = (1 - size) / 2;
+      yRaw = 0.08;
+    } else {
+      size = Math.max(0.05, Math.min(raw.size, maxFitSize));
+      xRaw = raw.x;
+      yRaw = raw.y;
+    }
     const sizeInH = size / aspectWH;
-    const x = Math.max(0, Math.min(1 - size, raw.x));
-    const y = Math.max(0, Math.min(Math.max(0, 1 - sizeInH), raw.y));
-    return { x, y, size };
+    const maxX = Math.max(0, 1 - size);
+    const maxY = Math.max(0, 1 - sizeInH);
+    return {
+      x: Math.max(0, Math.min(maxX, xRaw)),
+      y: Math.max(0, Math.min(maxY, yRaw)),
+      size,
+    };
   }
 
   // node が切り替わったら rect を再 initialize

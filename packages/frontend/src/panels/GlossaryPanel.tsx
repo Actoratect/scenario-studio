@@ -11,14 +11,65 @@ import { Toast } from '../services/Toast';
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §3.3,
 //       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M7
 
+// 列幅 (px)。ユーザー drag でリサイズ可能。localStorage に永続化。
+const COL_WIDTHS_KEY = 'scenario-studio:glossary-col-widths';
+const DEFAULT_COL_WIDTHS: readonly number[] = [160, 180, 180, 320]; // 用語 / 別表記 / 禁止 / 説明
+
+function loadColWidths(): number[] {
+  if (typeof localStorage === 'undefined') return [...DEFAULT_COL_WIDTHS];
+  try {
+    const raw = localStorage.getItem(COL_WIDTHS_KEY);
+    if (!raw) return [...DEFAULT_COL_WIDTHS];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed) || parsed.length !== 4) return [...DEFAULT_COL_WIDTHS];
+    return parsed.map((v) => (typeof v === 'number' && v >= 60 ? v : 160));
+  } catch {
+    return [...DEFAULT_COL_WIDTHS];
+  }
+}
+
+function saveColWidths(widths: readonly number[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(widths));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [busy, setBusy] = createSignal(false);
+  const [colWidths, setColWidths] = createSignal<readonly number[]>(loadColWidths());
   const [draft, setDraft] = createSignal({
     term: '',
     aliases: '',
     forbidden: '',
     description: '',
   });
+
+  /** 列境界 drag リサイズ。idx = 何番目の col の右境界か (0..3)。 */
+  function startColResize(e: MouseEvent, idx: number): void {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths()[idx] ?? 160;
+    function onMove(ev: MouseEvent): void {
+      const dx = ev.clientX - startX;
+      const next = Math.max(60, Math.min(800, startWidth + dx));
+      setColWidths((cur) => {
+        const out = [...cur];
+        out[idx] = next;
+        return out;
+      });
+    }
+    function onUp(): void {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      saveColWidths(colWidths());
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   function reset(): void {
     setDraft({ term: '', aliases: '', forbidden: '', description: '' });
@@ -133,21 +184,46 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
           fallback={<p class="panel-glossary-empty">用語が登録されていません。</p>}
         >
           <table class="panel-glossary-table">
-            {/* 列幅は colgroup で割合指定。境界 drag でリサイズしたい場合は将来 JS 化。
-                table-layout: fixed と組み合わせて、列の widthが安定するようにする。 */}
+            {/* 列幅は colWidths 信号で px 指定。各 th 右辺の drag 帯で resize 可能。
+                localStorage に永続化される。table-layout: fixed と併用。 */}
             <colgroup>
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: 'auto' }} />
+              <col style={{ width: `${colWidths()[0]}px` }} />
+              <col style={{ width: `${colWidths()[1]}px` }} />
+              <col style={{ width: `${colWidths()[2]}px` }} />
+              <col style={{ width: `${colWidths()[3]}px` }} />
               <col style={{ width: '32px' }} />
             </colgroup>
             <thead>
               <tr>
-                <th>用語</th>
-                <th>別表記</th>
-                <th>禁止表記</th>
-                <th>説明</th>
+                <th>
+                  用語
+                  <span
+                    class="panel-glossary-col-resize"
+                    onMouseDown={(e) => startColResize(e, 0)}
+                    title="列幅をドラッグで調整"
+                  />
+                </th>
+                <th>
+                  別表記
+                  <span
+                    class="panel-glossary-col-resize"
+                    onMouseDown={(e) => startColResize(e, 1)}
+                  />
+                </th>
+                <th>
+                  禁止表記
+                  <span
+                    class="panel-glossary-col-resize"
+                    onMouseDown={(e) => startColResize(e, 2)}
+                  />
+                </th>
+                <th>
+                  説明
+                  <span
+                    class="panel-glossary-col-resize"
+                    onMouseDown={(e) => startColResize(e, 3)}
+                  />
+                </th>
                 <th />
               </tr>
             </thead>
