@@ -1,7 +1,12 @@
 import type { LintIssue, LintRule } from './types.js';
 import type { NodeId } from '../domain/era.js';
+import {
+  CHARACTER_TEMPLATE,
+  FACTION_TEMPLATE,
+  LOCATION_TEMPLATE,
+} from '../domain/templates/index.js';
 
-// 5 builtin lint rules (M7)。各ルールは pure function、UI に依存しない。
+// builtin lint rules (M7 で 5 件、PR-AB +1、PR-AO で +3)。各ルールは pure function、UI に依存しない。
 // 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md,
 //       ../../../../Documentation/ScenarioEditor/03_data-model.md,
 //       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M7
@@ -217,6 +222,99 @@ const CONSECUTIVE_SAME_SPEAKER: LintRule = {
   },
 };
 
+/** ルール 7: missing-thumbnail (PR-AO) — キャラ / 場所 / 勢力 にサムネ画像が無い。
+ * テンプレ別に「視覚的に表示されるノード」だけが対象 (Item は意図的に除外)。
+ * info severity — 強制ではないが視覚化を促す。 */
+const MISSING_THUMBNAIL: LintRule = {
+  id: 'missing-thumbnail',
+  description: 'キャラ / 場所 / 勢力 にサムネ画像が未登録 (Inspector / Graph で識別性が下がる)',
+  defaultSeverity: 'info',
+  check(ctx) {
+    const issues: LintIssue[] = [];
+    const targetTemplates: ReadonlySet<string> = new Set([
+      CHARACTER_TEMPLATE.id,
+      LOCATION_TEMPLATE.id,
+      FACTION_TEMPLATE.id,
+    ]);
+    for (const node of ctx.nodes.values()) {
+      if (!targetTemplates.has(node.templateId)) continue;
+      if (node.thumbnail) continue;
+      issues.push({
+        ruleId: 'missing-thumbnail',
+        severity: 'info',
+        message: `Node "${node.slug}" にサムネ画像が未登録`,
+        nodeId: node.id,
+      });
+    }
+    return issues;
+  },
+};
+
+/** ルール 8: empty-script (PR-AO) — シーンの script: 配列が空。
+ * 章を立てたが中身を書き始めていないシーンを info で。
+ * scenes が ctx に無ければ no-op。 */
+const EMPTY_SCRIPT: LintRule = {
+  id: 'empty-script',
+  description: 'シーンの脚本ブロックが 0 件 (まだ書き始めていない)',
+  defaultSeverity: 'info',
+  check(ctx) {
+    const scenes = ctx.scenes;
+    if (!scenes) return [];
+    const issues: LintIssue[] = [];
+    for (const scene of scenes) {
+      if (scene.blocks.length === 0) {
+        issues.push({
+          ruleId: 'empty-script',
+          severity: 'info',
+          message: `[${scene.label}] 脚本がまだ書かれていません (Script タブで追加可能)`,
+        });
+      }
+    }
+    return issues;
+  },
+};
+
+/** ルール 9: script-unknown-who (PR-AO) — line / action の who: が
+ * project 内のキャラに該当しない (slug でも dev_name でも見つからない)。
+ * タイポや消したキャラの参照を検出。
+ * scenes が ctx に無ければ no-op。 */
+const SCRIPT_UNKNOWN_WHO: LintRule = {
+  id: 'script-unknown-who',
+  description: 'script の who: がプロジェクト内のキャラに該当しない',
+  defaultSeverity: 'warning',
+  check(ctx) {
+    const scenes = ctx.scenes;
+    if (!scenes) return [];
+    // 有効識別子: slug + dev_name の和集合
+    const validIds = new Set<string>();
+    for (const node of ctx.nodes.values()) {
+      if (node.templateId !== CHARACTER_TEMPLATE.id) continue;
+      validIds.add(node.slug);
+      const dev = node.fields['dev_name'];
+      if (typeof dev === 'string' && dev !== '') validIds.add(dev);
+    }
+    const issues: LintIssue[] = [];
+    // 同 scene 内で同 who: が複数ヒットしてもノイズなので 1 件に集約
+    const seen = new Set<string>();
+    for (const scene of scenes) {
+      for (const block of scene.blocks) {
+        if (block.kind !== 'line' && block.kind !== 'action') continue;
+        if (!block.who) continue;
+        if (validIds.has(block.who)) continue;
+        const key = `${scene.sceneSlug}::${block.who}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        issues.push({
+          ruleId: 'script-unknown-who',
+          severity: 'warning',
+          message: `[${scene.label}] who: "${block.who}" に該当するキャラがプロジェクト内にありません (typo か削除された参照)`,
+        });
+      }
+    }
+    return issues;
+  },
+};
+
 export const BUILTIN_LINT_RULES: readonly LintRule[] = [
   RELATION_TARGET_EXISTS,
   ORPHAN_NODE,
@@ -224,4 +322,7 @@ export const BUILTIN_LINT_RULES: readonly LintRule[] = [
   REQUIRED_FIELD_MISSING,
   DUPLICATE_SLUG,
   CONSECUTIVE_SAME_SPEAKER,
+  MISSING_THUMBNAIL,
+  EMPTY_SCRIPT,
+  SCRIPT_UNKNOWN_WHO,
 ];
