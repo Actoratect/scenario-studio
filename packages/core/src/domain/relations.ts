@@ -1,11 +1,10 @@
-// MVP の固定 5 種リレーション。
-// Phase 3 でユーザ定義リレーションタイプ + inverse 自動推論 (Q-B3) に拡張予定。
-// PR-B: label を LocalizedString → plain string (ja) に簡略化。
+// リレーションタイプ。RelationType は **任意の文字列** を許容する (= 自由入力)。
+// 下の RELATION_TYPES は組込のプリセット (UI のショートカット) であり、
+// データとしてはこれら以外の値も保存可能。
 // 詳細: ../../../../Documentation/ScenarioEditor/03_data-model.md, 04_graph-editor.md,
-//       ../../../../Documentation/ScenarioEditor/14_open-questions.md Q-B3,
-//       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M4
+//       ../../../../Documentation/ScenarioEditor/14_open-questions.md Q-B3
 
-export type RelationType = 'parent' | 'child' | 'friend' | 'enemy' | 'member_of';
+export type RelationType = string;
 
 export interface RelationTypeDefinition {
   id: RelationType;
@@ -16,6 +15,9 @@ export interface RelationTypeDefinition {
   symmetric: boolean;
 }
 
+/**
+ * 組込プリセット。UI のクイック選択用。データはこれ以外の任意文字列も持てる。
+ */
 export const RELATION_TYPES: ReadonlyArray<RelationTypeDefinition> = [
   { id: 'parent', label: '親', inverse: 'child', symmetric: false },
   { id: 'child', label: '子', inverse: 'parent', symmetric: false },
@@ -27,8 +29,13 @@ export const RELATION_TYPES: ReadonlyArray<RelationTypeDefinition> = [
 
 const BY_ID = new Map<RelationType, RelationTypeDefinition>(RELATION_TYPES.map((r) => [r.id, r]));
 
+/**
+ * プリセットに登録された型ならその定義、未登録なら **任意文字列扱いで symmetric** とみなす
+ * フォールバック定義を返す (= throw しない)。
+ * 自由入力対応のため、呼び元は throw を期待しない実装にする。
+ */
 export function getRelationType(id: RelationType): RelationTypeDefinition {
   const r = BY_ID.get(id);
-  if (!r) throw new Error(`Unknown relation type: ${id}`);
-  return r;
+  if (r) return r;
+  return { id, label: id, inverse: id, symmetric: true };
 }

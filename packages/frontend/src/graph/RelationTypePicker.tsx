@@ -55,6 +55,15 @@ export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
                 )}
               </For>
             </div>
+            <label class="ss-relation-type-custom">
+              <span>自由入力 (上記以外の独自タイプ)</span>
+              <input
+                type="text"
+                value={type()}
+                onInput={(e) => setType(e.currentTarget.value)}
+                placeholder="例: 師弟、ライバル、同僚、契約関係…"
+              />
+            </label>
           </div>
 
           <div class="ss-modal-section">
