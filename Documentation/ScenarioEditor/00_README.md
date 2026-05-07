@@ -33,6 +33,7 @@
 | 20  | [Phase 1 実装計画](./20_phase1_implementation_plan.md)     | MVP の done 定義、8 milestone、依存グラフ、リスク台帳            |
 | 21  | [残タスクリスト](./21_remaining_tasks.md)                  | post-MVP 後の残タスク、保留中の UX / 大型機能                   |
 | 22  | [UX / 機能改善レビュー](./22_ux_feature_review.md)          | post-MVP の使い勝手改善、チーム理解、AI + 個人制作向けの次候補   |
+| 23  | [Scenario Studio Mini](./23_scenario_studio_mini.md)        | スマホ版 (Pro と同データ / 機能サブセット / 並走 track)。`13` の Phase Y |
 
 > **読む順番のおすすめ**: 全体像 → `01` → `02` → `15` (プラットフォーム方針) → `18` (Unity 価値) → `11` (AI 抽象) → `16` (セキュリティ) → `03`〜`12` (個別設計) → `13`〜`14`
 
