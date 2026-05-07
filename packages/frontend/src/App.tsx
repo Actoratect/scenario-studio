@@ -5,12 +5,16 @@ import { ProjectPicker } from './panels/ProjectPicker';
 import { WorkspaceShell } from './WorkspaceShell';
 import { AboutOverlayRoot } from './global/AboutOverlay';
 import { AiCandidateOverlayRoot } from './global/AiCandidateOverlay';
+import { AiPatchQueueOverlayRoot } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlayRoot } from './global/AiSummaryOverlay';
 import { CommandPaletteRoot } from './global/CommandPalette';
+import { LocalAgentHandoffOverlayRoot } from './global/LocalAgentHandoffOverlay';
+import { ProjectHealthOverlayRoot } from './global/ProjectHealthOverlay';
 import { ExportDialogRoot } from './global/ExportDialog';
 import { IdListOverlayRoot } from './global/IdListOverlay';
 import { SearchOverlayRoot } from './global/SearchOverlay';
 import { ShortcutsOverlayRoot } from './global/ShortcutsOverlay';
+import { UnityReadinessOverlayRoot } from './global/UnityReadinessOverlay';
 import { Toaster } from './global/Toaster';
 import { ProjectService } from './services/ProjectService';
 
@@ -36,6 +40,10 @@ export const App: Component = () => {
       <ShortcutsOverlayRoot />
       <AboutOverlayRoot />
       <AiSummaryOverlayRoot />
+      <LocalAgentHandoffOverlayRoot />
+      <ProjectHealthOverlayRoot />
+      <UnityReadinessOverlayRoot />
+      <AiPatchQueueOverlayRoot />
       <AiCandidateOverlayRoot />
       <ContextMenuRoot />
     </>

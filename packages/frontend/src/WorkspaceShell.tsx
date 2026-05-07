@@ -1,10 +1,11 @@
-import { lazy, onCleanup, onMount } from 'solid-js';
+import { lazy, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
 import { SolidPanelView } from './dockview/SolidPanelView';
 import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { EraTimelinePanel } from './panels/EraTimelinePanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
@@ -14,16 +15,22 @@ import { SettingsPanel } from './panels/SettingsPanel';
 import { StatsPanel } from './panels/StatsPanel';
 import { SynopsisPanel } from './panels/SynopsisPanel';
 import { AboutOverlay } from './global/AboutOverlay';
+import { AiPatchQueueOverlay } from './global/AiPatchQueueOverlay';
 import { AiSummaryOverlay } from './global/AiSummaryOverlay';
 import { CommandPalette } from './global/CommandPalette';
 import { EraSlider } from './global/EraSlider';
 import { ExportDialog } from './global/ExportDialog';
 import { IdListOverlay } from './global/IdListOverlay';
+import { LocalAgentHandoffOverlay } from './global/LocalAgentHandoffOverlay';
 import { OnboardingBanner } from './global/OnboardingBanner';
+import { ProjectHealthOverlay } from './global/ProjectHealthOverlay';
 import { SaveStatusBadge } from './global/SaveStatusBadge';
 import { SearchOverlay } from './global/SearchOverlay';
 import { ShortcutsOverlay } from './global/ShortcutsOverlay';
+import { UnityReadinessOverlay } from './global/UnityReadinessOverlay';
 import { PanelFocus } from './services/PanelFocus';
+import { AiPatchQueue } from './services/AiPatchQueue';
+import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
@@ -56,6 +63,7 @@ const PANEL_REGISTRY = {
   settings: SettingsPanel,
   timeline: PlotTimelinePanel,
   stats: StatsPanel,
+  'era-timeline': EraTimelinePanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -134,6 +142,18 @@ export const WorkspaceShell: Component = () => {
     if (e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       AiSummaryOverlay.show();
+      return;
+    }
+    // PR-AU: Cmd+Shift+H — Local Agent Handoff
+    if (e.shiftKey && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      LocalAgentHandoffOverlay.show();
+      return;
+    }
+    // PR-AY: Cmd+Shift+Q — AI Patch Queue
+    if (e.shiftKey && e.key.toLowerCase() === 'q') {
+      e.preventDefault();
+      AiPatchQueueOverlay.toggle();
       return;
     }
     if (!ctx) return;
@@ -228,6 +248,12 @@ export const WorkspaceShell: Component = () => {
       title: '📊 統計',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
+    a.addPanel({
+      id: 'era-timeline-1',
+      component: 'era-timeline',
+      title: '⏳ Era 年表',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
   }
 
   /** PR-AG: Dock layout を default に戻す (workspace ヘッダから) */
@@ -297,6 +323,35 @@ export const WorkspaceShell: Component = () => {
         <EraSlider />
         <SaveStatusBadge />
         <button
+          class="workspace-export workspace-health"
+          classList={{
+            'workspace-health--has-error': ProjectHealth.snapshot().counts.error > 0,
+            'workspace-health--has-warning':
+              ProjectHealth.snapshot().counts.error === 0 &&
+              ProjectHealth.snapshot().counts.warning > 0,
+          }}
+          onClick={() => ProjectHealthOverlay.show()}
+          title="プロジェクト ヘルス (Lint / 不足項目 / 章別 進捗)"
+        >
+          🩺
+          <Show
+            when={
+              ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning > 0
+            }
+          >
+            <span class="workspace-health-badge">
+              {ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning}
+            </span>
+          </Show>
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => LocalAgentHandoffOverlay.show()}
+          title="ローカル AI に依頼 (Cmd+Shift+H)"
+        >
+          🤝
+        </button>
+        <button
           class="workspace-export"
           onClick={() => ShortcutsOverlay.show()}
           title="ショートカット一覧 (Cmd+/)"
@@ -309,6 +364,21 @@ export const WorkspaceShell: Component = () => {
           title="このアプリについて / Help"
         >
           ?
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => UnityReadinessOverlay.show()}
+          title="Unity Readiness — Phase 2 出力前のチェック"
+        >
+          🎮
+        </button>
+        <button
+          class="workspace-export"
+          onClick={() => AiPatchQueueOverlay.show()}
+          title="AI Patch Queue (Cmd+Shift+Q)"
+        >
+          📝 Patch
+          {AiPatchQueue.pendingCount() > 0 ? ` (${AiPatchQueue.pendingCount()})` : ''}
         </button>
         <button
           class="workspace-export"

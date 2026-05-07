@@ -12,6 +12,7 @@ import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
 import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptSnippets';
+import { ScriptContextRail } from '../script/ScriptContextRail';
 import { ScriptVisualEditor } from '../script/ScriptVisualEditor';
 import { bumpScriptLintVersion } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
@@ -316,16 +317,24 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         </div>
       </Show>
 
-      {/* visual モード: ScriptVisualEditor */}
-      <div class="panel-script-content" style={{ display: mode() === 'visual' ? 'block' : 'none' }}>
-        <ScriptVisualEditor
+      {/* visual モード: ScriptVisualEditor + 右側 rail (PR-AS) */}
+      <div
+        class="panel-script-content panel-script-content--rail"
+        style={{ display: mode() === 'visual' ? 'flex' : 'none' }}
+      >
+        <div class="panel-script-content-main">
+          <ScriptVisualEditor
+            parsed={parsed()}
+            onChangeBlock={onChangeBlock}
+            onDeleteBlock={onDeleteBlock}
+            onMoveBlock={onMoveBlock}
+            onAppendBlock={onAppendBlock}
+          />
+        </div>
+        <ScriptContextRail
           parsed={parsed()}
           chapterSlug={scene()?.chapterSlug}
           sceneSlug={scene()?.sceneSlug}
-          onChangeBlock={onChangeBlock}
-          onDeleteBlock={onDeleteBlock}
-          onMoveBlock={onMoveBlock}
-          onAppendBlock={onAppendBlock}
         />
       </div>
 
