@@ -4416,3 +4416,46 @@ button {
   border-radius: 3px;
   font-size: 11px;
 }
+
+/* PR-AV: Plot Flow Lens — header lens 切替 toggle */
+.panel-graph-lens-toggle {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.panel-graph-lens-toggle button {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--ss-bg);
+  color: var(--ss-text-muted);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-graph-lens-toggle button.active {
+  background: var(--ss-accent-blue);
+  color: var(--ss-text-on-emph);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-graph-lens-toggle button:hover:not(.active) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-graph-warn {
+  color: var(--ss-accent-vermillion) !important;
+  background: var(--ss-bg-error);
+  padding: 1px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--ss-accent-vermillion);
+  font-weight: 600;
+}
+
+.panel-graph-id {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+}
