@@ -4,6 +4,7 @@
 
 - **データ自体を AI フレンドリーに設計** (08_file-format.md 参照): 短い YAML、明確なキー、参照は ID 文字列
 - **AI 操作は補助** であって自動化ではない。常に人間の確認を挟む
+- **開発者ローカルAIワークベンチを first-class にする**。本ツールは、開発者の PC に Codex / Claude Code / Cursor / Aider / IDE / Git CLI が入っている状態で、リポジトリ全体を AI と一緒に編集・検証・実装する前提で設計する
 - **3 層の AI 接点**:
   1. **Inline (執筆時)**: 続きの提案、語感校正
   2. **Batch (チェック時)**: 全体整合性検査、未訳一括翻訳
@@ -12,7 +13,74 @@
 - **2 系統の抽象**:
   - **In-app LLM** (補完/Linter/翻訳など): `LlmProvider` 抽象でモデル直叩き
   - **Agent Runner** (タスク委任): `IAgentRunner` 抽象で外部エージェント (Claude Code CLI / Codex CLI / Aider 等) を起動
+- **利用モードは 2 軸**で整理する:
+  - **A. Developer Local Agent 軸**: Codex / Claude Code / Cursor / Aider / IDE / ローカルLLMを、開発者のローカル環境で使う。課金・ログイン・モデル選択は各ツール側に委ねる
+  - **B. General External API 軸**: 一般ユーザー向けに、OpenAI / Gemini / Anthropic 等の外部 API を本アプリから呼ぶ。生成 API は原則 API 課金が必要で、Show prompt / 推定コスト / 月次上限を必須にする
 - **3 ターゲット (Browser/Tauri/Unity) でキー管理戦略が異なる** — 詳細は §6
+
+## 0. 利用モード 2 軸
+
+### 0.1 A軸: Developer Local Agent
+
+想定ユーザー:
+
+- ローカルに Codex / Claude Code / Cursor / Aider / Continue / IDE を入れている開発者
+- Unity / Git / CLI / テスト環境を自分で回せる個人制作者またはエンジニア
+
+特徴:
+
+- Scenario Studio は prompt package / context file / schema / diff / lint の司令塔になる
+- 課金やログインは各ローカルAIツール側の契約に依存する
+- ChatGPT / Gemini のログイン済みUIを使う場合も、非公式な自動操作ではなく、プロンプトコピー / context package / 画像 drag & drop で手動連携する
+- ファイル変更は Git diff として確認する
+
+主な機能:
+
+- `Codex に依頼...`
+- `Claude Code に依頼...`
+- `AI context をコピー`
+- `.editor/ai-context/<jobId>/` 生成
+- 外部AI実行後の diff 取り込み
+
+### 0.2 B軸: General External API
+
+想定ユーザー:
+
+- AI CLI や IDE を入れていない一般ユーザー
+- 画面上の右クリックから補完・提案・画像生成だけを使いたいユーザー
+
+特徴:
+
+- Scenario Studio 内から OpenAI / Gemini / Anthropic 等の API を直接呼ぶ
+- API キー設定、鍵保管、Show prompt、推定コスト、月次上限が必要
+- 画像生成や大量生成は無料ではなく、原則 provider の API 課金対象
+- 3 案生成は便利だが、画像では 3 枚分のコストになる
+
+主な機能:
+
+- テキスト欄 right-click `AI による提案`
+- 画像欄 right-click `APIで3案生成`
+- AI Lint / AI 翻訳
+- 生成前の推定コスト表示
+
+### 0.3 UI での見せ方
+
+右クリックメニューでは、2 軸を混ぜずに分けて表示する。
+
+```text
+AI
+  ローカルAIに渡す
+    - Codex に依頼...
+    - Claude Code に依頼...
+    - プロンプトをコピー
+  外部APIで生成
+    - テキスト提案を3案生成
+    - 画像を3案生成 (課金あり)
+```
+
+無料枠・ログイン済みUIを使いたい場合は、A軸の `プロンプトをコピー` / `ChatGPTで開く` / `Geminiで開く` として扱う。
+
+アプリ内で完結する自動生成は B軸であり、API課金が必要という表現に統一する。
 
 ## 1. AI プロバイダ抽象 (2 系統)
 
@@ -254,6 +322,8 @@ Tension: 30
 
 `IAgentRunner` 越しに、ローカルにインストール済みの汎用コーディングエージェントを起動。
 
+このパスは「上級者向けの追加機能」ではなく、開発者が本ツールを最も強く使う主経路の 1 つとする。Scenario Studio は GUI で世界観と脚本を可視化し、Codex / Claude Code / Cursor / IDE は同じリポジトリの YAML / Markdown / C# / TS を直接編集する。両者の接点は Git diff、JSON Schema、CLI validate、ファイル監視、Unity Bridge で揃える。
+
 **Claude Code の例**:
 ```
 $ claude --print --working-directory ./Assets/Scenarios/ch03 \
@@ -273,6 +343,7 @@ $ codex run --branch ai/tone-fix \
 - ユーザがすでに使っているエージェント (Claude Code / Cursor / Codex / Aider) をそのまま使える
 - ライセンス/プラン/モデル選択がエージェント側に委ねられる
 - エージェントが Git ブランチや PR まで作る場合も、同じワークフローで連動
+- ChatGPT / Gemini などのログイン済みUIを無料枠で使う場合も、Scenario Studio は prompt package / context file / diff 受け取りを支援し、非公式なブラウザ自動操作には依存しない
 
 注意:
 - ローカルで動くため、セキュリティ境界が異なる (`16_security.md` §3 / §4)
