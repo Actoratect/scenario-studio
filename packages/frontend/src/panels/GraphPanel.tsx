@@ -1,11 +1,16 @@
-import { createMemo, createSignal, Show } from 'solid-js';
+import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
+  CHARACTER_TEMPLATE,
   computeRelationshipLens,
   deterministicCircularLayout,
+  FACTION_TEMPLATE,
+  ITEM_TEMPLATE,
+  LOCATION_TEMPLATE,
   resolveNode,
   type LensEdge,
+  type LensPayload,
   type NodeId,
   type RelationId,
   type RelationType,
@@ -26,7 +31,15 @@ import { createResource } from 'solid-js';
 // - Era フィルタ (PR-C)
 // - Shift+drag でノード間関係を新規作成 → RelationTypePicker (PR-E)
 // - explicit edge ラベルクリックで type 変更 / 削除 picker (PR-E)
+// - PR-AN: テンプレ別 visibility filter + ノード検索 (label / slug match)
 // 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md
+
+const TEMPLATE_TOGGLES: ReadonlyArray<{ id: string; label: string; emoji: string }> = [
+  { id: CHARACTER_TEMPLATE.id, label: 'キャラ', emoji: '👤' },
+  { id: LOCATION_TEMPLATE.id, label: '場所', emoji: '📍' },
+  { id: ITEM_TEMPLATE.id, label: 'アイテム', emoji: '🗝' },
+  { id: FACTION_TEMPLATE.id, label: '勢力', emoji: '⚑' },
+];
 
 interface PendingPicker {
   source: NodeId;
@@ -44,11 +57,38 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
+  // PR-AN: テンプレ別 visibility (default = 全て表示) + ノード検索
+  const [hiddenTemplates, setHiddenTemplates] = createSignal<ReadonlySet<string>>(
+    new Set<string>(),
+  );
+  const [searchQuery, setSearchQuery] = createSignal('');
 
-  const lens = createMemo(() => {
+  function toggleTemplate(templateId: string): void {
+    const cur = hiddenTemplates();
+    const next = new Set(cur);
+    if (next.has(templateId)) next.delete(templateId);
+    else next.add(templateId);
+    setHiddenTemplates(next);
+  }
+
+  const rawLens = createMemo(() => {
     const ctx = ProjectService.currentProject();
     if (!ctx) return undefined;
     return computeRelationshipLens(ctx.project.nodes, ctx.templates, ctx.project.relations);
+  });
+
+  // PR-AN: hidden テンプレに属するノードを除外し、両端を含む edge も除外
+  const lens = createMemo<LensPayload | undefined>(() => {
+    const raw = rawLens();
+    if (!raw) return undefined;
+    const hidden = hiddenTemplates();
+    if (hidden.size === 0) return raw;
+    const visibleNodes = raw.nodes.filter((n) => !hidden.has(n.templateId));
+    const visibleIds = new Set<NodeId>(visibleNodes.map((n) => n.id));
+    const visibleEdges = raw.edges.filter(
+      (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
+    );
+    return { nodes: visibleNodes, edges: visibleEdges };
   });
 
   const fallbackPositions = createMemo(() => {
@@ -87,13 +127,25 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   );
 
   const dimmed = createMemo<ReadonlySet<NodeId>>(() => {
-    if (!eraFilterOn() || EraContext.isBase()) return new Set();
     const ctx = ProjectService.currentProject();
-    if (!ctx) return new Set();
+    const l = lens();
+    if (!ctx || !l) return new Set();
     const out = new Set<NodeId>();
-    for (const node of ctx.project.nodes.values()) {
-      const r = resolveNode(node, EraContext.currentEraId(), ctx.project.eras);
-      if (r.isAlive === false) out.add(node.id);
+    // PR-C: Era フィルタ — 現 Era で isAlive=false なノードを薄く
+    if (eraFilterOn() && !EraContext.isBase()) {
+      for (const node of ctx.project.nodes.values()) {
+        const r = resolveNode(node, EraContext.currentEraId(), ctx.project.eras);
+        if (r.isAlive === false) out.add(node.id);
+      }
+    }
+    // PR-AN: 検索クエリと一致しないノードを薄く (空クエリは no-op)
+    const q = searchQuery().trim().toLowerCase();
+    if (q !== '') {
+      for (const n of l.nodes) {
+        if (!n.label.toLowerCase().includes(q) && !String(n.id).toLowerCase().includes(q)) {
+          out.add(n.id);
+        }
+      }
     }
     return out;
   });
@@ -126,31 +178,68 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   return (
     <div class="panel-content panel-graph">
       <header class="panel-graph-header">
-        <span>
-          Relationship Lens · <code>{params.api.id}</code>
-        </span>
-        <Show when={lens()}>
-          {(l) => (
-            <span class="panel-graph-stats">
-              {l().nodes.length} nodes · {l().edges.length} edges
-            </span>
-          )}
-        </Show>
-        <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
-          ⓘ Shift+drag で関係作成
-        </span>
-        <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
-          <input
-            type="checkbox"
-            checked={eraFilterOn()}
-            disabled={EraContext.isBase()}
-            onChange={(e) => setEraFilterOn(e.currentTarget.checked)}
-          />
-          Era フィルタ
-          <Show when={EraContext.isBase()}>
-            <span class="panel-graph-hint"> (Era を選択すると有効)</span>
+        <div class="panel-graph-header-row">
+          <span>
+            Relationship Lens · <code>{params.api.id}</code>
+          </span>
+          <Show when={lens()}>
+            {(l) => (
+              <span class="panel-graph-stats">
+                {l().nodes.length} nodes · {l().edges.length} edges
+              </span>
+            )}
           </Show>
-        </label>
+          <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
+            ⓘ Shift+drag で関係作成
+          </span>
+          <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
+            <input
+              type="checkbox"
+              checked={eraFilterOn()}
+              disabled={EraContext.isBase()}
+              onChange={(e) => setEraFilterOn(e.currentTarget.checked)}
+            />
+            Era フィルタ
+            <Show when={EraContext.isBase()}>
+              <span class="panel-graph-hint"> (Era を選択すると有効)</span>
+            </Show>
+          </label>
+        </div>
+        <div class="panel-graph-header-row">
+          <span class="panel-graph-filter-label">表示:</span>
+          <For each={TEMPLATE_TOGGLES}>
+            {(t) => (
+              <button
+                type="button"
+                class="panel-graph-filter-toggle"
+                classList={{
+                  'panel-graph-filter-toggle--off': hiddenTemplates().has(t.id),
+                }}
+                onClick={() => toggleTemplate(t.id)}
+                title={`${t.label} を表示 / 非表示`}
+              >
+                {t.emoji} {t.label}
+              </button>
+            )}
+          </For>
+          <input
+            type="search"
+            class="panel-graph-search"
+            placeholder="🔍 ノード検索 (label / ID 部分一致 → 非マッチを薄く)"
+            value={searchQuery()}
+            onInput={(e) => setSearchQuery(e.currentTarget.value)}
+          />
+          <Show when={searchQuery() !== ''}>
+            <button
+              type="button"
+              class="panel-graph-search-clear"
+              onClick={() => setSearchQuery('')}
+              title="検索クリア"
+            >
+              ×
+            </button>
+          </Show>
+        </div>
       </header>
       <div class="panel-graph-canvas">
         <Show
