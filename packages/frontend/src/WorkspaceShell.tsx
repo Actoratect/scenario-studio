@@ -5,6 +5,7 @@ import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dock
 import { SolidPanelView } from './dockview/SolidPanelView';
 import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { EraTimelinePanel } from './panels/EraTimelinePanel';
 import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
@@ -56,6 +57,7 @@ const PANEL_REGISTRY = {
   settings: SettingsPanel,
   timeline: PlotTimelinePanel,
   stats: StatsPanel,
+  'era-timeline': EraTimelinePanel,
 } as const;
 
 type PanelName = keyof typeof PANEL_REGISTRY;
@@ -226,6 +228,12 @@ export const WorkspaceShell: Component = () => {
       id: 'stats-1',
       component: 'stats',
       title: '📊 統計',
+      position: { referencePanel: 'outline-1', direction: 'within' },
+    });
+    a.addPanel({
+      id: 'era-timeline-1',
+      component: 'era-timeline',
+      title: '⏳ Era 年表',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   }
