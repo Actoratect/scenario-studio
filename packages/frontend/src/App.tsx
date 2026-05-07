@@ -11,6 +11,7 @@ import { ExportDialogRoot } from './global/ExportDialog';
 import { IdListOverlayRoot } from './global/IdListOverlay';
 import { SearchOverlayRoot } from './global/SearchOverlay';
 import { ShortcutsOverlayRoot } from './global/ShortcutsOverlay';
+import { UnityReadinessOverlayRoot } from './global/UnityReadinessOverlay';
 import { Toaster } from './global/Toaster';
 import { ProjectService } from './services/ProjectService';
 
@@ -38,6 +39,7 @@ export const App: Component = () => {
       <AiSummaryOverlayRoot />
       <LocalAgentHandoffOverlayRoot />
       <ProjectHealthOverlayRoot />
+      <UnityReadinessOverlayRoot />
     </>
   );
 };
