@@ -119,6 +119,9 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     if (!sz || !img) return;
     const aspectWH = img.w / img.h; // 画像の幅÷高さ
 
+    // image 内に収まる正方形の最大 size (= image WIDTH の 0..1)
+    const absoluteMaxSize = Math.max(0.05, Math.min(1, aspectWH));
+
     function onMove(ev: MouseEvent): void {
       // dx は表示幅基準 = 画像幅基準 (width fraction)
       const dxW = (ev.clientX - startX) / sz!.w;
@@ -126,18 +129,19 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
       if (mode === 'move') {
         // 正方形高さ (height fraction) = size / aspectWH
         const sizeInH = startRect.size / aspectWH;
-        const nx = clamp01(startRect.x + dxW, 0, 1 - startRect.size);
-        const ny = clamp01(startRect.y + dyH, 0, 1 - sizeInH);
+        const nx = clamp01(startRect.x + dxW, 0, Math.max(0, 1 - startRect.size));
+        const ny = clamp01(startRect.y + dyH, 0, Math.max(0, 1 - sizeInH));
         setRect({ x: nx, y: ny, size: startRect.size });
       } else if (mode === 'resize-br') {
-        // 正方形を維持: dx (width 単位) を採用
+        // 正方形を維持: dx (width 単位) を採用。
+        // 上限は absoluteMaxSize (= image 内に square が必ず収まる絶対値)。
+        // 大きくしたら image 端を超える場合は x/y を auto-adjust して残す。
         const delta = dxW;
-        // 最大: 横は 1 - x、縦は (1 - y) * aspectWH
-        const maxSizeW = 1 - startRect.x;
-        const maxSizeH = (1 - startRect.y) * aspectWH;
-        const maxSize = Math.min(maxSizeW, maxSizeH);
-        const newSize = clamp01(startRect.size + delta, 0.1, maxSize);
-        setRect({ x: startRect.x, y: startRect.y, size: newSize });
+        const newSize = Math.max(0.1, Math.min(absoluteMaxSize, startRect.size + delta));
+        const newSizeInH = newSize / aspectWH;
+        const newX = Math.min(startRect.x, Math.max(0, 1 - newSize));
+        const newY = Math.min(startRect.y, Math.max(0, 1 - newSizeInH));
+        setRect({ x: newX, y: newY, size: newSize });
       }
     }
     function onUp(): void {

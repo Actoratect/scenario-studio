@@ -1,0 +1,94 @@
+schemaVersion: 1
+sceneId: scene.s07_komakan_baito
+plot:
+  title: バイト編 Act1 ── 紅魔館入門
+  cast: [youmu, meiling, sakuya]
+  beat: |
+    起 — ネガティブな妖夢、紅魔館の門前、美鈴が困った顔
+    承 — 美鈴「メイド募集中、── 私は、勧めない、けど」、咲夜の登場
+    転 — 咲夜の問答、妖夢の試験的なメイド業
+    結 — ブラック労働条件 (妖夢は理解せず素直に頷く)、爆発の予兆、Act2 への引き
+  tension: 0.45
+  status: review
+script:
+  - { kind: bgm, cue: bgm_komakan_morning }
+  - { kind: stage, text: 紅魔館の、門前。 }
+  - { kind: stage, text: 妖夢は、── 蘇る者、の話、を、聞いた、夜の、翌日。 }
+  - { kind: stage, text: 顔色が、いつもより、暗い。 }
+
+  - { kind: action, who: meiling, text: 美鈴が、門柱に、寄りかかって、── 妖夢の、表情を、見て、ふっ、と、眉を、下げた。 }
+
+  - { kind: line, who: meiling, emotion: gentle, text: ……お嬢さん、── 元気、無いね。 }
+
+  - { kind: line, who: youmu, emotion: small, text: ……ご心配、ありがとうございます。 }
+  - { kind: line, who: youmu, emotion: small, text: ……ちょっと、── 主のお考えが、わからなくて。 }
+
+  - { kind: line, who: meiling, emotion: thoughtful, text: ……ふむ。 }
+
+  - { kind: action, who: meiling, text: 美鈴が、門柱の、貼り紙を、ちらり、と、見て、── 親指で、示す。 }
+  - { kind: stage, text: '貼り紙: 「メイド、急募。詳しくは、十六夜咲夜まで」。' }
+
+  - { kind: line, who: meiling, emotion: tired, text: 主のお考えが、わからない、時はね、 }
+  - { kind: line, who: meiling, emotion: tired, text: ── 別の、主の、奉仕を、── 一回、経験、してみると、いい。 }
+
+  - { kind: line, who: meiling, emotion: tired, text: 比較で、わかる、ことが、ある。 }
+
+  - { kind: aside, who: youmu, text: (……比較) }
+  - { kind: aside, who: youmu, text: (── 別の、主) }
+
+  - { kind: line, who: youmu, emotion: confused, text: ……でも、紅魔館で、働く、奴に、なるなよ、と、おっしゃっていたのは。 }
+
+  - { kind: line, who: meiling, emotion: gentle, text: ……ああ、それ。 }
+  - { kind: line, who: meiling, emotion: gentle, text: ── 「永続で、働く奴に、なるな」、の、意味。 }
+
+  - { kind: line, who: meiling, emotion: friendly, text: 一日、二日の、お試しは、── むしろ、薦める。 }
+
+  - { kind: aside, who: youmu, text: (……それは、── ちょっと、便利な、解釈) }
+
+  # ───────────────────────────────────────────────────────
+  # 咲夜、登場
+  # ───────────────────────────────────────────────────────
+
+  - { kind: stage, text: ── と、門の、内側から、銀髪の、メイドが、ふわり、と、現れる。 }
+
+  - { kind: action, who: sakuya, text: 銀の、髪。白と、黒の、メイド服。腰の、両側に、── 投擲用の、銀の刃が、控えている。 }
+
+  - { kind: line, who: sakuya, emotion: polite, text: ……あら、白玉楼の、お客様。 }
+  - { kind: line, who: sakuya, emotion: polite, text: 十六夜咲夜、と、申します。 }
+
+  - { kind: line, who: youmu, emotion: polite, text: ……ご、ご丁寧に。 }
+
+  - { kind: line, who: sakuya, emotion: gentle, text: 美鈴が、── お客様を、お引き、くださった、ようで。 }
+  - { kind: line, who: sakuya, emotion: gentle, text: 「メイド、お試し」、で、いいの、ですよね。 }
+
+  - { kind: line, who: youmu, emotion: small, text: ……はい。 }
+
+  - { kind: action, who: sakuya, text: 咲夜が、丁寧に、頭を、下げる。 }
+
+  - { kind: line, who: sakuya, emotion: friendly, text: 「お試し」、の、条件、ご説明、いたします。 }
+  - { kind: line, who: sakuya, emotion: friendly, text: ── 1 日、12 時間、お屋敷、無休、で、お仕事。 }
+  - { kind: line, who: sakuya, emotion: friendly, text: お給料、── 月餅、5 個。 }
+  - { kind: line, who: sakuya, emotion: friendly, text: 危険手当、── 別途、月餅、3 個。 }
+
+  - { kind: line, who: sakuya, emotion: gentle, text: ……ご納得、いただけますか？ }
+
+  - { kind: aside, who: youmu, text: (……月餅、ばかり) }
+  - { kind: aside, who: youmu, text: (それと、── 12 時間、無休、は、── 普通、なんだろうか) }
+
+  - { kind: aside, who: youmu, text: (白玉楼で、お給料、もらってる、わけ、では、ない、から) }
+  - { kind: aside, who: youmu, text: (── 比較、できない) }
+
+  - { kind: line, who: youmu, emotion: small, text: ……承知、いたしました。 }
+
+  - { kind: action, who: meiling, text: 美鈴が、目を、ぱちぱち、と、瞬かせる。 }
+
+  - { kind: aside, who: meiling, text: (……即決した) }
+  - { kind: aside, who: meiling, text: (この子、── 主従の、世界に、染まりすぎ、で、── 比較、できない) }
+
+  - { kind: line, who: sakuya, emotion: pleased, text: ……では、お入りください。 }
+  - { kind: line, who: sakuya, emotion: pleased, text: お屋敷、── 案内します。 }
+
+  - { kind: stage, text: 妖夢が、咲夜について、紅魔館の、内側へ、足を、踏み入れる。 }
+  - { kind: stage, text: 美鈴は、── 心配そうに、後ろから、── 軽く、合掌、した。 }
+
+  - { kind: bgm, cue: bgm_fade_out_quiet }

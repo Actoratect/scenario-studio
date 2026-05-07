@@ -4205,14 +4205,18 @@ button {
 
 .ss-portrait-crop-handle {
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 12px;
-  height: 12px;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
   background: var(--ss-accent-blue);
   border: 2px solid var(--ss-bg);
   border-radius: 2px;
   cursor: nwse-resize;
+  /* z-index で move-handler (= 親 div の onMouseDown) の上に置き、確実に
+     resize イベントを受ける。frame の overflow:hidden に切られないよう
+     box 内に納まる位置 (right:0, bottom:0)。 */
+  z-index: 3;
 }
 
 .ss-portrait-crop--dragging .ss-portrait-crop-handle {
