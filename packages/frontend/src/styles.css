@@ -3620,6 +3620,54 @@ button {
   outline: none;
 }
 
+/* 行間の「＋」ボタン (Excel 風 row insert)。
+   通常は薄く / 1px 帯で表示し、hover でハッキリ見える。 */
+.panel-glossary-insert-row td {
+  padding: 0;
+  border: none;
+  height: 4px;
+  position: relative;
+  background: transparent;
+}
+.panel-glossary-insert-row:hover td {
+  background: var(--ss-bg-info, #eff5ff);
+}
+.panel-glossary-insert-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  background: var(--ss-bg, #ffffff);
+  color: var(--ss-text-faint, #999);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease-out,
+    color 0.12s ease-out;
+}
+.panel-glossary-insert-row:hover .panel-glossary-insert-btn {
+  opacity: 1;
+  color: var(--ss-accent-blue, #1a5cd6);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+}
+.panel-glossary-insert-btn:hover {
+  background: var(--ss-bg-info, #eff5ff);
+}
+
+/* テーブルセルのテキスト/インプットを中身に応じて伸ばすために、
+   tr / td には固定 height を付けず、 input 側で自然サイズに任せる。
+   row-resize は user-resize: vertical 相当を input/textarea で個別対応。 */
+.panel-glossary table tr {
+  height: auto;
+}
+
 .panel-glossary-form {
   border-top: 1px solid #e0e0e3;
   padding: 8px 12px;

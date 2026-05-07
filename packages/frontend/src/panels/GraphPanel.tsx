@@ -162,17 +162,21 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return merged;
   });
 
-  // 各ノードのサムネイル URL を解決 (PR-Q)。lens 変化時に再計算。
-  // 注意: createResource の source が falsy だと fetcher が呼ばれないため、
-  // lens() を直接 source にすると初期 undefined → 解決しないまま残るバグがある。
-  // 常に object を返し、fetcher 内で nodes 不在を分岐する。
+  // 各ノードの「正方形 crop 済」サムネ URL を解決 (PR-Q)。
+  // lens / project.nodes 変化時に再計算。グラフは circle clip するので canvas で
+  // pre-render した square をそのまま貼るとアスペクト比が破綻しない。
   const [thumbnailUrls] = createResource(
     () => ({ nodes: lens()?.nodes ?? [] }),
     async (src) => {
       const out = new Map<NodeId, string>();
+      const ctx = ProjectService.currentProject();
+      if (!ctx) return out;
       for (const n of src.nodes) {
         if (!n.thumbnail) continue;
-        const url = await ThumbnailService.resolveUrl(n.thumbnail);
+        // graph の LensNode には thumbnailRect が無いので ProjectModel から元 node を引く
+        const fullNode = ctx.project.nodes.get(n.id);
+        if (!fullNode) continue;
+        const url = await ThumbnailService.resolveCroppedUrl(fullNode);
         if (url) out.set(n.id, url);
       }
       return out;

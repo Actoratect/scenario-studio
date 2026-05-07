@@ -11,10 +11,14 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
   fields: [
     ...NAME_FIELDS,
     {
+      // 「誕生年 (相対年)」セマンティクス。物語の現在を 0 とした相対年。
+      // 例: 27 歳キャラ → -27 (= 27 年前に生まれた)
+      // 「年齢」ラベルだと -27 のような負数表記が混乱の元になるため明示する。
       id: 'birth_year',
-      label: '年齢',
+      label: '誕生年 (相対)',
       type: 'int',
-      description: '見た目の年齢 (歳)。物語時系列の相対年でも可',
+      description:
+        '物語の現在を 0 とした相対年。年齢で書く場合は **負数** (例: 27 歳キャラ → -27)。',
       group: '基本情報',
     },
     {

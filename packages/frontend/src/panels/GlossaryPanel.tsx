@@ -61,6 +61,25 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
   }
 
   /**
+   * 指定 index の前に空行 (placeholder term) を挿入。term は仮 "新しい用語 N" で
+   * 衝突を避け、ユーザーがその場で書き換える想定。
+   */
+  async function insertAt(index: number): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const existing = ctx.project.glossary;
+    let n = 1;
+    let candidate = `新しい用語 ${n}`;
+    while (existing.some((g) => g.term === candidate)) {
+      n += 1;
+      candidate = `新しい用語 ${n}`;
+    }
+    const placeholder: GlossaryTerm = { term: candidate, aliases: [], forbidden: [] };
+    const next = [...existing.slice(0, index), placeholder, ...existing.slice(index)];
+    await persist(next);
+  }
+
+  /**
    * 既存の用語の特定 field を inline 編集 → 確定。
    * term (= 主キー) の変更も許容するが、空文字 / 既存衝突は reject する。
    */
@@ -123,72 +142,104 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
             </thead>
             <tbody>
               <For each={ProjectService.currentProject()!.project.glossary}>
-                {(t) => (
-                  <tr>
-                    <td>
-                      <input
-                        type="text"
-                        class="panel-glossary-cell-input"
-                        value={t.term}
-                        disabled={busy()}
-                        onChange={(e) => {
-                          const v = e.currentTarget.value;
-                          if (v !== t.term) void updateTerm(t, { term: v });
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        class="panel-glossary-cell-input"
-                        value={t.aliases.join(', ')}
-                        disabled={busy()}
-                        placeholder="カンマ区切り"
-                        onChange={(e) => {
-                          const v = splitCsv(e.currentTarget.value);
-                          if (v.join(',') !== t.aliases.join(','))
-                            void updateTerm(t, { aliases: v });
-                        }}
-                      />
-                    </td>
-                    <td class="panel-glossary-forbidden">
-                      <input
-                        type="text"
-                        class="panel-glossary-cell-input"
-                        value={t.forbidden.join(', ')}
-                        disabled={busy()}
-                        placeholder="カンマ区切り"
-                        onChange={(e) => {
-                          const v = splitCsv(e.currentTarget.value);
-                          if (v.join(',') !== t.forbidden.join(','))
-                            void updateTerm(t, { forbidden: v });
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        class="panel-glossary-cell-input"
-                        value={t.description ?? ''}
-                        disabled={busy()}
-                        onChange={(e) => {
-                          const v = e.currentTarget.value;
-                          if (v !== (t.description ?? '')) void updateTerm(t, { description: v });
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        disabled={busy()}
-                        onClick={() => void deleteTerm(t)}
-                        title="この用語を削除"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
+                {(t, i) => (
+                  <>
+                    {/* 行間ホバー → ＋ ボタンで挿入 (Excel 風) */}
+                    <tr class="panel-glossary-insert-row">
+                      <td colspan={5}>
+                        <button
+                          type="button"
+                          class="panel-glossary-insert-btn"
+                          disabled={busy()}
+                          onClick={() => void insertAt(i())}
+                          title="この行の前に新しい用語を追加"
+                        >
+                          ＋
+                        </button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <input
+                          type="text"
+                          class="panel-glossary-cell-input"
+                          value={t.term}
+                          disabled={busy()}
+                          onChange={(e) => {
+                            const v = e.currentTarget.value;
+                            if (v !== t.term) void updateTerm(t, { term: v });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          class="panel-glossary-cell-input"
+                          value={t.aliases.join(', ')}
+                          disabled={busy()}
+                          placeholder="カンマ区切り"
+                          onChange={(e) => {
+                            const v = splitCsv(e.currentTarget.value);
+                            if (v.join(',') !== t.aliases.join(','))
+                              void updateTerm(t, { aliases: v });
+                          }}
+                        />
+                      </td>
+                      <td class="panel-glossary-forbidden">
+                        <input
+                          type="text"
+                          class="panel-glossary-cell-input"
+                          value={t.forbidden.join(', ')}
+                          disabled={busy()}
+                          placeholder="カンマ区切り"
+                          onChange={(e) => {
+                            const v = splitCsv(e.currentTarget.value);
+                            if (v.join(',') !== t.forbidden.join(','))
+                              void updateTerm(t, { forbidden: v });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          class="panel-glossary-cell-input"
+                          value={t.description ?? ''}
+                          disabled={busy()}
+                          onChange={(e) => {
+                            const v = e.currentTarget.value;
+                            if (v !== (t.description ?? '')) void updateTerm(t, { description: v });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          disabled={busy()}
+                          onClick={() => void deleteTerm(t)}
+                          title="この用語を削除"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  </>
                 )}
               </For>
+              {/* 末尾の挿入行 (= 既存リスト末尾に追加) */}
+              <tr class="panel-glossary-insert-row">
+                <td colspan={5}>
+                  <button
+                    type="button"
+                    class="panel-glossary-insert-btn"
+                    disabled={busy()}
+                    onClick={() =>
+                      void insertAt(ProjectService.currentProject()!.project.glossary.length)
+                    }
+                    title="末尾に新しい用語を追加"
+                  >
+                    ＋
+                  </button>
+                </td>
+              </tr>
             </tbody>
           </table>
         </Show>

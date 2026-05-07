@@ -91,7 +91,10 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     if (!ctx) return [];
     const out: NodeRefOption[] = [];
     for (const n of ctx.project.nodes.values()) {
-      out.push({ id: n.id, label: n.slug, hint: n.templateId });
+      // ID/slug ではなく display_name を主表示。slug は hint に回す。
+      const display = n.fields['display_name'];
+      const label = typeof display === 'string' && display !== '' ? (display as string) : n.slug;
+      out.push({ id: n.id, label, hint: n.slug });
     }
     return out;
   });
@@ -256,7 +259,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     await ThumbnailService.clearForNode(n);
   }
 
-  /** PR-AC: 立ち絵から「丸サムネに使う矩形」を node に保存 */
+  /** PR-AC: 立ち絵から「サムネに使う正方形」を node に保存。
+   *  保存成功時は短い Toast で feedback を出す (drag-end が自動 trigger するため、
+   *  ユーザーに「保存された」ことを明示しないと不安になるという指摘に対応)。 */
   async function saveThumbnailRect(rect: ThumbnailRect): Promise<void> {
     const n = node();
     const ctx = ProjectService.currentProject();
@@ -267,6 +272,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       const next = new Map(ctx.project.nodes);
       next.set(n.id, updated);
       Object.assign(ctx.project, { nodes: next });
+      Toast.success('サムネを保存しました', 1200);
     } catch (e) {
       Toast.error(`サムネ位置の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
     }

@@ -87,6 +87,38 @@ export const ThumbnailService = {
     }
   },
 
+  /**
+   * ノードの「正方形サムネ画像」を canvas で pre-render し、blob URL を返す。
+   * thumbnailRect が未設定 / 画像全体を指す場合は元画像 URL をそのまま返す。
+   * グラフ / 脚本 / Inspector で同じ正方形を共有させるためのエントリポイント。
+   */
+  async resolveCroppedUrl(node: ScenarioNode): Promise<string | undefined> {
+    if (!node.thumbnail) return undefined;
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return undefined;
+    const baseUrl = await ThumbnailService.resolveUrl(node.thumbnail);
+    if (!baseUrl) return undefined;
+    const rect = node.thumbnailRect;
+    // rect 未設定 / 全画面 → 元画像をそのまま (object-fit:cover で center-crop)
+    if (!rect || (rect.size >= 0.999 && rect.x <= 0.001 && rect.y <= 0.001)) return baseUrl;
+
+    // cache hit?
+    const cacheId = `cropped::${ctx.handle.id}::${node.thumbnail}::${rect.x}::${rect.y}::${rect.size}`;
+    const cached = urlCache().get(cacheId);
+    if (cached) return cached;
+
+    try {
+      const cropped = await renderSquareCrop(baseUrl, rect);
+      if (!cropped) return baseUrl;
+      const next = new Map(urlCache());
+      next.set(cacheId, cropped);
+      setUrlCache(next);
+      return cropped;
+    } catch {
+      return baseUrl;
+    }
+  },
+
   /** ノードのサムネイルを削除 (Media/ ファイル + node.thumbnail を消す)。 */
   async clearForNode(node: ScenarioNode): Promise<void> {
     const ctx = ProjectService.currentProject();
@@ -115,6 +147,51 @@ export const ThumbnailService = {
 
   urlCache,
 };
+
+/**
+ * 元画像 URL + rect から「正方形 256×256」の crop 画像を canvas で生成 → blob URL。
+ * rect.size は **画像 WIDTH の 0..1** (= 真の正方形が横幅基準で size×imgW px)。
+ * x/y は image width/height それぞれの 0..1。
+ */
+async function renderSquareCrop(
+  baseUrl: string,
+  rect: { x: number; y: number; size: number },
+): Promise<string | undefined> {
+  const img = await loadImage(baseUrl);
+  if (!img) return undefined;
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+  const sidePx = Math.max(1, Math.round(rect.size * srcW));
+  const sx = Math.max(0, Math.min(srcW - 1, Math.round(rect.x * srcW)));
+  const sy = Math.max(0, Math.min(srcH - 1, Math.round(rect.y * srcH)));
+  // 画像端を超えないようクランプ
+  const sw = Math.min(sidePx, srcW - sx);
+  const sh = Math.min(sidePx, srcH - sy);
+  const target = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = target;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return undefined;
+  // 背景透過 (PNG)
+  ctx.clearRect(0, 0, target, target);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, target, target);
+  return new Promise<string | undefined>((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) resolve(undefined);
+      else resolve(URL.createObjectURL(blob));
+    }, 'image/png');
+  });
+}
+
+function loadImage(url: string): Promise<HTMLImageElement | undefined> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(undefined);
+    img.src = url;
+  });
+}
 
 function guessExt(mime: string, name: string): string | undefined {
   const m = SUPPORTED_EXT.get(mime);

@@ -1,3 +1,4 @@
+import { createEffect } from 'solid-js';
 import type { Component } from 'solid-js';
 import { FormField } from './FormField';
 import type { FormFieldProps } from './FormField';
@@ -53,12 +54,20 @@ export const MultilineInput: Component<TextInputProps & { rows?: number | undefi
     el.style.height = `${el.scrollHeight}px`;
   }
 
+  // props.value が外部から変化したとき (= 別ノード切替 / 初期 hydrate) も
+  // 内容に合わせて高さを更新する。tracked: props.value だけ。
+  createEffect(() => {
+    // 依存登録のため props.value を読む
+    void props.value;
+    // DOM 反映後に scrollHeight を測りたいので microtask で 1 tick 遅らせる
+    queueMicrotask(autoResize);
+  });
+
   return (
     <FormField {...props} inputId={props.fieldId}>
       <textarea
         ref={(el) => {
           ref = el;
-          // 初期表示時に value に合わせて高さを伸ばす
           queueMicrotask(autoResize);
         }}
         id={props.fieldId}
