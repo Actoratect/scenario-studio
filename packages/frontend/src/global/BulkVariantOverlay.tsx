@@ -101,7 +101,10 @@ const BulkVariantUi: Component = () => {
           <span class="ss-bulk-variant-count">{selected().size} 件選択中</span>
         </div>
         <div class="ss-bulk-variant-list">
-          <For each={candidates()} fallback={<p class="ss-modal-caption">他に Era がありません</p>}>
+          <For
+            each={candidates()}
+            fallback={<p class="ss-modal-caption">他に時間軸がありません</p>}
+          >
             {(era) => (
               <label class="ss-bulk-variant-row">
                 <input

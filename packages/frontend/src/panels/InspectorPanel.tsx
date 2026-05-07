@@ -655,7 +655,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
               type="button"
               class="panel-inspector-variant-remove"
               onClick={() => props.onRemoveOverride()}
-              title="この Era の override を解除してベース値に戻す"
+              title="この時間軸の override を解除してベース値に戻す"
             >
               × override 解除
             </button>
@@ -673,9 +673,9 @@ const FieldRow: Component<FieldRowProps> = (props) => {
                   value: props.value,
                 });
               }}
-              title="この override 値を別の Era にも一括適用 (PR-AP)"
+              title="この override 値を別の時間軸にも一括適用 (PR-AP)"
             >
-              ⤴ 他 Era にも適用
+              ⤴ 他の時間軸にも適用
             </button>
           </Show>
         </div>

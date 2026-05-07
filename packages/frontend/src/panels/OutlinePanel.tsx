@@ -616,7 +616,23 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                           }}
                         >
                           <NodeThumbnail node={node} size={20} />
-                          <span class="panel-outline-node-label">{node.slug}</span>
+                          <span class="panel-outline-node-label">
+                            {typeof node.fields['display_name'] === 'string' &&
+                            node.fields['display_name'] !== ''
+                              ? (node.fields['display_name'] as string)
+                              : node.slug}
+                          </span>
+                          <Show
+                            when={
+                              typeof node.fields['display_name'] === 'string' &&
+                              node.fields['display_name'] !== '' &&
+                              node.fields['display_name'] !== node.slug
+                            }
+                          >
+                            <span class="panel-outline-node-slug" title={node.slug}>
+                              {node.slug}
+                            </span>
+                          </Show>
                         </button>
                       </li>
                     )}

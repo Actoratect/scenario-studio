@@ -2013,8 +2013,21 @@ button {
 }
 
 .panel-outline-node--selected {
-  background: #d6e4ff;
-  border-color: #8aaeff;
+  /* 選択ノードを目立たせる: 太い左ボーダー + 強アクセント背景 + 濃いめの枠線 */
+  background: var(--ss-bg-info, #d6e4ff);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+  border-left-width: 3px;
+  font-weight: 600;
+  /* スクロール container 内で「選択時に見えなくなる」ことを防ぐマージン */
+  scroll-margin: 8px;
+}
+
+.panel-outline-node-slug {
+  margin-left: auto;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  flex-shrink: 0;
 }
 
 .panel-outline-empty {
@@ -2061,7 +2074,17 @@ button {
 
 .ssf-textarea {
   resize: vertical;
-  min-height: 64px;
+  min-height: 32px;
+}
+
+/* Auto-grow textarea (改行に応じて高さが伸びる)。
+   field-sizing: content は Chrome/Edge 123+ でネイティブ対応。
+   未対応環境では JS の autoResize() が scrollHeight を反映する。 */
+.ssf-textarea--autosize {
+  field-sizing: content;
+  resize: none;
+  overflow-y: hidden;
+  min-height: 32px;
 }
 
 .ssf-numeric {
@@ -3565,12 +3588,36 @@ button {
 }
 
 .panel-glossary td {
-  padding: 4px 6px;
+  padding: 2px 4px;
   border-bottom: 1px solid #f0f0f3;
 }
 
 .panel-glossary-forbidden {
   color: #a33;
+}
+
+/* インライン編集用セル input。テーブルセルに収まるように */
+.panel-glossary-cell-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.panel-glossary-cell-input:hover {
+  background: var(--ss-bg-soft, #f8f8fa);
+  border-color: var(--ss-border-soft, #e0e0e3);
+}
+
+.panel-glossary-cell-input:focus {
+  background: var(--ss-bg, #ffffff);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+  outline: none;
 }
 
 .panel-glossary-form {

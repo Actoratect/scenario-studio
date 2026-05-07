@@ -60,6 +60,45 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
     await persist(ctx.project.glossary.filter((t) => t.term !== term.term));
   }
 
+  /**
+   * 既存の用語の特定 field を inline 編集 → 確定。
+   * term (= 主キー) の変更も許容するが、空文字 / 既存衝突は reject する。
+   */
+  async function updateTerm(
+    original: GlossaryTerm,
+    patch: Partial<{
+      term: string;
+      aliases: readonly string[];
+      forbidden: readonly string[];
+      description: string;
+    }>,
+  ): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const next: GlossaryTerm = {
+      term: (patch.term ?? original.term).trim(),
+      aliases: patch.aliases ?? original.aliases,
+      forbidden: patch.forbidden ?? original.forbidden,
+      ...(patch.description !== undefined
+        ? patch.description.trim() === ''
+          ? {}
+          : { description: patch.description.trim() }
+        : original.description !== undefined
+          ? { description: original.description }
+          : {}),
+    };
+    if (next.term === '') {
+      Toast.error('用語名は空にできません');
+      return;
+    }
+    if (next.term !== original.term && ctx.project.glossary.some((g) => g.term === next.term)) {
+      Toast.error(`「${next.term}」は既に存在します`);
+      return;
+    }
+    const replaced = ctx.project.glossary.map((t) => (t.term === original.term ? next : t));
+    await persist(replaced);
+  }
+
   return (
     <div class="panel-content panel-glossary">
       <LoadingOverlay when={busy()} label="保存中…" />
@@ -86,12 +125,64 @@ export const GlossaryPanel: Component<GroupPanelPartInitParameters> = (params) =
               <For each={ProjectService.currentProject()!.project.glossary}>
                 {(t) => (
                   <tr>
-                    <td>{t.term}</td>
-                    <td>{t.aliases.join(', ')}</td>
-                    <td class="panel-glossary-forbidden">{t.forbidden.join(', ')}</td>
-                    <td>{t.description ?? ''}</td>
                     <td>
-                      <button disabled={busy()} onClick={() => void deleteTerm(t)}>
+                      <input
+                        type="text"
+                        class="panel-glossary-cell-input"
+                        value={t.term}
+                        disabled={busy()}
+                        onChange={(e) => {
+                          const v = e.currentTarget.value;
+                          if (v !== t.term) void updateTerm(t, { term: v });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        class="panel-glossary-cell-input"
+                        value={t.aliases.join(', ')}
+                        disabled={busy()}
+                        placeholder="カンマ区切り"
+                        onChange={(e) => {
+                          const v = splitCsv(e.currentTarget.value);
+                          if (v.join(',') !== t.aliases.join(','))
+                            void updateTerm(t, { aliases: v });
+                        }}
+                      />
+                    </td>
+                    <td class="panel-glossary-forbidden">
+                      <input
+                        type="text"
+                        class="panel-glossary-cell-input"
+                        value={t.forbidden.join(', ')}
+                        disabled={busy()}
+                        placeholder="カンマ区切り"
+                        onChange={(e) => {
+                          const v = splitCsv(e.currentTarget.value);
+                          if (v.join(',') !== t.forbidden.join(','))
+                            void updateTerm(t, { forbidden: v });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        class="panel-glossary-cell-input"
+                        value={t.description ?? ''}
+                        disabled={busy()}
+                        onChange={(e) => {
+                          const v = e.currentTarget.value;
+                          if (v !== (t.description ?? '')) void updateTerm(t, { description: v });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        disabled={busy()}
+                        onClick={() => void deleteTerm(t)}
+                        title="この用語を削除"
+                      >
                         ×
                       </button>
                     </td>

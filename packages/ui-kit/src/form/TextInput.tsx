@@ -33,20 +33,45 @@ export const TextInput: Component<TextInputProps> = (props) => {
   );
 };
 
+/**
+ * 自動リサイズ textarea。改行数に応じて高さが伸びる。
+ * - CSS `field-sizing: content` (Chrome/Edge 123+) で第 1 候補
+ * - JS で scrollHeight 同期する fallback (全ブラウザ)
+ * - props.rows は **最小行数** として扱う (= 空でも ___rows___ 行の高さは確保)
+ */
 export const MultilineInput: Component<TextInputProps & { rows?: number | undefined }> = (
   props,
 ) => {
+  let ref: HTMLTextAreaElement | undefined;
+
+  function autoResize(): void {
+    const el = ref;
+    if (!el) return;
+    // height: auto に戻してから scrollHeight を採用。padding/border 込みで取りたいので
+    // box-sizing: border-box 前提 (CSS で既に設定済)。
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
   return (
     <FormField {...props} inputId={props.fieldId}>
       <textarea
+        ref={(el) => {
+          ref = el;
+          // 初期表示時に value に合わせて高さを伸ばす
+          queueMicrotask(autoResize);
+        }}
         id={props.fieldId}
-        class="ssf-textarea"
+        class="ssf-textarea ssf-textarea--autosize"
         value={props.value ?? ''}
         disabled={props.disabled}
         placeholder={props.placeholder}
         maxLength={props.maxLength}
-        rows={props.rows ?? 4}
-        onInput={(e) => props.onInput?.(e.currentTarget.value)}
+        rows={props.rows ?? 2}
+        onInput={(e) => {
+          autoResize();
+          props.onInput?.(e.currentTarget.value);
+        }}
         onBlur={() => props.onBlur?.()}
         onContextMenu={(e) => props.onContextMenu?.(e)}
       />

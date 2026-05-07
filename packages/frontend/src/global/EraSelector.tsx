@@ -35,7 +35,7 @@ export const EraSelector: Component<EraSelectorProps> = (props) => {
   return (
     <Show
       when={eras().length > 0}
-      fallback={<span class="ss-era-selector-empty">Era 未定義 — Settings タブで追加</span>}
+      fallback={<span class="ss-era-selector-empty">時間軸 未定義 — Settings タブで追加</span>}
     >
       <Show
         when={variant() === 'pills'}

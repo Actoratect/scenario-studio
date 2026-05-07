@@ -251,7 +251,7 @@ export const WorkspaceShell: Component = () => {
     a.addPanel({
       id: 'era-timeline-1',
       component: 'era-timeline',
-      title: '⏳ Era 年表',
+      title: '⏳ 時間軸 年表',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   }

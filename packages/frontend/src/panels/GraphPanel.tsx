@@ -300,16 +300,19 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
               ⓘ Shift+drag で関係作成
             </span>
-            <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
+            <label
+              class="panel-graph-era-toggle"
+              title="現在の時間軸で生存していないノードを薄く表示"
+            >
               <input
                 type="checkbox"
                 checked={eraFilterOn()}
                 disabled={EraContext.isBase()}
                 onChange={(e) => setEraFilterOn(e.currentTarget.checked)}
               />
-              Era フィルタ
+              時間軸フィルタ
               <Show when={EraContext.isBase()}>
-                <span class="panel-graph-hint"> (Era を選択すると有効)</span>
+                <span class="panel-graph-hint"> (時間軸を選択すると有効)</span>
               </Show>
             </label>
           </Show>

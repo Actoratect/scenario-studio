@@ -145,12 +145,12 @@ const EraSection: Component = () => {
       await c.eraRepository.save(def);
       // 再 hydrate
       await refreshEras();
-      Toast.success(`Era 追加: ${label}`);
+      Toast.success(`時間軸 追加: ${label}`);
       setNewId('');
       setNewLabel('');
       setNewParent('');
     } catch (e) {
-      Toast.error(`Era 追加に失敗: ${e instanceof Error ? e.message : String(e)}`);
+      Toast.error(`時間軸 追加に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -159,7 +159,7 @@ const EraSection: Component = () => {
   async function renameEra(era: EraDefinition): Promise<void> {
     const c = ctx();
     if (!c) return;
-    const next = window.prompt('Era ラベル:', era.label);
+    const next = window.prompt('時間軸ラベル:', era.label);
     if (next === null) return;
     const trimmed = next.trim();
     if (trimmed === '' || trimmed === era.label) return;
@@ -168,7 +168,7 @@ const EraSection: Component = () => {
       await c.eraRepository.save({ ...era, label: trimmed });
       await refreshEras();
     } catch (e) {
-      Toast.error(`Era 編集に失敗: ${e instanceof Error ? e.message : String(e)}`);
+      Toast.error(`時間軸 編集に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -177,19 +177,19 @@ const EraSection: Component = () => {
   async function deleteEra(era: EraDefinition): Promise<void> {
     const c = ctx();
     if (!c) return;
-    // 子 Era がいる場合は警告
+    // 子の時間軸がいる場合は警告
     const hasChildren = eras().some((e) => e.parent === era.id);
     const msg = hasChildren
-      ? `Era "${era.label}" は子 Era の親になっています。削除すると子 Era は孤児化します。続けますか?`
-      : `Era "${era.label}" を削除しますか?`;
+      ? `時間軸 "${era.label}" は子時間軸の親になっています。削除すると子時間軸は孤児化します。続けますか?`
+      : `時間軸 "${era.label}" を削除しますか?`;
     if (!window.confirm(msg)) return;
     setBusy(true);
     try {
       await c.eraRepository.delete(era.id);
       await refreshEras();
-      Toast.success(`Era 削除: ${era.label}`);
+      Toast.success(`時間軸 削除: ${era.label}`);
     } catch (e) {
-      Toast.error(`Era 削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
+      Toast.error(`時間軸 削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -218,16 +218,16 @@ const EraSection: Component = () => {
 
   return (
     <section class="panel-settings-section">
-      <h3>Era 階層</h3>
+      <h3>時間軸 階層</h3>
       <p class="panel-settings-hint">
-        時代 / 局面の単位。ノードのフィールドは Era ごとに override できる (PR-L)。
+        時代 / 局面の単位。ノードのフィールドは時間軸ごとに override できる (PR-L)。
       </p>
       <ul class="panel-settings-era-list">
         <For
           each={eras()}
           fallback={
             <li class="panel-settings-empty">
-              Era が定義されていません。下のフォームで追加してください。
+              時間軸が定義されていません。下のフォームで追加してください。
             </li>
           }
         >
@@ -279,9 +279,9 @@ const EraSection: Component = () => {
         <select
           value={newParent()}
           onChange={(e) => setNewParent(e.currentTarget.value)}
-          title="親 Era (任意)"
+          title="親時間軸 (任意)"
         >
-          <option value="">— 親 Era なし —</option>
+          <option value="">— 親時間軸なし —</option>
           <For each={eras()}>{(era) => <option value={era.id}>{era.label}</option>}</For>
         </select>
         <button
