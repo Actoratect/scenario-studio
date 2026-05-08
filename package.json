@@ -9,6 +9,8 @@
     "node": ">=20"
   },
   "scripts": {
+    "dev": "npm --prefix packages/frontend run dev",
+    "restart": "node scripts/restart-dev.mjs",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -248,7 +248,7 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
           ⟲ サムネ全体に戻す
         </button>
         <span class="ss-portrait-hint">
-          枠を drag で位置移動、右下ハンドルで サイズ変更 (正方形維持)。drag 終了で自動保存。
+          枠を drag で位置移動、右下ハンドルで サイズ変更 (正方形維持)。確定はヘッダの「💾 保存」で。
         </span>
       </div>
     </div>

@@ -596,9 +596,23 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                               if (e.metaKey || e.ctrlKey || e.shiftKey) {
                                 e.preventDefault();
                                 toggleMulti(node.id, true);
-                              } else {
-                                if (multiSelected().size > 0) clearMulti();
-                                SelectionContext.selectNode(node.id);
+                                return;
+                              }
+                              // scroll-to-top 退化防止: 選択直後にパネルが reflow して
+                              // 親 container が先頭に戻る現象を見ているので、
+                              // scrollTop を保存→次フレームで復元する。
+                              const scroller = e.currentTarget.closest(
+                                '.panel-outline-list',
+                              ) as HTMLElement | null;
+                              const savedScroll = scroller?.scrollTop ?? 0;
+                              if (multiSelected().size > 0) clearMulti();
+                              SelectionContext.selectNode(node.id);
+                              if (scroller) {
+                                requestAnimationFrame(() => {
+                                  if (scroller.scrollTop !== savedScroll) {
+                                    scroller.scrollTop = savedScroll;
+                                  }
+                                });
                               }
                             }}
                             onDragOver={(e) => {
