@@ -11,6 +11,7 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
   fields: [
     ...NAME_FIELDS,
     {
+      // ユーザ要望によりマイナス表記廃止 (PR: ux-overhaul)。素直に「年齢」として書く。
       id: 'birth_year',
       label: '年齢',
       type: 'int',

@@ -179,6 +179,18 @@ export const ProjectService = {
     // currentProject signal を再 set して subscriber に変更を伝える
     setCurrentProject({ ...ctx });
   },
+
+  /**
+   * `ctx.project` 配下を Object.assign で in-place 更新したあとに呼ぶ。
+   * Solid signal は ctx の参照変化を見るため、{ ...ctx } を set し直すことで
+   * ProjectModel に依存する全 memo (Inspector / Outline / Graph / Glossary 等) を
+   * 再評価させる。
+   */
+  touch(): void {
+    const ctx = currentProject();
+    if (!ctx) return;
+    setCurrentProject({ ...ctx });
+  },
 };
 
 function base64ToBytes(b64: string): Uint8Array {

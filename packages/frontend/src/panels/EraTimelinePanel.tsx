@@ -113,7 +113,7 @@ export const EraTimelinePanel: Component<GroupPanelPartInitParameters> = (params
               <p>プロジェクトが開かれていません。</p>
             </Show>
             <Show when={ctx() && eras().length === 0}>
-              <p>Era がまだ定義されていません。Settings タブで Era を追加してください。</p>
+              <p>時間軸 がまだ定義されていません。Settings タブで時間軸を追加してください。</p>
             </Show>
             <Show when={ctx() && eras().length > 0 && characters().length === 0}>
               <p>キャラクターがまだいません。Outline タブで「+ Character」を押してください。</p>
@@ -125,7 +125,7 @@ export const EraTimelinePanel: Component<GroupPanelPartInitParameters> = (params
           <table class="panel-era-timeline-table">
             <thead>
               <tr>
-                <th class="panel-era-timeline-corner">キャラ ＼ Era</th>
+                <th class="panel-era-timeline-corner">キャラ ＼ 時間軸</th>
                 <For each={eras()}>
                   {(era) => (
                     <th
@@ -233,6 +233,6 @@ function cellTooltip(name: string, eraLabel: string, state: CellState): string {
   if (state.explicitlyDead) parts.push('isAlive = false');
   else if (state.hasVariant) parts.push('生存 + variant あり (◆)');
   else parts.push('生存 (デフォルト)');
-  parts.push('クリックで Era 切替 + キャラ選択');
+  parts.push('クリックで時間軸切替 + キャラ選択');
   return parts.join(' · ');
 }

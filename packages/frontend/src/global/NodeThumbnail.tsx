@@ -17,14 +17,21 @@ export interface NodeThumbnailProps {
 export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
   const size = (): number => props.size ?? 32;
 
-  // node.thumbnail を url cache に解決
-  const source = createMemo(() => {
-    const t = props.node.thumbnail;
-    return t ? { id: props.node.id, thumbnail: t } : null;
-  });
+  // canvas pre-render 済の正方形サムネ URL を解決。
+  // rect 未設定 / 全画面 = 元画像 URL のまま (object-fit:cover で center-crop)。
+  // source は createResource の falsy 不発火を避けるため常に object 返却。
+  // ノードを source 自体に含めて fetcher 内では props.node に触らない (Solid reactivity 警告回避)。
+  const source = createMemo(() => ({
+    id: props.node.id,
+    thumbnail: props.node.thumbnail ?? '',
+    rectKey: props.node.thumbnailRect
+      ? `${props.node.thumbnailRect.x}::${props.node.thumbnailRect.y}::${props.node.thumbnailRect.size}`
+      : '',
+    node: props.node,
+  }));
   const [url] = createResource(source, async (src) => {
-    if (!src) return undefined;
-    return ThumbnailService.resolveUrl(src.thumbnail);
+    if (!src.thumbnail) return undefined;
+    return ThumbnailService.resolveCroppedUrl(src.node);
   });
 
   const initial = (): string => {
@@ -33,34 +40,9 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
     return text.slice(0, 2);
   };
 
-  // PR-AC: thumbnailRect が指定されていれば、background-image で crop 表示。
-  // size: 0..1 (rect size, 1 で全体)。背景サイズは (1/size)*100% で拡大、
-  // background-position は rect の中心が円の中心に来るよう % 計算。
-  //
-  // 注意: rect が「画像全体」(size=1, x=0, y=0) を指している場合は
-  // background-image で 100% 等倍貼りすると立ち絵が縦長で歪んで見える。
-  // この場合は cropStyle を返さず <img object-fit:cover> 経路に倒す
-  // (= center を顔向けにクロップ表示)。
-  const cropStyle = (): { [k: string]: string } | undefined => {
-    const u = url();
-    const rect = props.node.thumbnailRect;
-    if (!u || !rect) return undefined;
-    const cropSize = rect.size > 0 ? rect.size : 1;
-    // 「実質クロップなし」= フル画像を指している → object-fit:cover に倒す
-    if (cropSize >= 0.999 && rect.x <= 0.001 && rect.y <= 0.001) return undefined;
-    const scalePct = (1 / cropSize) * 100;
-    // crop の左上 (rect.x, rect.y) を thumbnail の左上に持ってくる:
-    // background-position-x = -(rect.x / (1 - cropSize)) * 100% (when cropSize < 1)
-    const denom = 1 - cropSize;
-    const posX = denom > 0 ? (rect.x / denom) * 100 : 0;
-    const posY = denom > 0 ? (rect.y / denom) * 100 : 0;
-    return {
-      'background-image': `url(${u})`,
-      'background-size': `${scalePct}% ${scalePct}%`,
-      'background-position': `${posX}% ${posY}%`,
-      'background-repeat': 'no-repeat',
-    };
-  };
+  // 注意: 旧版の background-image による crop は廃止。
+  // ThumbnailService.resolveCroppedUrl() が canvas で正方形 PNG を pre-render するので
+  // ここは <img> でそのまま貼るだけで OK。
 
   return (
     <span class="ss-node-thumb" style={{ width: `${size()}px`, height: `${size()}px` }}>
@@ -78,11 +60,7 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
           </span>
         }
       >
-        {(u) => (
-          <Show when={cropStyle()} fallback={<img src={u()} alt="" class="ss-node-thumb-img" />}>
-            <span class="ss-node-thumb-img ss-node-thumb-img--cropped" style={cropStyle()} />
-          </Show>
-        )}
+        {(u) => <img src={u()} alt="" class="ss-node-thumb-img" />}
       </Show>
     </span>
   );
