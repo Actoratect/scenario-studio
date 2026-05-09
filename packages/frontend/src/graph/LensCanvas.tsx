@@ -201,7 +201,9 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
 
   function edgeBox(label: string): { w: number; h: number } {
     const ch = label.length;
-    return { w: Math.max(28, ch * 8 + 14), h: 18 };
+    // ラベルは scale で割って常に画面 px 一定にするため、box も同じ補正をかける。
+    const s = view().scale;
+    return { w: Math.max(28, ch * 8 + 14) / s, h: 18 / s };
   }
 
   return (
@@ -295,6 +297,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     text-anchor="middle"
                     dominant-baseline="middle"
                     fill={explicit ? '#0072b2' : undefined}
+                    style={{ 'font-size': `${10 / view().scale}px` }}
                   >
                     {edge.label}
                   </text>
@@ -440,7 +443,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
                   </Show>
                 </Show>
-                <text class="lens-node-label" y={NODE_RADIUS + 14}>
+                <text
+                  class="lens-node-label"
+                  y={NODE_RADIUS + 14 / view().scale}
+                  style={{ 'font-size': `${11 / view().scale}px` }}
+                >
                   {node.label}
                 </text>
               </g>

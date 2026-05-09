@@ -4398,15 +4398,15 @@ button {
   /* マスク表現: 枠の外を暗く ↑ box-shadow で全画面を暗くしているのと等価 */
 }
 
-/* PR (ux-overhaul): 編集モード OFF — 細い枠だけを「目印」として薄く表示。
- * 暗マスクなし、cursor も default。クリック / drag を受けない (cropper 親が pointer-events
- * を制御)。範囲ガイドの目印として枠線のみ残す。 */
+/* PR (ux-overhaul-2): 編集モード OFF — 完全に非表示。
+ * 利用者の要望「サムネ範囲の枠は不要」に追随。 */
 .ss-portrait-crop--readonly {
-  border: 1px dashed rgba(255, 255, 255, 0.7);
+  border: 0;
   background: transparent;
   box-shadow: none;
   cursor: default;
   pointer-events: none;
+  display: none;
 }
 
 .ss-portrait-crop--dragging {
@@ -4549,14 +4549,26 @@ button {
   min-width: 0;
 }
 .ss-plot-rail {
-  width: 320px;
   flex-shrink: 0;
   border-left: 1px solid var(--ss-border-soft);
   display: flex;
   flex-direction: column;
+  position: relative;
 }
-.ss-plot-rail.ss-script-rail--collapsed {
-  width: 28px;
+/* 左端の drag-resize handle */
+.ss-plot-rail-resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 10;
+}
+.ss-plot-rail-resize:hover {
+  background: var(--ss-accent-blue);
+  opacity: 0.4;
 }
 .ss-plot-rail-target {
   margin: 0 0 2px;

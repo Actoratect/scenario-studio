@@ -28,6 +28,7 @@ export interface PlotDetailRailProps {
 }
 
 const COLLAPSED_KEY = 'scenario-studio:plot-rail-collapsed';
+const WIDTH_KEY = 'scenario-studio:plot-rail-width';
 function loadCollapsed(): boolean {
   if (typeof localStorage === 'undefined') return false;
   return localStorage.getItem(COLLAPSED_KEY) === 'true';
@@ -38,6 +39,20 @@ function saveCollapsed(v: boolean): void {
     localStorage.setItem(COLLAPSED_KEY, v ? 'true' : 'false');
   } catch {
     /* quota / private mode */
+  }
+}
+function loadWidth(): number {
+  if (typeof localStorage === 'undefined') return 320;
+  const raw = localStorage.getItem(WIDTH_KEY);
+  const n = raw ? Number(raw) : 0;
+  return Number.isFinite(n) && n >= 200 && n <= 800 ? n : 320;
+}
+function saveWidth(w: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(WIDTH_KEY, String(Math.round(w)));
+  } catch {
+    /* quota */
   }
 }
 
@@ -66,11 +81,31 @@ function extractPlot(parsed: ParsedScene): PlotData {
 
 export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   const [collapsed, setCollapsed] = createSignal(loadCollapsed());
+  const [width, setWidth] = createSignal(loadWidth());
 
   function toggle(): void {
     const next = !collapsed();
     setCollapsed(next);
     saveCollapsed(next);
+  }
+
+  // 左端の resize handle を drag して幅を変える。
+  function startWidthResize(e: MouseEvent): void {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = width();
+    function onMove(ev: MouseEvent): void {
+      const dx = startX - ev.clientX; // 左にドラッグで広げる
+      const nw = Math.max(200, Math.min(800, startW + dx));
+      setWidth(nw);
+    }
+    function onUp(): void {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      saveWidth(width());
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   }
 
   // 選択シーンの YAML を resource で load。selected.path を key にして cache が変わる。
@@ -91,8 +126,9 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
     },
   );
 
+  // PR (ux-overhaul-2): フリッカ防止 — refetch 中も前値を保持。
   const plot = createMemo<PlotData | undefined>(() => {
-    const p = parsed();
+    const p = parsed.latest;
     return p ? extractPlot(p) : undefined;
   });
 
@@ -147,7 +183,15 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
     <aside
       class="ss-plot-rail ss-script-rail"
       classList={{ 'ss-script-rail--collapsed': collapsed() }}
+      style={{ width: collapsed() ? '28px' : `${width()}px` }}
     >
+      <Show when={!collapsed()}>
+        <div
+          class="ss-plot-rail-resize"
+          onMouseDown={startWidthResize}
+          title="ドラッグでパネル幅を変更"
+        />
+      </Show>
       <header class="ss-script-rail-header">
         <button
           type="button"

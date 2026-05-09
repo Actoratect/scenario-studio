@@ -47,15 +47,51 @@ function loadModePref(): EditorMode {
   return v === 'raw' ? 'raw' : 'visual';
 }
 
+// PR (ux-overhaul-2): per-scene 編集ステージング (path → ParsedScene)。
+// loadScene で 1 度だけ disk から読み、以降は staging 内の object identity を保ったまま
+// mutate する。これで textarea が再 mount されず、IME / cursor / undo が壊れない。
+// シーン切替えで前 scene の staging は残るので「タブ切替で破棄される」苦情も解消。
+const sceneStaging = new Map<string, ParsedScene>();
+// per-scene Undo / Redo スタック (ParsedScene snapshot)。最大 100 件。
+const HISTORY_LIMIT = 100;
+const sceneHistory = new Map<string, { undo: ParsedScene[]; redo: ParsedScene[] }>();
+
+function getHistory(path: string): { undo: ParsedScene[]; redo: ParsedScene[] } {
+  let h = sceneHistory.get(path);
+  if (!h) {
+    h = { undo: [], redo: [] };
+    sceneHistory.set(path, h);
+  }
+  return h;
+}
+
 export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [scene, setScene] = createSignal<SceneRef | undefined>(undefined);
   const [doc, setDoc] = createSignal<string>(SAMPLE_SCRIPT);
+  // PR (ux-overhaul-2): visual mode の真の source of truth。loadScene で 1 度
+  // parse して入れる。以降は object identity を保ったまま mutate する。
+  const [parsedSig, setParsedSig] = createSignal<ParsedScene>({
+    meta: {},
+    title: '',
+    cast: [],
+    blocks: [],
+  });
+  // 履歴操作中フラグ (undo/redo 中は新規 history を積まない)
+  let suppressHistory = false;
   const [saving, setSaving] = createSignal(false);
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
 
   function setModeAndPersist(m: EditorMode): void {
+    // visual → raw 切替時に CodeMirror へ最新の serialized YAML を流し込む
+    if (m === 'raw' && view) {
+      const text = serializeSceneYaml(parsedSig());
+      if (view.state.doc.toString() !== text) {
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+      }
+      setDoc(text);
+    }
     setMode(m);
     if (typeof localStorage !== 'undefined') localStorage.setItem(MODE_STORAGE, m);
   }
@@ -87,23 +123,35 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     return out.sort();
   });
 
-  // doc を parse した結果 (visual mode で使う)。parse 失敗時は最小 ParsedScene を返す。
-  const parsed = createMemo<ParsedScene>(() => {
-    try {
-      return parseSceneYaml(doc());
-    } catch {
-      return { meta: {}, title: '', cast: [], blocks: [] };
-    }
-  });
+  // visual mode の View は parsedSig() を直接使う。下位互換用に parsed alias を残す。
+  const parsed = parsedSig;
 
   async function loadScene(ref: SceneRef): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
+    setScene(ref);
+    // staging に既存があればそれを優先 (タブ切替で破棄しないため)
+    const staged = sceneStaging.get(ref.path);
+    if (staged) {
+      setParsedSig(staged);
+      setDoc(serializeSceneYaml(staged));
+      if (view) {
+        const text = serializeSceneYaml(staged);
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+      }
+      return;
+    }
     const exists = await ctx.adapter.exists(ctx.handle, ref.path);
     const text = exists
       ? await ctx.adapter.read(ctx.handle, ref.path)
       : starterSceneYaml(ref.sceneSlug);
-    setScene(ref);
+    let p: ParsedScene;
+    try {
+      p = parseSceneYaml(text);
+    } catch {
+      p = { meta: {}, title: '', cast: [], blocks: [] };
+    }
+    setParsedSig(p);
     setDoc(text);
     if (view) {
       view.dispatch({
@@ -112,28 +160,66 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     }
   }
 
-  /** PR (ux-overhaul): 自動保存廃止。dirty マークだけ立てて、保存は明示 (Cmd+S / 保存ボタン)。 */
-  function scheduleSave(text: string): void {
-    setDoc(text);
+  /** PR (ux-overhaul-2): staging に積み、DirtyTracker でマーク (実 write は保存ボタンで)。 */
+  function commitParsed(next: ParsedScene): void {
     const target = scene();
-    if (!target) return;
+    if (!target) {
+      setParsedSig(next);
+      return;
+    }
+    // history (undo) 用に旧スナップショットを積む。redo はクリア。
+    if (!suppressHistory) {
+      const h = getHistory(target.path);
+      h.undo.push(parsedSig());
+      if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+      h.redo.length = 0;
+    }
+    setParsedSig(next);
+    sceneStaging.set(target.path, next);
     DirtyTracker.mark({
       key: target.path,
       label: target.label,
-      saveFn: () => saveNow(target, doc()),
+      saveFn: () => saveNow(target),
     });
   }
 
-  async function saveNow(ref: SceneRef, text: string): Promise<void> {
+  /** raw mode (CodeMirror) で edit された text を staging に反映。 */
+  function commitRawText(text: string): void {
+    setDoc(text);
+    const target = scene();
+    if (!target) return;
+    let next: ParsedScene;
+    try {
+      next = parseSceneYaml(text);
+    } catch {
+      // YAML parse 失敗時は staging 更新せず警告だけ
+      return;
+    }
+    if (!suppressHistory) {
+      const h = getHistory(target.path);
+      h.undo.push(parsedSig());
+      if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+      h.redo.length = 0;
+    }
+    setParsedSig(next);
+    sceneStaging.set(target.path, next);
+    DirtyTracker.mark({
+      key: target.path,
+      label: target.label,
+      saveFn: () => saveNow(target),
+    });
+  }
+
+  async function saveNow(ref: SceneRef): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
+    const text = serializeSceneYaml(parsedSig());
     setSaving(true);
     try {
       await ctx.adapter.write(ctx.handle, ref.path, text);
       DirtyTracker.clear(ref.path);
-      // 連続発話 lint を再評価
+      sceneStaging.delete(ref.path);
       bumpScriptLintVersion();
-      // 「登場した章」の集計を再構築 (cast / who: が変わった可能性)
       SceneAppearanceIndex.invalidate();
     } catch (e) {
       console.error('script save failed', e);
@@ -144,15 +230,47 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     }
   }
 
-  /** Visual mode の編集 → ParsedScene を再 serialize → doc を更新 + save。 */
-  function commitParsed(next: ParsedScene): void {
-    const yaml = serializeSceneYaml(next);
-    scheduleSave(yaml);
-    // CodeMirror に反映 (raw mode に切り替えた時のため)
-    if (view && view.state.doc.toString() !== yaml) {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: yaml },
+  function undo(): void {
+    const target = scene();
+    if (!target) return;
+    const h = getHistory(target.path);
+    const prev = h.undo.pop();
+    if (!prev) return;
+    h.redo.push(parsedSig());
+    if (h.redo.length > HISTORY_LIMIT) h.redo.shift();
+    suppressHistory = true;
+    try {
+      setParsedSig(prev);
+      sceneStaging.set(target.path, prev);
+      DirtyTracker.mark({
+        key: target.path,
+        label: target.label,
+        saveFn: () => saveNow(target),
       });
+    } finally {
+      suppressHistory = false;
+    }
+  }
+
+  function redo(): void {
+    const target = scene();
+    if (!target) return;
+    const h = getHistory(target.path);
+    const next = h.redo.pop();
+    if (!next) return;
+    h.undo.push(parsedSig());
+    if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    suppressHistory = true;
+    try {
+      setParsedSig(next);
+      sceneStaging.set(target.path, next);
+      DirtyTracker.mark({
+        key: target.path,
+        label: target.label,
+        saveFn: () => saveNow(target),
+      });
+    } finally {
+      suppressHistory = false;
     }
   }
 
@@ -266,8 +384,12 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         characterSlugs: () => characterSlugs(),
         emotionTags: () => KNOWN_EMOTIONS,
       },
-      onChange: (text) => scheduleSave(text),
+      onChange: (text) => commitRawText(text),
     });
+    // panel 内でフォーカスがある時の Cmd+Z / Cmd+Shift+Z は scene undo / redo
+    if (host) {
+      host.addEventListener('keydown', onPanelKey);
+    }
     const sel = SceneSelection.selected();
     if (sel) {
       const ref = availableScenes().find(
@@ -276,6 +398,23 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       if (ref) void loadScene(ref);
     }
   });
+
+  function onPanelKey(e: KeyboardEvent): void {
+    const meta = e.ctrlKey || e.metaKey;
+    if (!meta) return;
+    if (e.key === 'z' && !e.shiftKey) {
+      // textarea / input 内では既定の native undo を尊重 (1 文字単位)
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'textarea' || tag === 'input') return;
+      e.preventDefault();
+      undo();
+    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'textarea' || tag === 'input') return;
+      e.preventDefault();
+      redo();
+    }
+  }
 
   createEffect(() => {
     const sel = SceneSelection.selected();
@@ -291,6 +430,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   onCleanup(() => {
     // PR (ux-overhaul): 自動保存廃止。close 時の dirty は DirtyTracker に残し、
     // 「閉じる時にユーザに保存を促す」のはヘッダ側の責務に集約。
+    if (host) host.removeEventListener('keydown', onPanelKey);
     view?.destroy();
   });
 
@@ -331,6 +471,22 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
             title="シーンの名前 / slug を変更"
           >
             ✎
+          </button>
+          <button
+            type="button"
+            class="panel-script-rename"
+            onClick={undo}
+            title="Undo (Ctrl+Z)"
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            class="panel-script-rename"
+            onClick={redo}
+            title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
+          >
+            ↷
           </button>
         </Show>
         <Show when={saving()}>
