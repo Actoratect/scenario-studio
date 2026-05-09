@@ -47,8 +47,10 @@ function killOnPort(port) {
   }
 }
 
-console.log('[restart] vite dev (port 5173) を停止しています...');
-killOnPort(5173);
+console.log('[restart] vite dev (port 5173-5180) を停止しています...');
+for (let port = 5173; port <= 5180; port++) {
+  killOnPort(port);
+}
 
 console.log('[restart] vite dev を起動します...');
 const child = spawn('npm', ['--prefix', 'packages/frontend', 'run', 'dev'], {
