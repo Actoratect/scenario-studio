@@ -1,6 +1,7 @@
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
+import { GraphComments, type GraphComment } from './graph-comments';
 
 // SVG ベースの軽量グラフ canvas (PR-C/E)。
 // 機能:
@@ -40,7 +41,23 @@ interface ViewState {
 type DragMode =
   | { kind: 'pan'; startX: number; startY: number; vx: number; vy: number }
   | { kind: 'node'; id: NodeId; startX: number; startY: number; px: number; py: number }
-  | { kind: 'connect'; source: NodeId; toX: number; toY: number };
+  | { kind: 'connect'; source: NodeId; toX: number; toY: number }
+  | {
+      kind: 'comment-move';
+      id: string;
+      startX: number;
+      startY: number;
+      cx: number;
+      cy: number;
+    }
+  | {
+      kind: 'comment-resize';
+      id: string;
+      startX: number;
+      startY: number;
+      cw: number;
+      ch: number;
+    };
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
@@ -68,11 +85,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   function onNodeMouseDown(e: MouseEvent, id: NodeId): void {
     if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault();
+    const p = pos(id);
     if (e.shiftKey) {
-      const p = pos(id);
       setDrag({ kind: 'connect', source: id, toX: p.x, toY: p.y });
     } else {
-      const p = pos(id);
       setDrag({ kind: 'node', id, startX: e.clientX, startY: e.clientY, px: p.x, py: p.y });
     }
   }
@@ -94,9 +111,28 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
       return;
     }
+    if (d.kind === 'comment-move') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(d.id, { x: d.cx + dx, y: d.cy + dy });
+      return;
+    }
+    if (d.kind === 'comment-resize') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(d.id, {
+        width: Math.max(80, d.cw + dx),
+        height: Math.max(40, d.ch + dy),
+      });
+      return;
+    }
     // connect: マウス位置を world に変換して rubber-band の終端に
-    const w = clientToWorld(e.clientX, e.clientY);
-    setDrag({ ...d, toX: w.x, toY: w.y });
+    if (d.kind === 'connect') {
+      const w = clientToWorld(e.clientX, e.clientY);
+      setDrag({ ...d, toX: w.x, toY: w.y });
+    }
   }
 
   function onMouseUp(e: MouseEvent): void {
@@ -165,7 +201,9 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
 
   function edgeBox(label: string): { w: number; h: number } {
     const ch = label.length;
-    return { w: Math.max(28, ch * 8 + 14), h: 18 };
+    // ラベルは scale で割って常に画面 px 一定にするため、box も同じ補正をかける。
+    const s = view().scale;
+    return { w: Math.max(28, ch * 8 + 14) / s, h: 18 / s };
   }
 
   return (
@@ -204,35 +242,40 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* edges */}
         <For each={props.payload.edges}>
           {(edge) => {
-            const s = pos(edge.source);
-            const t = pos(edge.target);
-            const dx = t.x - s.x;
-            const dy = t.y - s.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const ux = dx / len;
-            const uy = dy / len;
-            const sx = s.x + ux * NODE_RADIUS;
-            const sy = s.y + uy * NODE_RADIUS;
-            const tx = t.x - ux * NODE_RADIUS;
-            const ty = t.y - uy * NODE_RADIUS;
-            const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
-            const dim = isDimmed(edge.source) || isDimmed(edge.target);
-            const box = edgeBox(edge.label);
+            // PR (ux-overhaul-3): pos を memo にしてノード drag に追随する
+            const s = createMemo(() => pos(edge.source));
+            const t = createMemo(() => pos(edge.target));
+            const geom = createMemo(() => {
+              const sp = s();
+              const tp = t();
+              const dx = tp.x - sp.x;
+              const dy = tp.y - sp.y;
+              const len = Math.hypot(dx, dy) || 1;
+              const ux = dx / len;
+              const uy = dy / len;
+              const sx = sp.x + ux * NODE_RADIUS;
+              const sy = sp.y + uy * NODE_RADIUS;
+              const tx = tp.x - ux * NODE_RADIUS;
+              const ty = tp.y - uy * NODE_RADIUS;
+              return { sx, sy, tx, ty, mid: { x: (sx + tx) / 2, y: (sy + ty) / 2 } };
+            });
+            const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
+            const box = createMemo(() => edgeBox(edge.label));
             const explicit = edge.kind === 'explicit';
             return (
-              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim }}>
+              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
                 <line
-                  x1={sx}
-                  y1={sy}
-                  x2={tx}
-                  y2={ty}
+                  x1={geom().sx}
+                  y1={geom().sy}
+                  x2={geom().tx}
+                  y2={geom().ty}
                   stroke={explicit ? '#0072b2' : '#5a6068'}
                   stroke-width={explicit ? 2 : 1.5}
                   stroke-dasharray={explicit ? undefined : '4 3'}
                   marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
                 <g
-                  transform={`translate(${mid.x}, ${mid.y})`}
+                  transform={`translate(${geom().mid.x}, ${geom().mid.y})`}
                   class="lens-edge-label-group"
                   classList={{
                     'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
@@ -244,10 +287,10 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   }}
                 >
                   <rect
-                    x={-box.w / 2}
-                    y={-box.h / 2}
-                    width={box.w}
-                    height={box.h}
+                    x={-box().w / 2}
+                    y={-box().h / 2}
+                    width={box().w}
+                    height={box().h}
                     rx="4"
                     ry="4"
                     fill="#ffffff"
@@ -259,6 +302,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     text-anchor="middle"
                     dominant-baseline="middle"
                     fill={explicit ? '#0072b2' : undefined}
+                    style={{ 'font-size': `${10 / view().scale}px` }}
                   >
                     {edge.label}
                   </text>
@@ -271,14 +315,16 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* connect モード中の rubber-band */}
         <Show when={drag()?.kind === 'connect'}>
           {(_) => {
-            const d = drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number };
-            const s = pos(d.source);
+            // PR (ux-overhaul-3): drag() を memo にして mousemove に追随させる
+            const dm = createMemo(
+              () => drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number },
+            );
             return (
               <line
-                x1={s.x}
-                y1={s.y}
-                x2={d.toX}
-                y2={d.toY}
+                x1={pos(dm().source).x}
+                y1={pos(dm().source).y}
+                x2={dm().toX}
+                y2={dm().toY}
                 stroke="#0072b2"
                 stroke-width="2"
                 stroke-dasharray="6 4"
@@ -289,10 +335,43 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
           }}
         </Show>
 
+        {/* comments (nodes より下に描画して、ノードを背景色で囲うイメージ) */}
+        <For each={GraphComments.comments()}>
+          {(c) => (
+            <CommentRect
+              comment={c}
+              onMoveStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-move',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cx: c.x,
+                  cy: c.y,
+                });
+              }}
+              onResizeStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-resize',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cw: c.width,
+                  ch: c.height,
+                });
+              }}
+            />
+          )}
+        </For>
+
         {/* nodes */}
         <For each={props.payload.nodes}>
           {(node) => {
-            const p = pos(node.id);
+            // PR (ux-overhaul-3): pos を memo にして props.positions の変化を tracked。
+            // For 子は 1 回しか走らないので、pos を let const で読むと初期値で固まる。
+            const p = createMemo(() => pos(node.id));
             const isSelected = () => props.selected === node.id;
             const dim = () => isDimmed(node.id);
             const isHover = () => hoverNode() === node.id;
@@ -305,7 +384,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   'lens-node--dimmed': dim(),
                   'lens-node--target-hover': connecting() && isHover(),
                 }}
-                transform={`translate(${p.x}, ${p.y})`}
+                transform={`translate(${p().x}, ${p().y})`}
                 onMouseDown={(e) => onNodeMouseDown(e, node.id)}
                 onMouseEnter={() => setHoverNode(node.id)}
                 onMouseLeave={() => setHoverNode(undefined)}
@@ -373,7 +452,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
                   </Show>
                 </Show>
-                <text class="lens-node-label" y={NODE_RADIUS + 14}>
+                <text
+                  class="lens-node-label"
+                  y={NODE_RADIUS + 14 / view().scale}
+                  style={{ 'font-size': `${11 / view().scale}px` }}
+                >
                   {node.label}
                 </text>
               </g>
@@ -382,6 +465,76 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         </For>
       </g>
     </svg>
+  );
+};
+
+/** SVG 内に foreignObject で配置するメモ box。背景色 + 編集可能 textarea + 角の resize handle。 */
+const CommentRect: Component<{
+  comment: GraphComment;
+  onMoveStart: (e: MouseEvent) => void;
+  onResizeStart: (e: MouseEvent) => void;
+}> = (props) => {
+  return (
+    <g class="lens-comment" transform={`translate(${props.comment.x}, ${props.comment.y})`}>
+      <rect
+        width={props.comment.width}
+        height={props.comment.height}
+        rx="6"
+        ry="6"
+        fill={props.comment.color ?? 'rgba(255, 240, 180, 0.85)'}
+        stroke="rgba(180, 140, 60, 0.6)"
+        stroke-width="1"
+        onMouseDown={props.onMoveStart}
+      />
+      <foreignObject
+        x="0"
+        y="0"
+        width={props.comment.width}
+        height={props.comment.height}
+        pointer-events="none"
+      >
+        <div
+          class="lens-comment-body"
+          style={{ width: `${props.comment.width}px`, height: `${props.comment.height}px` }}
+        >
+          <textarea
+            class="lens-comment-text"
+            value={props.comment.text}
+            onInput={(e) =>
+              GraphComments.update(props.comment.id, { text: e.currentTarget.value })
+            }
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="メモ / グループ説明"
+          />
+          <button
+            type="button"
+            class="lens-comment-delete"
+            title="メモを削除"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm('このメモを削除しますか?')) {
+                GraphComments.remove(props.comment.id);
+              }
+            }}
+          >
+            ×
+          </button>
+        </div>
+      </foreignObject>
+      {/* 右下リサイズハンドル (SVG 上に直接置く — foreignObject の pointer-events は none) */}
+      <rect
+        class="lens-comment-resize"
+        x={props.comment.width - 14}
+        y={props.comment.height - 14}
+        width="14"
+        height="14"
+        fill="rgba(180, 140, 60, 0.6)"
+        rx="2"
+        ry="2"
+        onMouseDown={props.onResizeStart}
+        style={{ cursor: 'nwse-resize' }}
+      />
+    </g>
   );
 };
 

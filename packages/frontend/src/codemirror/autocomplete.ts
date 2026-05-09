@@ -52,8 +52,8 @@ export function scriptAutocomplete(sources: ScriptCompletionSources): Extension 
           };
         }
 
-        // emotion: 補完
-        const emoMatch = /emotion:\s*([A-Za-z0-9_-]*)$/.exec(before);
+        // emotion: 補完 (日本語値もある = Unicode 文字を許容)
+        const emoMatch = /emotion:\s*([^\s,}]*)$/.exec(before);
         if (emoMatch) {
           const partial = emoMatch[1] ?? '';
           const fromPos = context.pos - partial.length;
@@ -63,7 +63,7 @@ export function scriptAutocomplete(sources: ScriptCompletionSources): Extension 
               label: tag,
               type: 'enum',
             })),
-            validFor: /^[A-Za-z0-9_-]*$/,
+            validFor: /^[^\s,}]*$/,
           };
         }
 

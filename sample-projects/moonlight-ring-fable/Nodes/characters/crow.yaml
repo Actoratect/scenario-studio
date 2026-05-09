@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONCROW01T6YV3Q8LM2PW
+templateId: template.character
+slug: crow
+fields:
+  gender: unknown
+  tone: witty
+  display_name: クロウ
+  reading: くろう
+  dev_name: Crow
+  birth_year: 0
+  height: 170
+  appearance: 黒いロングコートとホログラムマイク。常に空撮ドローンを連れている。
+  personality: 皮肉屋の実況者。視点は冷静だが、面白いものには全力で乗る。
+  first_person: 私

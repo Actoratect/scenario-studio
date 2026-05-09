@@ -6,7 +6,6 @@ import { SolidPanelView } from './dockview/SolidPanelView';
 import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
 import { EraTimelinePanel } from './panels/EraTimelinePanel';
-import { GlossaryPanel } from './panels/GlossaryPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { InspectorPanel } from './panels/InspectorPanel';
 import { OutlinePanel } from './panels/OutlinePanel';
@@ -30,8 +29,11 @@ import { ShortcutsOverlay } from './global/ShortcutsOverlay';
 import { UnityReadinessOverlay } from './global/UnityReadinessOverlay';
 import { PanelFocus } from './services/PanelFocus';
 import { AiPatchQueue } from './services/AiPatchQueue';
+import { DirtyTracker } from './services/DirtyTracker';
+import { FontScaleService } from './services/FontScale';
 import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
+import { ScriptHistoryService } from './services/ScriptHistoryService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
 
@@ -58,7 +60,6 @@ const PANEL_REGISTRY = {
   script: ScriptPanel,
   bench: BenchmarkPanel,
   console: ConsolePanel,
-  glossary: GlossaryPanel,
   ai: AiPanel,
   settings: SettingsPanel,
   timeline: PlotTimelinePanel,
@@ -110,9 +111,32 @@ export const WorkspaceShell: Component = () => {
   // 起動時に SaveScheduler を初期化 (lazy 生成だが、close 時に dispose したいので参照を持つ)
   useSaveScheduler();
 
+  /** Cmd+S / 保存ボタンから呼ぶ。Node 編集 + ファイル編集の両方を flush する。 */
+  async function saveAllDirty(): Promise<void> {
+    const sched = useSaveScheduler();
+    const nodeCount = sched.pendingCount;
+    sched.flushAll();
+    const fileResult = await DirtyTracker.flushAll();
+    const totalSaved = nodeCount + fileResult.saved;
+    if (fileResult.failed > 0) {
+      Toast.error(`保存失敗: ${fileResult.failed} 件 (${fileResult.errors.join(' / ')})`);
+    } else if (totalSaved > 0) {
+      Toast.success(`保存しました (${totalSaved} 件)`, 1500);
+    } else {
+      Toast.info('変更はありません', 1200);
+    }
+  }
+
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName.toLowerCase();
+    return target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select';
+  }
+
   function onKeydown(e: KeyboardEvent): void {
     const meta = e.ctrlKey || e.metaKey;
     if (!meta) return;
+    const key = e.key.toLowerCase();
     const ctx = ProjectService.currentProject();
     // Cmd+K: コマンド/検索 palette (project が無くても開けるが候補は空になる)
     if (e.key === 'k') {
@@ -157,12 +181,10 @@ export const WorkspaceShell: Component = () => {
       return;
     }
     if (!ctx) return;
-    // Cmd+S: 即時 flush
+    // Cmd+S: 全 dirty を保存
     if (e.key === 's') {
       e.preventDefault();
-      const sched = useSaveScheduler();
-      sched.flushAll();
-      Toast.success('保存しました', 1500);
+      void saveAllDirty();
       return;
     }
     // Cmd+E: Export ダイアログ
@@ -171,11 +193,15 @@ export const WorkspaceShell: Component = () => {
       ExportDialog.toggle();
       return;
     }
-    if (e.key === 'z' && !e.shiftKey) {
+    if (key === 'z' && !e.shiftKey) {
+      if (isEditableTarget(e.target)) return;
       e.preventDefault();
+      if (ScriptHistoryService.undo()) return;
       ctx.history.undo();
-    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+    } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+      if (isEditableTarget(e.target)) return;
       e.preventDefault();
+      if (ScriptHistoryService.redo()) return;
       ctx.history.redo();
     }
   }
@@ -213,12 +239,6 @@ export const WorkspaceShell: Component = () => {
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
-      id: 'glossary-1',
-      component: 'glossary',
-      title: '📘 用語集',
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
       id: 'console-1',
       component: 'console',
       title: '⚠ コンソール',
@@ -251,7 +271,7 @@ export const WorkspaceShell: Component = () => {
     a.addPanel({
       id: 'era-timeline-1',
       component: 'era-timeline',
-      title: '⏳ Era 年表',
+      title: '⏳ 時間軸 年表',
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   }
@@ -266,14 +286,34 @@ export const WorkspaceShell: Component = () => {
     Toast.success('レイアウトを初期化しました');
   }
 
+  /** ブラウザ閉じ・タブリロード時の未保存ガード (PR: ux-overhaul)。 */
+  function onBeforeUnload(e: BeforeUnloadEvent): void {
+    const dirty = DirtyTracker.count() + useSaveScheduler().pendingCount;
+    if (dirty > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  }
+
   onMount(() => {
     window.addEventListener('keydown', onKeydown);
+    window.addEventListener('beforeunload', onBeforeUnload);
     if (!host) return;
     api = createDockview(host, {
       className: 'dockview-theme-light',
       createComponent: (options: CreateComponentOptions): IContentRenderer => {
         if (!isPanelName(options.name)) {
-          throw new Error(`Unknown Dockview component: ${options.name}`);
+          // 廃止された panel (例: glossary) が localStorage 由来で復元しようとされた場合は
+          // 「削除済」placeholder で安全に descend する。Dockview は close() で消せる。
+          console.warn(
+            `[WorkspaceShell] unknown panel "${options.name}" — placeholder で表示します。タブを閉じてください。`,
+          );
+          return new SolidPanelView(() => (
+            <div class="panel-content panel-deprecated">
+              <p>このパネル ({options.name}) は廃止されました。</p>
+              <p>タブの × で閉じてください。</p>
+            </div>
+          ));
         }
         return new SolidPanelView(PANEL_REGISTRY[options.name]);
       },
@@ -309,6 +349,7 @@ export const WorkspaceShell: Component = () => {
 
   onCleanup(() => {
     window.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('beforeunload', onBeforeUnload);
     disposeSaveScheduler();
     PanelFocus.unregister();
     api?.dispose();
@@ -321,7 +362,41 @@ export const WorkspaceShell: Component = () => {
           {ProjectService.currentProject()?.project.settings.name ?? 'Scenario Studio'}
         </span>
         <EraSlider />
+        <button
+          class="workspace-save"
+          classList={{
+            'workspace-save--dirty':
+              DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0,
+          }}
+          onClick={() => void saveAllDirty()}
+          title="変更を保存 (Cmd+S)"
+        >
+          💾 保存
+          <Show when={DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0}>
+            <span class="workspace-save-count">
+              {DirtyTracker.count() + useSaveScheduler().pendingCount}
+            </span>
+          </Show>
+        </button>
         <SaveStatusBadge />
+        <span class="workspace-script-history">
+          <button
+            class="workspace-export workspace-script-history-btn"
+            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canUndo()}
+            onClick={() => ScriptHistoryService.undo()}
+            title="脚本を戻す (Ctrl+Z)"
+          >
+            脚本戻る
+          </button>
+          <button
+            class="workspace-export workspace-script-history-btn"
+            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canRedo()}
+            onClick={() => ScriptHistoryService.redo()}
+            title="脚本を進める (Ctrl+Y / Ctrl+Shift+Z)"
+          >
+            脚本進む
+          </button>
+        </span>
         <button
           class="workspace-export workspace-health"
           classList={{
@@ -388,13 +463,41 @@ export const WorkspaceShell: Component = () => {
           ⤓ Export
         </button>
         <button
+          class="workspace-export workspace-font-scale"
+          onClick={() => FontScaleService.cycle()}
+          title={`フォントサイズ切替 (現在: ${FontScaleService.scale()})`}
+        >
+          A{' '}
+          {FontScaleService.scale() === 'small'
+            ? '−'
+            : FontScaleService.scale() === 'medium'
+              ? '·'
+              : FontScaleService.scale() === 'large'
+                ? '+'
+                : '++'}
+        </button>
+        <button
           class="workspace-export"
           onClick={resetLayout}
           title="Dockview レイアウトを初期状態に戻す"
         >
           ⟳
         </button>
-        <button class="workspace-close" onClick={() => ProjectService.close()}>
+        <button
+          class="workspace-close"
+          onClick={() => {
+            const dirty = DirtyTracker.count() + useSaveScheduler().pendingCount;
+            if (
+              dirty > 0 &&
+              !window.confirm(
+                `未保存の変更が ${dirty} 件あります。保存せずに閉じますか? (Cmd+S で保存)`,
+              )
+            ) {
+              return;
+            }
+            ProjectService.close();
+          }}
+        >
           プロジェクトを閉じる
         </button>
       </header>

@@ -1,4 +1,4 @@
-import { createMemo, For, Match, Show, Switch } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -11,7 +11,8 @@ import { NodeThumbnail } from '../global/NodeThumbnail';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
-import { scanGlossary } from '../services/GlossaryHighlight';
+import { deriveGlossary, scanGlossary } from '../services/GlossaryHighlight';
+import { KNOWN_EMOTIONS, emotionLabel } from './emotions';
 
 // 脚本のブロック視覚エディタ (PR-AA)。
 // YAML を見せず、各 script item を「カード」として描画。
@@ -40,6 +41,8 @@ export interface ScriptVisualEditorProps {
   onMoveBlock: (idx: number, delta: -1 | 1) => void;
   /** kind 指定で新規ブロックを末尾に追加。 */
   onAppendBlock: (kind: ScriptBlock['kind']) => void;
+  /** 指定 index に新規ブロックを挿入 (途中挿入)。kind 別の default は親が組み立てる。 */
+  onInsertBlock: (index: number, kind: ScriptBlock['kind']) => void;
 }
 
 /**
@@ -63,7 +66,7 @@ function buildBlockAiContext(
   if (after && 'text' in after && typeof after.text === 'string') {
     surrounding.push(`後: ${after.text}`);
   }
-  const glossaryTerms = (ctx?.project.glossary ?? []).map((g) => g.term);
+  const glossaryTerms = ctx ? deriveGlossary(ctx.project).map((g) => g.term) : [];
   return {
     target: {
       kind: 'script-block',
@@ -107,27 +110,36 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
   return (
     <div class="ss-script-visual">
       <div class="ss-script-visual-blocks">
-        <For
-          each={props.parsed.blocks}
+        <Show
+          when={props.parsed.blocks.length > 0}
           fallback={
             <p class="ss-script-visual-empty">ブロック無し。下のボタンから追加してください。</p>
           }
         >
-          {(block, i) => (
-            <ScriptBlockCard
-              block={block}
-              idx={i()}
-              total={props.parsed.blocks.length}
-              cast={props.parsed.cast}
-              parsed={props.parsed}
-              chapterSlug={props.chapterSlug}
-              sceneSlug={props.sceneSlug}
-              onChange={(next) => props.onChangeBlock(i(), next)}
-              onDelete={() => props.onDeleteBlock(i())}
-              onMove={(delta) => props.onMoveBlock(i(), delta)}
-            />
-          )}
-        </For>
+          {/* 各ブロック前に「＋ 挿入」hover bar を入れる。最後のブロック後ろにも 1 個。
+           *  PR (ux-overhaul-3): For → Index に変更。block の identity が変わっても DOM を
+           *  保持するので、textarea を編集しても再 mount されず cursor が飛ばない。 */}
+          <InsertBar index={0} onInsert={(k) => props.onInsertBlock(0, k)} />
+          <Index each={props.parsed.blocks}>
+            {(block, i) => (
+              <>
+                <ScriptBlockCard
+                  block={block()}
+                  idx={i}
+                  total={props.parsed.blocks.length}
+                  cast={props.parsed.cast}
+                  parsed={props.parsed}
+                  chapterSlug={props.chapterSlug}
+                  sceneSlug={props.sceneSlug}
+                  onChange={(next) => props.onChangeBlock(i, next)}
+                  onDelete={() => props.onDeleteBlock(i)}
+                  onMove={(delta) => props.onMoveBlock(i, delta)}
+                />
+                <InsertBar index={i + 1} onInsert={(k) => props.onInsertBlock(i + 1, k)} />
+              </>
+            )}
+          </Index>
+        </Show>
       </div>
       <div class="ss-script-visual-add">
         <span class="ss-script-visual-add-label">＋ ブロック追加:</span>
@@ -145,6 +157,54 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
           )}
         </For>
       </div>
+    </div>
+  );
+};
+
+/**
+ * ブロック間に表示する「＋ ここに挿入」hover bar。クリックで kind 選択メニューが開く。
+ * 通常は薄く目立たない (hover で背景色付き)。
+ */
+const InsertBar: Component<{
+  index: number;
+  onInsert: (kind: ScriptBlock['kind']) => void;
+}> = (props) => {
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  return (
+    <div
+      class="ss-script-insert-bar"
+      classList={{ 'ss-script-insert-bar--open': menuOpen() }}
+      onMouseLeave={() => setMenuOpen(false)}
+    >
+      <button
+        type="button"
+        class="ss-script-insert-bar-trigger"
+        onClick={() => setMenuOpen((b) => !b)}
+        title={`位置 ${props.index} にブロックを挿入`}
+        aria-label={`位置 ${props.index} にブロックを挿入`}
+      >
+        ＋
+      </button>
+      <Show when={menuOpen()}>
+        <div class="ss-script-insert-bar-menu">
+          <For each={ADDABLE_KINDS}>
+            {(k) => (
+              <button
+                type="button"
+                class="ss-script-insert-bar-item"
+                data-color={KIND_META[k].color}
+                onClick={() => {
+                  props.onInsert(k);
+                  setMenuOpen(false);
+                }}
+                title={`${KIND_META[k].label} を挿入`}
+              >
+                {KIND_META[k].icon} {KIND_META[k].label}
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
     </div>
   );
 };
@@ -266,12 +326,8 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           class="ss-script-card-delete"
-          onClick={() => {
-            if (window.confirm(`${KIND_META[props.block.kind].label} ブロックを削除しますか?`)) {
-              props.onDelete();
-            }
-          }}
-          title="削除"
+          onClick={() => props.onDelete()}
+          title="削除 (確認なし — 取り消しは Ctrl+Z)"
         >
           ×
         </button>
@@ -280,17 +336,68 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   );
 };
 
-const KNOWN_EMOTIONS: readonly string[] = [
-  '',
-  'happy',
-  'sad',
-  'angry',
-  'tired',
-  'suspicious',
-  'surprised',
-  'embarrassed',
-  'calm',
-];
+/** PR (ux-overhaul-5): 最終 Stable textarea。
+ *
+ *  ScriptPanel が createStore + produce + in-place mutation で fine-grained reactivity を
+ *  実現済み。textarea は value bind を完全に外して uncontrolled として扱い、
+ *  外部更新だけを ref 経由で同期する。
+ *
+ *  原則:
+ *    - 初回マウント時に ref.value = props.value
+ *    - createEffect で props.value 変化を監視。composing 中でなく、DOM の現在値と
+ *      props.value が異なる時だけ ref.value = v (= 外部更新時のみ)
+ *    - ユーザー入力 (onInput) は composing でなければ親に通知
+ *    - IME composition (onCompositionStart/End) で composing flag。中の input は ignore
+ */
+const StableTextarea: Component<{
+  class?: string;
+  rows?: string;
+  value: string;
+  placeholder?: string;
+  onInput: (value: string) => void;
+  onContextMenu?: (e: MouseEvent) => void;
+}> = (props) => {
+  let ref: HTMLTextAreaElement | undefined;
+  let composing = false;
+  // 外部 value 変化のみ DOM に反映 (DEV: 強制 sync 時にログ → cursor 飛び事案を可視化)
+  createEffect(() => {
+    const v = props.value ?? '';
+    if (composing) return;
+    if (ref && ref.value !== v) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('[StableTextarea] external sync', {
+          dom: ref.value,
+          newValue: v,
+        });
+      }
+      ref.value = v;
+    }
+  });
+  return (
+    <textarea
+      ref={(el) => {
+        ref = el;
+        if (el) el.value = props.value ?? '';
+      }}
+      class={props.class}
+      rows={props.rows}
+      placeholder={props.placeholder}
+      onCompositionStart={() => {
+        composing = true;
+      }}
+      onCompositionEnd={(e) => {
+        composing = false;
+        props.onInput((e.currentTarget as HTMLTextAreaElement).value);
+      }}
+      onInput={(e) => {
+        if (composing) return;
+        props.onInput(e.currentTarget.value);
+      }}
+      onContextMenu={(e) => props.onContextMenu?.(e)}
+    />
+  );
+};
 
 const CharacterLine: Component<{
   block: ScriptBlock & { kind: 'line' | 'action' };
@@ -345,21 +452,31 @@ const CharacterLine: Component<{
               props.onChange(next);
             }}
           >
-            <For each={KNOWN_EMOTIONS}>
-              {(e) => <option value={e}>{e === '' ? '— 感情 —' : e}</option>}
-            </For>
+            <option value="">— 感情 —</option>
+            {/* 既存値が KNOWN_EMOTIONS に無い場合 (英語値 / 自由入力) は最上段に表示 */}
+            <Show
+              when={(() => {
+                const cur = (props.block as { emotion?: string }).emotion ?? '';
+                return cur !== '' && !KNOWN_EMOTIONS.includes(cur);
+              })()}
+            >
+              <option value={(props.block as { emotion?: string }).emotion ?? ''}>
+                {emotionLabel((props.block as { emotion?: string }).emotion ?? '')}
+              </option>
+            </Show>
+            <For each={KNOWN_EMOTIONS}>{(e) => <option value={e}>{e}</option>}</For>
           </select>
         </Show>
         <Show when={props.block.kind === 'action'}>
           <span class="ss-script-line-action-tag">行動</span>
         </Show>
       </div>
-      <textarea
+      <StableTextarea
         class="ss-script-line-text"
         rows="2"
         value={props.block.text}
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -389,12 +506,12 @@ const AsideBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-aside-text"
         rows="2"
         value={props.block.text}
         placeholder="心の声 / 独白を入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -424,12 +541,12 @@ const StageBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-stage-text"
         rows="2"
         value={props.block.text}
         placeholder="状況描写 / ステージを入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -577,7 +694,7 @@ const UnknownBlockView: Component<{ block: ScriptBlock & { kind: 'unknown' } }> 
 const GlossaryChips: Component<{ text: string }> = (props) => {
   const result = createMemo(() => {
     const ctx = ProjectService.currentProject();
-    const glossary = ctx?.project.glossary ?? [];
+    const glossary = ctx ? deriveGlossary(ctx.project) : [];
     return scanGlossary(props.text, glossary);
   });
   return (

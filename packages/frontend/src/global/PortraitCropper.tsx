@@ -24,6 +24,9 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
   const [dragMode, setDragMode] = createSignal<DragMode>(undefined);
   const [hoverDrop, setHoverDrop] = createSignal(false);
   const [imgSize, setImgSize] = createSignal<{ w: number; h: number } | undefined>(undefined);
+  // PR (ux-overhaul): 通常は読み取り専用 (画像 + サムネ枠グレー線のみ)。
+  // 「✎ サムネ範囲を調整」を押した時だけ crop UI (マスク・ドラッグ可) になる。
+  const [editing, setEditing] = createSignal(false);
 
   // node.thumbnail を URL に解決。
   // 注意: createResource は source が falsy だと fetcher を呼ばず前回値を保持する。
@@ -38,15 +41,53 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     return ThumbnailService.resolveUrl(src.thumbnail);
   });
 
-  // crop rect (0..1 normalized)。空 default で開始し、node 切替で createEffect 経由 sync。
+  // crop rect (0..1 normalized)。空 default で開始し、node 切替 / image load で sync。
   const [rect, setRect] = createSignal<ThumbnailRect>({ x: 0, y: 0, size: 1 });
+
+  /**
+   * 画像 dims が判明している時点で rect を **真の正方形が image 内に収まる範囲** に
+   * クランプする。size は image WIDTH の 0..1 で、square 高さ = size / aspectWH。
+   * 縦長画像 (aspectWH < 1) で size=1 のままだと sizeInH > 1 になり、Y 移動が
+   * マイナス領域に clamp されて「下に動かない」「resize で一気に縮む」バグになる。
+   * 初期化時に必ず通すことで両症状を絶つ。
+   */
+  function clampRectToImage(raw: ThumbnailRect, img: { w: number; h: number }): ThumbnailRect {
+    const aspectWH = img.w / img.h; // 縦長 → < 1, 横長 → > 1
+    // size を maxFitSize にすると square が image 高さ / 幅いっぱいになり、
+    // y / x の移動余地が 0 になる → 「下に動かせない」「resize で広げられない」
+    // 症状になる。デフォルト未指定の場合は意図的に小さくして余地を残す。
+    const maxFitSize = Math.max(0.05, Math.min(1, aspectWH));
+    const isUninit = raw.size >= 0.999 && raw.x <= 0.001 && raw.y <= 0.001;
+    let size: number;
+    let xRaw: number;
+    let yRaw: number;
+    if (isUninit) {
+      // 中央 50% 幅の square + 上寄せ (= 顔位置の目安) を初期値に
+      size = Math.min(maxFitSize, 0.5);
+      xRaw = (1 - size) / 2;
+      yRaw = 0.08;
+    } else {
+      size = Math.max(0.05, Math.min(raw.size, maxFitSize));
+      xRaw = raw.x;
+      yRaw = raw.y;
+    }
+    const sizeInH = size / aspectWH;
+    const maxX = Math.max(0, 1 - size);
+    const maxY = Math.max(0, 1 - sizeInH);
+    return {
+      x: Math.max(0, Math.min(maxX, xRaw)),
+      y: Math.max(0, Math.min(maxY, yRaw)),
+      size,
+    };
+  }
 
   // node が切り替わったら rect を再 initialize
   createEffect(() => {
-    // props.node.id を tracked dependency にして node 切替を検知
     const _id = props.node.id;
     void _id;
-    setRect(props.node.thumbnailRect ?? { x: 0, y: 0, size: 1 });
+    const stored = props.node.thumbnailRect ?? { x: 0, y: 0, size: 1 };
+    const img = imgSize();
+    setRect(img ? clampRectToImage(stored, img) : stored);
   });
 
   // 描画サイズ計算: width に揃え、画像アスペクトで height を決定
@@ -59,9 +100,16 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
 
   function onImgLoad(e: Event): void {
     const img = e.currentTarget as HTMLImageElement;
-    setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+    const dims = { w: img.naturalWidth, h: img.naturalHeight };
+    setImgSize(dims);
+    // image dims が判明したタイミングで rect も再クランプ
+    setRect((cur) => clampRectToImage(cur, dims));
   }
 
+  // crop rect の意味: x/y は画像 (width/height) の 0..1。
+  // size は画像 WIDTH の 0..1 (= 正方形の 1 辺、pixel ベースで真の正方形)。
+  // 表示時の正方形高さ = size * displayWidth (= size * imgW * displayScale)。
+  // → display での縦 fraction は size * (imgW / imgH)。
   function startDrag(e: MouseEvent, mode: NonNullable<DragMode>): void {
     e.preventDefault();
     e.stopPropagation();
@@ -70,28 +118,41 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     const startY = e.clientY;
     const startRect = rect();
     const sz = displaySize();
-    if (!sz) return;
+    const img = imgSize();
+    if (!sz || !img) return;
+    const aspectWH = img.w / img.h; // 画像の幅÷高さ
+
+    // image 内に収まる正方形の最大 size (= image WIDTH の 0..1)
+    const absoluteMaxSize = Math.max(0.05, Math.min(1, aspectWH));
 
     function onMove(ev: MouseEvent): void {
-      const dx = (ev.clientX - startX) / sz!.w;
-      const dy = (ev.clientY - startY) / sz!.h;
+      // dx は表示幅基準 = 画像幅基準 (width fraction)
+      const dxW = (ev.clientX - startX) / sz!.w;
+      const dyH = (ev.clientY - startY) / sz!.h;
       if (mode === 'move') {
-        const nx = clamp01(startRect.x + dx, 0, 1 - startRect.size);
-        const ny = clamp01(startRect.y + dy, 0, 1 - startRect.size);
+        // 正方形高さ (height fraction) = size / aspectWH
+        const sizeInH = startRect.size / aspectWH;
+        const nx = clamp01(startRect.x + dxW, 0, Math.max(0, 1 - startRect.size));
+        const ny = clamp01(startRect.y + dyH, 0, Math.max(0, 1 - sizeInH));
         setRect({ x: nx, y: ny, size: startRect.size });
       } else if (mode === 'resize-br') {
-        // 拡大は dx + dy の平均で。最小 0.1、最大 1 - rect.x or 1 - rect.y
-        const delta = (dx + dy) / 2;
-        const maxSize = Math.min(1 - startRect.x, 1 - startRect.y);
-        const newSize = clamp01(startRect.size + delta, 0.1, maxSize);
-        setRect({ x: startRect.x, y: startRect.y, size: newSize });
+        // 正方形を維持: dx (width 単位) を採用。
+        // 上限は absoluteMaxSize (= image 内に square が必ず収まる絶対値)。
+        // 大きくしたら image 端を超える場合は x/y を auto-adjust して残す。
+        const delta = dxW;
+        const newSize = Math.max(0.1, Math.min(absoluteMaxSize, startRect.size + delta));
+        const newSizeInH = newSize / aspectWH;
+        const newX = Math.min(startRect.x, Math.max(0, 1 - newSize));
+        const newY = Math.min(startRect.y, Math.max(0, 1 - newSizeInH));
+        setRect({ x: newX, y: newY, size: newSize });
       }
     }
     function onUp(): void {
       setDragMode(undefined);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      props.onChange(rect());
+      // PR (ux-overhaul-3): drag 終了では onChange を呼ばない (= 自動保存しない)。
+      // ユーザーが「✓ 調整完了」ボタンを押した時に最終 rect を親に通知する。
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -126,13 +187,6 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     props.onChange(next);
   }
 
-  function squareRect(): void {
-    // 中央に 60% の正方形クロップを置く
-    const next: ThumbnailRect = { x: 0.2, y: 0.05, size: 0.5 };
-    setRect(next);
-    props.onChange(next);
-  }
-
   return (
     <div
       ref={containerRef}
@@ -162,27 +216,32 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
             <img src={u()} alt="" class="ss-portrait-img" onLoad={onImgLoad} draggable={false} />
             <Show when={displaySize()}>
               {(sz) => (
-                // 注意: rect() / sz() は style 属性式の中で読むことで、
-                // ドラッグ中の setRect に反応して left/top/width/height が更新される。
-                // 関数本体で `const r = rect()` と先に読んでしまうと、Show の children は
-                // 一度しか再評価されず drag 中に位置が更新されなくなる (bug 1)。
+                // crop は **真の正方形** (pixel ベースで w === h)。
+                // size は image WIDTH の 0..1 → display 幅 = size * sz.w px、
+                // 高さも同じ px (= 正方形)。これでグラフ・脚本サムネで歪まない。
                 <div
                   class="ss-portrait-crop"
-                  classList={{ 'ss-portrait-crop--dragging': dragMode() !== undefined }}
+                  classList={{
+                    'ss-portrait-crop--dragging': dragMode() !== undefined,
+                    'ss-portrait-crop--editing': editing(),
+                    'ss-portrait-crop--readonly': !editing(),
+                  }}
                   style={{
                     left: `${rect().x * sz().w}px`,
                     top: `${rect().y * sz().h}px`,
                     width: `${rect().size * sz().w}px`,
-                    height: `${rect().size * sz().h}px`,
+                    height: `${rect().size * sz().w}px`,
                   }}
-                  onMouseDown={(e) => startDrag(e, 'move')}
-                  title="ドラッグでサムネ位置を移動"
+                  onMouseDown={(e) => editing() && startDrag(e, 'move')}
+                  title={editing() ? 'ドラッグでサムネ位置を移動' : '✎ ボタンで調整モードへ'}
                 >
-                  <div
-                    class="ss-portrait-crop-handle"
-                    onMouseDown={(e) => startDrag(e, 'resize-br')}
-                    title="ドラッグでサムネサイズを変更"
-                  />
+                  <Show when={editing()}>
+                    <div
+                      class="ss-portrait-crop-handle"
+                      onMouseDown={(e) => startDrag(e, 'resize-br')}
+                      title="ドラッグでサムネサイズを変更 (正方形を維持)"
+                    />
+                  </Show>
                 </div>
               )}
             </Show>
@@ -190,24 +249,39 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
         )}
       </Show>
       <div class="ss-portrait-actions">
-        <span class="ss-portrait-actions-label">サムネ登録:</span>
-        <button
-          type="button"
-          class="ss-portrait-action"
-          onClick={resetRect}
-          title="画像全体をサムネとして登録"
-        >
-          📐 全身
-        </button>
-        <button
-          type="button"
-          class="ss-portrait-action"
-          onClick={squareRect}
-          title="顔まわりサイズのプリセットでサムネ登録"
-        >
-          🙂 顔
-        </button>
-        <span class="ss-portrait-hint">枠を drag で位置、右下ハンドルでサイズ調整</span>
+        <Show when={url()}>
+          <button
+            type="button"
+            class="ss-portrait-action"
+            classList={{ 'ss-portrait-action--active': editing() }}
+            onClick={() => {
+              const next = !editing();
+              setEditing(next);
+              // PR (ux-overhaul-3): 編集モード終了時に rect を親に通知 (= 保存ステージング)
+              if (!next) {
+                props.onChange(rect());
+              }
+            }}
+            title={editing() ? '調整完了 (rect を保存)' : 'サムネ範囲を調整'}
+          >
+            {editing() ? '✓ 調整完了' : '✎ サムネ範囲を調整'}
+          </button>
+          <Show when={editing()}>
+            <button
+              type="button"
+              class="ss-portrait-action"
+              onClick={resetRect}
+              title="サムネ範囲を画像全体にリセット (rect を保存)"
+            >
+              ⟲ 全体に戻す
+            </button>
+          </Show>
+        </Show>
+        <Show when={editing()}>
+          <span class="ss-portrait-hint">
+            枠 drag で位置、右下ハンドルでサイズ変更。「✓ 調整完了」で確定 → ヘッダ「💾 保存」で永続化。
+          </span>
+        </Show>
       </div>
     </div>
   );

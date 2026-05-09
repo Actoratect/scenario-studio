@@ -4,6 +4,7 @@ import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
   CHARACTER_TEMPLATE,
   createNode,
+  EVENT_TEMPLATE,
   FACTION_TEMPLATE,
   ITEM_TEMPLATE,
   LOCATION_TEMPLATE,
@@ -26,10 +27,11 @@ import { Toast } from '../services/Toast';
 //       ../../../../Documentation/ScenarioEditor/20_phase1_implementation_plan.md M4
 
 const NEW_NODE_TEMPLATES: ReadonlyArray<{ template: TemplateDefinition; label: string }> = [
-  { template: CHARACTER_TEMPLATE, label: 'Character' },
-  { template: LOCATION_TEMPLATE, label: 'Location' },
-  { template: ITEM_TEMPLATE, label: 'Item' },
-  { template: FACTION_TEMPLATE, label: 'Faction' },
+  { template: CHARACTER_TEMPLATE, label: 'キャラ' },
+  { template: LOCATION_TEMPLATE, label: '舞台' },
+  { template: ITEM_TEMPLATE, label: '物品' },
+  { template: FACTION_TEMPLATE, label: '組織' },
+  { template: EVENT_TEMPLATE, label: '出来事・その他' },
 ];
 
 export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) => {
@@ -573,53 +575,75 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             return (
               <Show when={items().length > 0}>
                 <h4 class="panel-outline-subgroup">{template.displayName}</h4>
-                <ul>
+                <ul class="panel-outline-nodes">
                   <For each={items()}>
-                    {(node) => (
-                      <li>
-                        <button
-                          class="panel-outline-node"
-                          classList={{
-                            'panel-outline-node--selected':
-                              SelectionContext.selectedNodeId() === node.id,
-                            'panel-outline-node--multi': multiSelected().has(node.id),
-                          }}
-                          onClick={(e) => {
-                            // Cmd / Ctrl / Shift = multi-select toggle、それ以外は単一選択
-                            if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                              e.preventDefault();
-                              toggleMulti(node.id, true);
-                            } else {
+                    {(node) => {
+                      const display =
+                        typeof node.fields['display_name'] === 'string'
+                          ? (node.fields['display_name'] as string)
+                          : node.slug;
+                      return (
+                        <li>
+                          <button
+                            class="panel-outline-node"
+                            title={`${display} (${node.slug})`}
+                            classList={{
+                              'panel-outline-node--selected':
+                                SelectionContext.selectedNodeId() === node.id,
+                              'panel-outline-node--multi': multiSelected().has(node.id),
+                            }}
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                                e.preventDefault();
+                                toggleMulti(node.id, true);
+                                return;
+                              }
+                              // scroll-to-top 退化防止: 選択直後にパネルが reflow して
+                              // 親 container が先頭に戻る現象を見ているので、
+                              // scrollTop を保存→次フレームで復元する。
+                              const scroller = e.currentTarget.closest(
+                                '.panel-outline-list',
+                              ) as HTMLElement | null;
+                              const savedScroll = scroller?.scrollTop ?? 0;
                               if (multiSelected().size > 0) clearMulti();
                               SelectionContext.selectNode(node.id);
+                              if (scroller) {
+                                requestAnimationFrame(() => {
+                                  if (scroller.scrollTop !== savedScroll) {
+                                    scroller.scrollTop = savedScroll;
+                                  }
+                                });
+                              }
+                            }}
+                            onDragOver={(e) => {
+                              if (e.dataTransfer?.types.includes('Files')) {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'copy';
+                                e.currentTarget.classList.add('panel-outline-node--drop');
+                              }
+                            }}
+                            onDragLeave={(e) =>
+                              e.currentTarget.classList.remove('panel-outline-node--drop')
                             }
-                          }}
-                          onDragOver={(e) => {
-                            // 画像ファイルなら drop 受容
-                            if (e.dataTransfer?.types.includes('Files')) {
+                            onDrop={(e) => {
+                              e.currentTarget.classList.remove('panel-outline-node--drop');
+                              const files = e.dataTransfer?.files;
+                              if (!files || files.length === 0) return;
+                              const file = files[0];
+                              if (!file || !file.type.startsWith('image/')) return;
                               e.preventDefault();
-                              e.dataTransfer.dropEffect = 'copy';
-                              e.currentTarget.classList.add('panel-outline-node--drop');
-                            }
-                          }}
-                          onDragLeave={(e) =>
-                            e.currentTarget.classList.remove('panel-outline-node--drop')
-                          }
-                          onDrop={(e) => {
-                            e.currentTarget.classList.remove('panel-outline-node--drop');
-                            const files = e.dataTransfer?.files;
-                            if (!files || files.length === 0) return;
-                            const file = files[0];
-                            if (!file || !file.type.startsWith('image/')) return;
-                            e.preventDefault();
-                            void ThumbnailService.uploadForNode(node, file, file.name);
-                          }}
-                        >
-                          <NodeThumbnail node={node} size={20} />
-                          <span class="panel-outline-node-label">{node.slug}</span>
-                        </button>
-                      </li>
-                    )}
+                              void ThumbnailService.uploadForNode(node, file, file.name);
+                            }}
+                          >
+                            <NodeThumbnail node={node} size={24} />
+                            <span class="panel-outline-node-label">{display}</span>
+                            <Show when={display !== node.slug}>
+                              <span class="panel-outline-node-sub">{node.slug}</span>
+                            </Show>
+                          </button>
+                        </li>
+                      );
+                    }}
                   </For>
                 </ul>
               </Show>

@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: era
+id: era.race_night
+label: 月光レース当夜
+parent: era.world

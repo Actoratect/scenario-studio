@@ -1,10 +1,11 @@
 import { CHARACTER_TEMPLATE } from './character.js';
+import { EVENT_TEMPLATE } from './event.js';
 import { FACTION_TEMPLATE } from './faction.js';
 import { ITEM_TEMPLATE } from './item.js';
 import { LOCATION_TEMPLATE } from './location.js';
 import type { TemplateDefinition, TemplateId } from './types.js';
 
-// Template の lookup と一覧。MVP は 4 builtin が `BUILTIN_TEMPLATES` に固定登録。
+// Template の lookup と一覧。MVP は 5 builtin が `BUILTIN_TEMPLATES` に固定登録。
 // Phase 3 で「ユーザ定義テンプレート」を `Templates/<custom>.yaml` から動的追加。
 
 export const BUILTIN_TEMPLATES: readonly TemplateDefinition[] = [
@@ -12,6 +13,7 @@ export const BUILTIN_TEMPLATES: readonly TemplateDefinition[] = [
   LOCATION_TEMPLATE,
   ITEM_TEMPLATE,
   FACTION_TEMPLATE,
+  EVENT_TEMPLATE,
 ];
 
 export class TemplateRegistry {

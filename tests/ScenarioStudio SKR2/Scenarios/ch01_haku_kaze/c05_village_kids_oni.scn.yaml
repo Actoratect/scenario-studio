@@ -1,0 +1,56 @@
+schemaVersion: 1
+sceneId: scene.c05_village_kids_oni
+plot:
+  title: 子供達の鬼ごっこ (人里)
+  cast: [youmu]
+  beat: |
+    起 — 人里、子供達が「鬼ごっこの鬼が逃げた、捕まえて!」
+    承 — 妖夢が走り回る (時間制限 1 分のミニゲーム)
+    結 — 捕まえると Bond +1、お礼に飴
+  tension: 0.2
+  status: review
+script:
+  - { kind: bgm, cue: bgm_village_children_play }
+  - { kind: stage, text: 人里、── 茶屋の、横の、空き地。 }
+  - { kind: stage, text: 子供達が、四、五人、ばたばたと、駆けてくる。 }
+
+  - { kind: line, who: 子供A, emotion: excited, text: お姉ちゃん、お姉ちゃん！ }
+  - { kind: line, who: 子供B, emotion: excited, text: 鬼ごっこの、── 鬼が、逃げた！ }
+  - { kind: line, who: 子供A, emotion: excited, text: お姉ちゃん、強いから、捕まえて！ }
+
+  - { kind: aside, who: youmu, text: (……鬼ごっこの、鬼) }
+  - { kind: aside, who: youmu, text: (子供達の、遊び。── 真剣) }
+
+  - { kind: line, who: youmu, emotion: warm, text: ……承知、いたしました。 }
+
+  - { kind: stage, text: 子供達が、茶屋の角の方を、指差す。 }
+  - { kind: stage, text: 角を、ひょい、と、覗くと、── 別の子供 (鬼役) が、舌を、出して、走って、行った。 }
+
+  - { kind: stage, text: 'ミニゲーム: 1 分以内に追いかけて捕まえる。' }
+
+  - { kind: action, who: youmu, text: 妖夢が、扇を、片手に、人里の路地を、走る。 }
+  - { kind: action, who: youmu, text: 半霊が、先に、空中を、滑って、鬼役の進路を、塞ぐ。 }
+
+  - { kind: line, who: 鬼役, emotion: surprised, text: えーっ、半霊さん、ずるいー！ }
+
+  - { kind: stage, text: 妖夢が、鬼役の肩に、軽く、触れる。 }
+
+  - { kind: line, who: youmu, emotion: warm, text: ……つかまえました。 }
+
+  - { kind: action, who: 子供A, text: 子供達が、ぱっ、と、駆けてきて、わぁっ、と、歓声を上げる。 }
+
+  - { kind: line, who: 子供A, emotion: excited, text: ありがとー、お姉ちゃん！ }
+  - { kind: line, who: 子供B, emotion: warm, text: お礼に、── 飴、あげる！ }
+
+  - { kind: action, who: 子供B, text: 子供が、紙にくるんだ、小さな飴を、妖夢の手に、握らせる。 }
+
+  - { kind: aside, who: youmu, text: (……飴) }
+  - { kind: aside, who: youmu, text: (久しぶりに、もらった、── 嬉しい) }
+
+  - { kind: line, who: youmu, emotion: warm, text: ……ありがとうございます。 }
+
+  - { kind: stage, text: 子供達は、また、ばたばたと、別の遊びへ、走っていく。 }
+
+  - { kind: aside, who: youmu, text: (……人里は、賑やかで、── あったかい) }
+
+  - { kind: bgm, cue: bgm_fade_out_warm }

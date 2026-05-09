@@ -44,7 +44,7 @@ describe('ProjectLoader', () => {
     expect(reloaded.project.settings.schemaVersion).toBe(1);
     // M2 で nodes が空 Map で hydrate されること
     expect(reloaded.project.nodes.size).toBe(0);
-    expect(reloaded.templates.list().length).toBe(4); // 4 builtin templates
+    expect(reloaded.templates.list().length).toBe(5); // 5 builtin templates (+ event)
     // M4 で eras / scenario が hydrate される (空 project でも shape が存在)
     expect(reloaded.project.eras.all()).toEqual([]);
     expect(reloaded.project.scenario.chapters).toEqual([]);

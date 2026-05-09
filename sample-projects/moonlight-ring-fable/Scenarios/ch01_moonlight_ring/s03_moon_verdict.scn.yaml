@@ -1,0 +1,18 @@
+schemaVersion: 1
+sceneId: scene.s03_moon_verdict
+plot:
+  title: '月光の判定'
+  cast: [rabi, noro, crow]
+
+script:
+  - { kind: stage, text: 'ゴールゲート。ラピが先着し、歓声が上がる。数分後、ノロが到着。' }
+  - { kind: line, who: rabi, emotion: proud, text: '見ただろ! 俺の圧勝!' }
+  - { kind: line, who: crow, emotion: tense, text: '公式ログ解析中……あれ、これは……' }
+  - { kind: line, who: rabi, emotion: annoyed, text: '「あれ」じゃない。早く発表しろ。' }
+  - { kind: line, who: crow, emotion: shocked, text: '判定結果——優勝、ノロ選手! 理由: 安全優先プロトコル完全履行!' }
+  - { kind: line, who: rabi, emotion: surprised, text: 'は????????' }
+  - { kind: line, who: crow, emotion: excited, text: '月光リング便、勝利条件は「最速着」ではなく「ルーメン・バトンのログ全完了」です! 仕様書3ページ目に記載!' }
+  - { kind: line, who: rabi, emotion: angry, text: '誰も教えてくれなかったんだが!?' }
+  - { kind: line, who: noro, emotion: calm, text: 'バトン受け取ったとき読んだよ。3ページ目まで。' }
+  - { kind: line, who: rabi, emotion: embarrassed, text: '………………' }
+  - { kind: line, who: crow, emotion: happy, text: '視聴者の皆さん、利用規約は最後まで読みましょう。' }

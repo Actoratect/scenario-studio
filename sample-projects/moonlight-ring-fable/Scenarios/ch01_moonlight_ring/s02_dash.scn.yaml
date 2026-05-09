@@ -1,0 +1,22 @@
+schemaVersion: 1
+sceneId: scene.s02_dash
+plot:
+  title: '風切り高架の分岐'
+  cast: [rabi, noro, crow]
+
+script:
+  - { kind: stage, text: '風切り高架。ラピは先行、ノロは一定ペースで追う。' }
+  - { kind: sfx, name: 'metal_creak' }
+  - { kind: line, who: crow, emotion: surprised, text: '高架に亀裂! 安全優先プロトコルの発動条件が整いました!' }
+  - { kind: line, who: rabi, emotion: worried, text: '安全優先プロトコル……? なんか聞いたことある名前だな。' }
+  - { kind: line, who: noro, emotion: determined, text: 'わたしが直す。ラピ、先に行って。' }
+  - { kind: line, who: rabi, emotion: grateful, text: 'ありがとう! (全速で駆ける)' }
+  - {
+      kind: choice,
+      prompt: 'ラピはどうする?',
+      options:
+        [
+          { text: '「安全優先プロトコル」を走りながら検索しようとする', then: scene.s03_moon_verdict },
+          { text: '細かいことは勝ってから考えると決めてゴールへ', then: scene.s03_moon_verdict },
+        ],
+    }

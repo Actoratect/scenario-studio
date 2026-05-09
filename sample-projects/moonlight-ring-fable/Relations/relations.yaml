@@ -1,0 +1,18 @@
+schemaVersion: 1
+kind: relations
+relations:
+  - id: rel.01MOON0001RABI_NORO
+    source: 0101MOONRABI01A7Q6S84K9C2H
+    target: 0101MOONNORO01M4PVN2J7D8GX
+    type: friend
+    label: ライバル
+  - id: rel.01MOON0002NORO_RABI
+    source: 0101MOONNORO01M4PVN2J7D8GX
+    target: 0101MOONRABI01A7Q6S84K9C2H
+    type: friend
+    label: 相棒
+  - id: rel.01MOON0003CROW_RABI
+    source: 0101MOONCROW01T6YV3Q8LM2PW
+    target: 0101MOONRABI01A7Q6S84K9C2H
+    type: friend
+    label: 観察対象

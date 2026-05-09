@@ -3,6 +3,7 @@ import { ProjectService } from './ProjectService.js';
 import { SaveStatus } from './SaveStatus.js';
 import { Toast } from './Toast.js';
 import { ConflictDetector } from './ConflictDetector.js';
+import { DirtyTracker } from './DirtyTracker.js';
 import type { NodeId } from '@scenario-studio/core';
 
 // 「現在開いているプロジェクト」に紐づく SaveScheduler の singleton。
@@ -15,7 +16,6 @@ let scheduler: SaveScheduler | undefined;
 function ensureScheduler(): SaveScheduler {
   if (scheduler) return scheduler;
   const inner = new SaveScheduler({
-    debounceMs: 500,
     flush: async (nodeId: NodeId) => {
       const ctx = ProjectService.currentProject();
       if (!ctx) return;
@@ -43,7 +43,7 @@ function ensureScheduler(): SaveScheduler {
       }
     },
   });
-  // schedule() を proxy して SaveStatus.markPending を発火
+  // schedule() を proxy して SaveStatus.markPending を発火 (dirty 検知用)
   const original = inner.schedule.bind(inner);
   inner.schedule = (id: NodeId) => {
     SaveStatus.markPending();
@@ -61,12 +61,15 @@ export function useSaveScheduler(): SaveScheduler {
 }
 
 /**
- * project close 時に呼ぶ。pending を flush してから destroy。
+ * project close 時に呼ぶ。pending は捨てる (= 保存していない変更は失われる)。
+ * PR (ux-overhaul) 後は明示保存運用なので、ヘッダ側で「未保存があります」確認ダイアログを
+ * 出してから close するのが正しい運用。
  */
 export function disposeSaveScheduler(): void {
-  if (!scheduler) return;
-  scheduler.flushAll();
-  scheduler.destroy();
-  scheduler = undefined;
+  if (scheduler) {
+    scheduler.destroy();
+    scheduler = undefined;
+  }
+  DirtyTracker.reset();
   SaveStatus.reset();
 }

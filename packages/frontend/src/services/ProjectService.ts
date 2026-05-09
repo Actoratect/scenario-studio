@@ -24,7 +24,6 @@ import {
   supportsFileSystemAccess,
   type PickedProject,
 } from '@scenario-studio/adapter-browser';
-import { FF7_SAMPLE } from 'virtual:ff7-sample';
 import {
   rememberProject,
   forgetProject,
@@ -32,6 +31,7 @@ import {
   pinProject,
 } from './recent-projects.js';
 import type { RecentProject } from './recent-projects.js';
+import { GraphComments } from '../graph/graph-comments.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
@@ -94,32 +94,6 @@ export const ProjectService = {
   },
 
   /**
-   * PR-AE: FF7 サンプルプロジェクトをユーザの選んだ空フォルダに展開して開く。
-   * Vite plugin (ff7SamplePlugin) が `virtual:ff7-sample` で渡してくる
-   * ファイルツリーを adapter.write* で書き出してから loadProject() する。
-   */
-  async openFf7Sample(): Promise<OpenProjectContext> {
-    setLastError(undefined);
-    const picked = await pickProjectDirectory({ name: 'FF7 (sample)' });
-
-    const entries = Object.entries(FF7_SAMPLE.files);
-    if (entries.length === 0) {
-      throw new Error(
-        'FF7 サンプルが bundle されていません (vite ビルドの sample-projects/ff7 を確認)',
-      );
-    }
-    for (const [path, entry] of entries) {
-      if (entry.kind === 'text') {
-        await picked.adapter.write(picked.handle, path, entry.text);
-      } else {
-        const bin = base64ToBytes(entry.base64);
-        await picked.adapter.writeBytes(picked.handle, path, bin);
-      }
-    }
-    return await openPicked(picked, await loadProject(picked.adapter, picked.handle));
-  },
-
-  /**
    * Recent リストの 1 件を再 open。permission 拒否や未初期化なら null を返す。
    */
   async openRecent(recent: RecentProject): Promise<OpenProjectContext | null> {
@@ -160,6 +134,7 @@ export const ProjectService = {
     setCurrentProject(undefined);
     setLastError(undefined);
     GraphPositions.clear();
+    GraphComments.clear();
     ThumbnailService.clearAll();
   },
 
@@ -179,14 +154,19 @@ export const ProjectService = {
     // currentProject signal を再 set して subscriber に変更を伝える
     setCurrentProject({ ...ctx });
   },
-};
 
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
+  /**
+   * `ctx.project` 配下を Object.assign で in-place 更新したあとに呼ぶ。
+   * Solid signal は ctx の参照変化を見るため、{ ...ctx } を set し直すことで
+   * ProjectModel に依存する全 memo (Inspector / Outline / Graph / Glossary 等) を
+   * 再評価させる。
+   */
+  touch(): void {
+    const ctx = currentProject();
+    if (!ctx) return;
+    setCurrentProject({ ...ctx });
+  },
+};
 
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放
@@ -216,6 +196,7 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   };
   setCurrentProject(ctx);
   GraphPositions.switchProject(picked.handle.id);
+  GraphComments.switchProject(picked.handle.id);
   // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
   // (load 時点の内容 = 我々が知っている内容)
   void primeConflictBaseline(ctx);

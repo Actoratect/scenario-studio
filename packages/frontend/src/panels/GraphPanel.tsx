@@ -27,6 +27,7 @@ import { SceneSelection } from '../services/SceneSelection';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
+import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
 import { createResource } from 'solid-js';
 
@@ -94,6 +95,8 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     new Set<string>(),
   );
   const [searchQuery, setSearchQuery] = createSignal('');
+  // PR (ux-overhaul-3): 関係 (edge) 表示 toggle
+  const [edgesVisible, setEdgesVisible] = createSignal(true);
 
   function toggleTemplate(templateId: string): void {
     const cur = hiddenTemplates();
@@ -133,12 +136,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const raw = rawLens();
     if (!raw) return undefined;
     const hidden = hiddenTemplates();
-    if (hidden.size === 0) return raw;
+    const showEdges = edgesVisible();
+    if (hidden.size === 0 && showEdges) return raw;
     const visibleNodes = raw.nodes.filter((n) => !hidden.has(n.templateId));
     const visibleIds = new Set<NodeId>(visibleNodes.map((n) => n.id));
-    const visibleEdges = raw.edges.filter(
+    let visibleEdges = raw.edges.filter(
       (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
     );
+    if (!showEdges) visibleEdges = [];
     return { nodes: visibleNodes, edges: visibleEdges };
   });
 
@@ -162,17 +167,23 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return merged;
   });
 
-  // 各ノードのサムネイル URL を解決 (PR-Q)。lens 変化時に再計算。
-  // 注意: createResource の source が falsy だと fetcher が呼ばれないため、
-  // lens() を直接 source にすると初期 undefined → 解決しないまま残るバグがある。
-  // 常に object を返し、fetcher 内で nodes 不在を分岐する。
+  // 各ノードの「正方形 crop 済」サムネ URL を解決 (PR-Q)。
+  // lens / project.nodes 変化時に再計算。グラフは circle clip するので canvas で
+  // pre-render した square をそのまま貼るとアスペクト比が破綻しない。
+  // createResource の source は常に object を返し、fetcher 内で空分岐する
+  // (falsy 時 fetcher 不発火を回避)。
   const [thumbnailUrls] = createResource(
     () => ({ nodes: lens()?.nodes ?? [] }),
     async (src) => {
       const out = new Map<NodeId, string>();
+      const ctx = ProjectService.currentProject();
+      if (!ctx) return out;
       for (const n of src.nodes) {
         if (!n.thumbnail) continue;
-        const url = await ThumbnailService.resolveUrl(n.thumbnail);
+        // graph の LensNode には thumbnailRect が無いので ProjectModel から元 node を引く
+        const fullNode = ctx.project.nodes.get(n.id);
+        if (!fullNode) continue;
+        const url = await ThumbnailService.resolveCroppedUrl(fullNode);
         if (url) out.set(n.id, url);
       }
       return out;
@@ -300,16 +311,27 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
               ⓘ Shift+drag で関係作成
             </span>
-            <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
+            <label class="panel-graph-era-toggle" title="関係 (edge) 線の表示 / 非表示">
+              <input
+                type="checkbox"
+                checked={edgesVisible()}
+                onChange={(e) => setEdgesVisible(e.currentTarget.checked)}
+              />
+              関係を表示
+            </label>
+            <label
+              class="panel-graph-era-toggle"
+              title="現在の時間軸で生存していないノードを薄く表示"
+            >
               <input
                 type="checkbox"
                 checked={eraFilterOn()}
                 disabled={EraContext.isBase()}
                 onChange={(e) => setEraFilterOn(e.currentTarget.checked)}
               />
-              Era フィルタ
+              時間軸フィルタ
               <Show when={EraContext.isBase()}>
-                <span class="panel-graph-hint"> (Era を選択すると有効)</span>
+                <span class="panel-graph-hint"> (時間軸を選択すると有効)</span>
               </Show>
             </label>
           </Show>
@@ -318,6 +340,20 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               ノードクリックで Script に jump · 「次へ」=暗黙 next / 線=choice goto
             </span>
           </Show>
+          <button
+            type="button"
+            class="panel-graph-add-comment"
+            title="グラフに自由メモ (グループ説明など) を追加"
+            onClick={() => {
+              // 画面中央付近に新しいメモを置く (world 座標は単純に 0,0 + ランダム offset)
+              GraphComments.add({
+                x: 40 + Math.random() * 80,
+                y: 40 + Math.random() * 80,
+              });
+            }}
+          >
+            ＋ メモ
+          </button>
           <code class="panel-graph-id">{params.api.id}</code>
         </div>
         {/* PR-AN: 2 段目 — テンプレ別 visibility + ノード検索。

@@ -3,9 +3,8 @@ import type { Accessor } from 'solid-js';
 import type { FieldValue, NodeId } from '@scenario-studio/core';
 
 // 注意: ProjectService / save-scheduler-binding / Toast は accept() の時のみ
-// 動的に import する。これは ProjectService が `virtual:ff7-sample` (Vite plugin
-// 提供) を eager import しており、vitest では解決できないため。
-// テストは scanner / queue API (enqueue/reject) だけを叩けるよう top-level を軽量化する。
+// 動的に import する。これは vitest 環境で eager import を回避し、
+// scanner / queue API (enqueue/reject) だけを叩けるよう top-level を軽量化する。
 
 // PR-AY: AI Patch Queue v1 (UX-6)
 // AI / mechanical 修正提案を「即適用」せず、queue に積んで人間が承認/却下する場。

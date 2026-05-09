@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONNORO01M4PVN2J7D8GX
+templateId: template.character
+slug: noro
+fields:
+  gender: female
+  tone: calm
+  display_name: ノロ
+  reading: のろ
+  dev_name: Noro
+  birth_year: 19
+  height: 152
+  appearance: 甲羅型メカパックを背負った整備士。歩幅は小さいが安定している。
+  personality: 慎重で観察力が高い。焦らず、必要なことを見極める。
+  first_person: わたし

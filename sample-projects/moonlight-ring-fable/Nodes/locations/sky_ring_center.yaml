@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONLOCA01G9ND4RT6JQ1B
+templateId: template.location
+slug: sky_ring_center
+fields:
+  display_name: スカイリング中央
+  reading: すかいりんぐちゅうおう
+  dev_name: Sky Ring Center
+  founded_year: 2
+  description: 空中都市スカイリングの中枢。月光リング便のスタート地点。
