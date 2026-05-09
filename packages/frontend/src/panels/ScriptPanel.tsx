@@ -22,6 +22,7 @@ import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
 import { DirtyTracker } from '../services/DirtyTracker';
 import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
+import { ScriptHistoryService } from '../services/ScriptHistoryService';
 
 // 脚本エディタ Panel。
 // PR-AA: 既定は「視覚編集モード (visual)」— YAML を見せず、各ブロックをカードで描画。
@@ -55,24 +56,8 @@ function loadModePref(): EditorMode {
 //     (= 他のブロックは無関係、Solid が DOM を再 mount しない)
 // シーン切替えで前 scene の staging は残るので「タブ切替で破棄される」苦情も解消。
 const sceneStaging = new Map<string, ParsedScene>();
-// per-scene Undo / Redo スタック (ParsedScene snapshot, 構造クローン)。最大 100 件。
-const HISTORY_LIMIT = 100;
-const sceneHistory = new Map<string, { undo: ParsedScene[]; redo: ParsedScene[] }>();
-
-function getHistory(path: string): { undo: ParsedScene[]; redo: ParsedScene[] } {
-  let h = sceneHistory.get(path);
-  if (!h) {
-    h = { undo: [], redo: [] };
-    sceneHistory.set(path, h);
-  }
-  return h;
-}
-
-/** 純粋な複製 (history snapshot 用)。Store proxy を unwrap してから JSON-clone。 */
-function cloneScene(s: ParsedScene): ParsedScene {
-  const raw = unwrap(s) as ParsedScene;
-  return JSON.parse(JSON.stringify(raw)) as ParsedScene;
-}
+// Store proxy を unwrap してから JSON-clone する共通 helper。
+const cloneScene = ScriptHistoryService.cloneScene;
 
 export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [scene, setScene] = createSignal<SceneRef | undefined>(undefined);
@@ -90,7 +75,6 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   let suppressHistory = false;
   const [saving, setSaving] = createSignal(false);
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
-  const [historyRevision, setHistoryRevision] = createSignal(0);
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
 
@@ -138,25 +122,20 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   const parsed = parsedStore;
 
   /** History snapshot を積む共通処理 (undo/redo 中以外)。 */
-  function touchHistory(): void {
-    setHistoryRevision((v) => v + 1);
-  }
-
-  const activeHistory = createMemo(() => {
-    historyRevision();
+  const canUndo = createMemo(() => {
+    ScriptHistoryService.revision();
     const target = scene();
-    return target ? getHistory(target.path) : undefined;
+    return target ? ScriptHistoryService.canUndo(target.path) : false;
   });
-  const canUndo = createMemo(() => (activeHistory()?.undo.length ?? 0) > 0);
-  const canRedo = createMemo(() => (activeHistory()?.redo.length ?? 0) > 0);
+  const canRedo = createMemo(() => {
+    ScriptHistoryService.revision();
+    const target = scene();
+    return target ? ScriptHistoryService.canRedo(target.path) : false;
+  });
 
   function pushHistory(targetPath: string): void {
     if (suppressHistory) return;
-    const h = getHistory(targetPath);
-    h.undo.push(cloneScene(parsedStore));
-    if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
-    h.redo.length = 0;
-    touchHistory();
+    ScriptHistoryService.push(targetPath, parsedStore);
   }
 
   /** dirty 化 (毎 mutation 後に呼ぶ)。staging を最新の store snapshot で更新。 */
@@ -173,6 +152,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     setScene(ref);
+    ScriptHistoryService.setActivePath(ref.path);
     // staging に既存があればそれを優先 (タブ切替で破棄しないため)
     const staged = sceneStaging.get(ref.path);
     if (staged) {
@@ -243,12 +223,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   function undo(): void {
     const target = scene();
     if (!target) return;
-    const h = getHistory(target.path);
-    const prev = h.undo.pop();
+    const prev = ScriptHistoryService.takeUndo(target.path, parsedStore);
     if (!prev) return;
-    h.redo.push(cloneScene(parsedStore));
-    if (h.redo.length > HISTORY_LIMIT) h.redo.shift();
-    touchHistory();
     suppressHistory = true;
     try {
       setParsedStore(reconcile(prev));
@@ -261,12 +237,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   function redo(): void {
     const target = scene();
     if (!target) return;
-    const h = getHistory(target.path);
-    const next = h.redo.pop();
+    const next = ScriptHistoryService.takeRedo(target.path, parsedStore);
     if (!next) return;
-    h.undo.push(cloneScene(parsedStore));
-    if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
-    touchHistory();
     suppressHistory = true;
     try {
       setParsedStore(reconcile(next));
@@ -442,7 +414,15 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     }
   }
 
+  const historyController = { undo, redo };
+
+  function activateHistoryTarget(): void {
+    ScriptHistoryService.activateController(historyController);
+    ScriptHistoryService.setActivePath(scene()?.path);
+  }
+
   let panelRoot: HTMLDivElement | undefined;
+  let unregisterHistoryController: (() => void) | undefined;
 
   onMount(() => {
     if (!host) return;
@@ -457,6 +437,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     });
     // capture-phase で window に attach すると WorkspaceShell の global Ctrl+Z より先に動く
     window.addEventListener('keydown', onPanelKey, true);
+    unregisterHistoryController = ScriptHistoryService.registerController(historyController);
     const sel = SceneSelection.selected();
     if (sel) {
       const ref = availableScenes().find(
@@ -479,6 +460,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
 
   onCleanup(() => {
     window.removeEventListener('keydown', onPanelKey, true);
+    unregisterHistoryController?.();
     view?.destroy();
   });
 
@@ -489,7 +471,12 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   return (
-    <div class="panel-content panel-script" ref={panelRoot}>
+    <div
+      class="panel-content panel-script"
+      ref={panelRoot}
+      onFocusIn={activateHistoryTarget}
+      onPointerDown={activateHistoryTarget}
+    >
       <div class="panel-script-meta">
         <span>シーン:</span>
         <select

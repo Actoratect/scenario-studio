@@ -33,6 +33,7 @@ import { DirtyTracker } from './services/DirtyTracker';
 import { FontScaleService } from './services/FontScale';
 import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
+import { ScriptHistoryService } from './services/ScriptHistoryService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
 
@@ -126,9 +127,16 @@ export const WorkspaceShell: Component = () => {
     }
   }
 
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName.toLowerCase();
+    return target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select';
+  }
+
   function onKeydown(e: KeyboardEvent): void {
     const meta = e.ctrlKey || e.metaKey;
     if (!meta) return;
+    const key = e.key.toLowerCase();
     const ctx = ProjectService.currentProject();
     // Cmd+K: コマンド/検索 palette (project が無くても開けるが候補は空になる)
     if (e.key === 'k') {
@@ -185,11 +193,15 @@ export const WorkspaceShell: Component = () => {
       ExportDialog.toggle();
       return;
     }
-    if (e.key === 'z' && !e.shiftKey) {
+    if (key === 'z' && !e.shiftKey) {
+      if (isEditableTarget(e.target)) return;
       e.preventDefault();
+      if (ScriptHistoryService.undo()) return;
       ctx.history.undo();
-    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+    } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+      if (isEditableTarget(e.target)) return;
       e.preventDefault();
+      if (ScriptHistoryService.redo()) return;
       ctx.history.redo();
     }
   }
@@ -360,15 +372,31 @@ export const WorkspaceShell: Component = () => {
           title="変更を保存 (Cmd+S)"
         >
           💾 保存
-          <Show
-            when={DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0}
-          >
+          <Show when={DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0}>
             <span class="workspace-save-count">
               {DirtyTracker.count() + useSaveScheduler().pendingCount}
             </span>
           </Show>
         </button>
         <SaveStatusBadge />
+        <span class="workspace-script-history">
+          <button
+            class="workspace-export workspace-script-history-btn"
+            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canUndo()}
+            onClick={() => ScriptHistoryService.undo()}
+            title="脚本を戻す (Ctrl+Z)"
+          >
+            脚本戻る
+          </button>
+          <button
+            class="workspace-export workspace-script-history-btn"
+            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canRedo()}
+            onClick={() => ScriptHistoryService.redo()}
+            title="脚本を進める (Ctrl+Y / Ctrl+Shift+Z)"
+          >
+            脚本進む
+          </button>
+        </span>
         <button
           class="workspace-export workspace-health"
           classList={{
@@ -439,7 +467,14 @@ export const WorkspaceShell: Component = () => {
           onClick={() => FontScaleService.cycle()}
           title={`フォントサイズ切替 (現在: ${FontScaleService.scale()})`}
         >
-          A {FontScaleService.scale() === 'small' ? '−' : FontScaleService.scale() === 'medium' ? '·' : FontScaleService.scale() === 'large' ? '+' : '++'}
+          A{' '}
+          {FontScaleService.scale() === 'small'
+            ? '−'
+            : FontScaleService.scale() === 'medium'
+              ? '·'
+              : FontScaleService.scale() === 'large'
+                ? '+'
+                : '++'}
         </button>
         <button
           class="workspace-export"
