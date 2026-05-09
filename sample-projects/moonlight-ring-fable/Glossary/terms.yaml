@@ -1,0 +1,18 @@
+schemaVersion: 1
+kind: glossary
+terms:
+  - term: 月光リング便
+    aliases:
+      - Moonlight Ring Run
+    forbidden: []
+    description: 空中都市スカイリングで毎年行われる夜間配送レース。速さだけでなく街への安全配慮も採点される。
+  - term: ルーメン・バトン
+    aliases:
+      - Lumen Baton
+    forbidden: []
+    description: チェックポイントで受け渡しされる発光バトン。ゴール判定の鍵。
+  - term: 安全優先プロトコル
+    aliases:
+      - Safety First Protocol
+    forbidden: []
+    description: コース障害を見つけた競技者に最優先修復義務を与える都市条例。違反時は失格。

@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONLOCA02P4V6Q8X3N7YZ
+templateId: template.location
+slug: wind_viaduct
+fields:
+  display_name: 風切り高架
+  reading: かざきりこうか
+  dev_name: Wind Viaduct
+  founded_year: 3
+  description: 強風が吹き抜ける高架区間。速度は出るが、足場損傷が起きやすい。
+  parent_location: 0101MOONLOCA01G9ND4RT6JQ1B

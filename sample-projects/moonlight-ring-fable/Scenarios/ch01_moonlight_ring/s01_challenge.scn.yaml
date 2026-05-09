@@ -1,0 +1,15 @@
+schemaVersion: 1
+sceneId: scene.s01_challenge
+plot:
+  title: '挑戦状はネオン色'
+  cast: [rabi, noro, crow]
+
+script:
+  - { kind: stage, text: 'スカイリング中央広場。夜空を横切る配送ドローンの光跡。' }
+  - { kind: line, who: crow, emotion: excited, text: '今夜の月光リング便! ルールが今年もまた微妙に改訂されています!' }
+  - { kind: line, who: rabi, emotion: confident, text: '最速で着けばいい。それだけだろ。' }
+  - { kind: line, who: noro, emotion: calm, text: 'ラピ、ルーメン・バトンの仕様、去年から変わってるけど……読んだ?' }
+  - { kind: line, who: rabi, emotion: confident, text: '読んでない。' }
+  - { kind: line, who: noro, emotion: worried, text: '……(言葉が出ない)' }
+  - { kind: line, who: rabi, emotion: confident, text: '大丈夫。速さは正義。' }
+  - { kind: aside, text: 'スタートランプが青に変わる。' }

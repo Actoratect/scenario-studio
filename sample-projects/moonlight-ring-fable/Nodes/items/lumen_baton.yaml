@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONITEM01B7R5M3Q9K2NP
+templateId: template.item
+slug: lumen_baton
+fields:
+  display_name: ルーメン・バトン
+  reading: るーめんばとん
+  dev_name: Lumen Baton
+  category: relay
+  rarity: rare
+  description: 月光リング便で使われる公式バトン。内蔵ログが走行と安全対応を記録する。

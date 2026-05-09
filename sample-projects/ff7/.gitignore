@@ -1,6 +1,0 @@
-# Scenario Studio editor local state
-.editor/
-
-# AI tool session data (per-developer)
-.claude/
-.aider*

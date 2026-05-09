@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createStore, produce, reconcile, unwrap } from 'solid-js/store';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
@@ -47,12 +48,14 @@ function loadModePref(): EditorMode {
   return v === 'raw' ? 'raw' : 'visual';
 }
 
-// PR (ux-overhaul-2): per-scene 編集ステージング (path → ParsedScene)。
-// loadScene で 1 度だけ disk から読み、以降は staging 内の object identity を保ったまま
-// mutate する。これで textarea が再 mount されず、IME / cursor / undo が壊れない。
+// PR (ux-overhaul-4): per-scene staging を Solid Store で管理する。
+//   - createStore: ネストしたフィールド単位で fine-grained reactivity
+//   - produce(): mutate-style API で ストアを書き換え (Immer 風)
+//   - これでブロック内の text 変更は textarea の `value` 1 つだけ更新する
+//     (= 他のブロックは無関係、Solid が DOM を再 mount しない)
 // シーン切替えで前 scene の staging は残るので「タブ切替で破棄される」苦情も解消。
 const sceneStaging = new Map<string, ParsedScene>();
-// per-scene Undo / Redo スタック (ParsedScene snapshot)。最大 100 件。
+// per-scene Undo / Redo スタック (ParsedScene snapshot, 構造クローン)。最大 100 件。
 const HISTORY_LIMIT = 100;
 const sceneHistory = new Map<string, { undo: ParsedScene[]; redo: ParsedScene[] }>();
 
@@ -65,12 +68,19 @@ function getHistory(path: string): { undo: ParsedScene[]; redo: ParsedScene[] } 
   return h;
 }
 
+/** 純粋な複製 (history snapshot 用)。Store proxy を unwrap してから JSON-clone。 */
+function cloneScene(s: ParsedScene): ParsedScene {
+  const raw = unwrap(s) as ParsedScene;
+  return JSON.parse(JSON.stringify(raw)) as ParsedScene;
+}
+
 export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [scene, setScene] = createSignal<SceneRef | undefined>(undefined);
   const [doc, setDoc] = createSignal<string>(SAMPLE_SCRIPT);
-  // PR (ux-overhaul-2): visual mode の真の source of truth。loadScene で 1 度
-  // parse して入れる。以降は object identity を保ったまま mutate する。
-  const [parsedSig, setParsedSig] = createSignal<ParsedScene>({
+  // PR (ux-overhaul-4): visual mode の真の source of truth は Solid Store。
+  // ブロックの text 変更などは produce() で in-place mutate → 該当 path のみ更新。
+  // textarea の value は store の最末端パスを直接読むので、無関係な再 mount が起きない。
+  const [parsedStore, setParsedStore] = createStore<ParsedScene>({
     meta: {},
     title: '',
     cast: [],
@@ -86,7 +96,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   function setModeAndPersist(m: EditorMode): void {
     // visual → raw 切替時に CodeMirror へ最新の serialized YAML を流し込む
     if (m === 'raw' && view) {
-      const text = serializeSceneYaml(parsedSig());
+      const text = serializeSceneYaml(unwrap(parsedStore) as ParsedScene);
       if (view.state.doc.toString() !== text) {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       }
@@ -123,8 +133,27 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     return out.sort();
   });
 
-  // visual mode の View は parsedSig() を直接使う。下位互換用に parsed alias を残す。
-  const parsed = parsedSig;
+  // visual mode の View は parsedStore を直接使う。下位互換のため parsed = parsedStore。
+  const parsed = parsedStore;
+
+  /** History snapshot を積む共通処理 (undo/redo 中以外)。 */
+  function pushHistory(targetPath: string): void {
+    if (suppressHistory) return;
+    const h = getHistory(targetPath);
+    h.undo.push(cloneScene(parsedStore));
+    if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    h.redo.length = 0;
+  }
+
+  /** dirty 化 (毎 mutation 後に呼ぶ)。staging を最新の store snapshot で更新。 */
+  function markDirty(target: SceneRef): void {
+    sceneStaging.set(target.path, cloneScene(parsedStore));
+    DirtyTracker.mark({
+      key: target.path,
+      label: target.label,
+      saveFn: () => saveNow(target),
+    });
+  }
 
   async function loadScene(ref: SceneRef): Promise<void> {
     const ctx = ProjectService.currentProject();
@@ -133,10 +162,10 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     // staging に既存があればそれを優先 (タブ切替で破棄しないため)
     const staged = sceneStaging.get(ref.path);
     if (staged) {
-      setParsedSig(staged);
-      setDoc(serializeSceneYaml(staged));
+      setParsedStore(reconcile(cloneScene(staged)));
+      const text = serializeSceneYaml(staged);
+      setDoc(text);
       if (view) {
-        const text = serializeSceneYaml(staged);
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       }
       return;
@@ -151,36 +180,13 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     } catch {
       p = { meta: {}, title: '', cast: [], blocks: [] };
     }
-    setParsedSig(p);
+    setParsedStore(reconcile(p));
     setDoc(text);
     if (view) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: text },
       });
     }
-  }
-
-  /** PR (ux-overhaul-2): staging に積み、DirtyTracker でマーク (実 write は保存ボタンで)。 */
-  function commitParsed(next: ParsedScene): void {
-    const target = scene();
-    if (!target) {
-      setParsedSig(next);
-      return;
-    }
-    // history (undo) 用に旧スナップショットを積む。redo はクリア。
-    if (!suppressHistory) {
-      const h = getHistory(target.path);
-      h.undo.push(parsedSig());
-      if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
-      h.redo.length = 0;
-    }
-    setParsedSig(next);
-    sceneStaging.set(target.path, next);
-    DirtyTracker.mark({
-      key: target.path,
-      label: target.label,
-      saveFn: () => saveNow(target),
-    });
   }
 
   /** raw mode (CodeMirror) で edit された text を staging に反映。 */
@@ -195,25 +201,15 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       // YAML parse 失敗時は staging 更新せず警告だけ
       return;
     }
-    if (!suppressHistory) {
-      const h = getHistory(target.path);
-      h.undo.push(parsedSig());
-      if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
-      h.redo.length = 0;
-    }
-    setParsedSig(next);
-    sceneStaging.set(target.path, next);
-    DirtyTracker.mark({
-      key: target.path,
-      label: target.label,
-      saveFn: () => saveNow(target),
-    });
+    pushHistory(target.path);
+    setParsedStore(reconcile(next));
+    markDirty(target);
   }
 
   async function saveNow(ref: SceneRef): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
-    const text = serializeSceneYaml(parsedSig());
+    const text = serializeSceneYaml(unwrap(parsedStore) as ParsedScene);
     setSaving(true);
     try {
       await ctx.adapter.write(ctx.handle, ref.path, text);
@@ -236,17 +232,12 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const h = getHistory(target.path);
     const prev = h.undo.pop();
     if (!prev) return;
-    h.redo.push(parsedSig());
+    h.redo.push(cloneScene(parsedStore));
     if (h.redo.length > HISTORY_LIMIT) h.redo.shift();
     suppressHistory = true;
     try {
-      setParsedSig(prev);
-      sceneStaging.set(target.path, prev);
-      DirtyTracker.mark({
-        key: target.path,
-        label: target.label,
-        saveFn: () => saveNow(target),
-      });
+      setParsedStore(reconcile(prev));
+      markDirty(target);
     } finally {
       suppressHistory = false;
     }
@@ -258,53 +249,79 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const h = getHistory(target.path);
     const next = h.redo.pop();
     if (!next) return;
-    h.undo.push(parsedSig());
+    h.undo.push(cloneScene(parsedStore));
     if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
     suppressHistory = true;
     try {
-      setParsedSig(next);
-      sceneStaging.set(target.path, next);
-      DirtyTracker.mark({
-        key: target.path,
-        label: target.label,
-        saveFn: () => saveNow(target),
-      });
+      setParsedStore(reconcile(next));
+      markDirty(target);
     } finally {
       suppressHistory = false;
     }
   }
 
   function onChangeBlock(idx: number, next: ScriptBlock): void {
-    const cur = parsed();
-    const blocks = cur.blocks.map((b, i) => (i === idx ? next : b));
-    commitParsed({ ...cur, blocks });
+    const target = scene();
+    if (!target) return;
+    pushHistory(target.path);
+    // produce() で対象 block だけを差し替える (= テキスト 1 文字編集なら、その text path
+    // だけの fine-grained update。textarea の DOM は再 mount されない)
+    setParsedStore(
+      produce((s) => {
+        (s.blocks as ScriptBlock[])[idx] = next;
+      }),
+    );
+    markDirty(target);
   }
   function onDeleteBlock(idx: number): void {
-    const cur = parsed();
-    const blocks = cur.blocks.filter((_, i) => i !== idx);
-    commitParsed({ ...cur, blocks });
+    const target = scene();
+    if (!target) return;
+    pushHistory(target.path);
+    setParsedStore(
+      produce((s) => {
+        (s.blocks as ScriptBlock[]).splice(idx, 1);
+      }),
+    );
+    markDirty(target);
   }
   function onMoveBlock(idx: number, delta: -1 | 1): void {
-    const cur = parsed();
-    const blocks = [...cur.blocks];
-    const target = idx + delta;
-    if (target < 0 || target >= blocks.length) return;
-    [blocks[idx]!, blocks[target]!] = [blocks[target]!, blocks[idx]!];
-    commitParsed({ ...cur, blocks });
+    const target = scene();
+    if (!target) return;
+    const swapTo = idx + delta;
+    if (swapTo < 0 || swapTo >= parsedStore.blocks.length) return;
+    pushHistory(target.path);
+    setParsedStore(
+      produce((s) => {
+        const blocks = s.blocks as ScriptBlock[];
+        [blocks[idx]!, blocks[swapTo]!] = [blocks[swapTo]!, blocks[idx]!];
+      }),
+    );
+    markDirty(target);
   }
   function onAppendBlock(kind: ScriptBlock['kind']): void {
-    const cur = parsed();
+    const target = scene();
+    if (!target) return;
     const defaultWho = characterSlugs()[0] ?? '';
-    const blocks = [...cur.blocks, defaultBlock(kind, defaultWho)];
-    commitParsed({ ...cur, blocks });
+    pushHistory(target.path);
+    setParsedStore(
+      produce((s) => {
+        (s.blocks as ScriptBlock[]).push(defaultBlock(kind, defaultWho));
+      }),
+    );
+    markDirty(target);
   }
   function onInsertBlock(index: number, kind: ScriptBlock['kind']): void {
-    const cur = parsed();
+    const target = scene();
+    if (!target) return;
     const defaultWho = characterSlugs()[0] ?? '';
-    const blocks = [...cur.blocks];
-    const clamped = Math.max(0, Math.min(index, blocks.length));
-    blocks.splice(clamped, 0, defaultBlock(kind, defaultWho));
-    commitParsed({ ...cur, blocks });
+    pushHistory(target.path);
+    const clamped = Math.max(0, Math.min(index, parsedStore.blocks.length));
+    setParsedStore(
+      produce((s) => {
+        (s.blocks as ScriptBlock[]).splice(clamped, 0, defaultBlock(kind, defaultWho));
+      }),
+    );
+    markDirty(target);
   }
 
   /** 現在表示中の scene の title / slug をプロンプトで変更し、ファイルを rename。 */
@@ -375,6 +392,28 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     }
   }
 
+  /** Ctrl/Cmd+Z / Ctrl/Cmd+Y を script panel スコープで先取り (capture phase で window) */
+  function onPanelKey(e: KeyboardEvent): void {
+    const meta = e.ctrlKey || e.metaKey;
+    if (!meta) return;
+    // Script Panel の DOM 内で発生したイベントだけ処理
+    if (!panelRoot || !(e.target instanceof Node) || !panelRoot.contains(e.target)) return;
+    const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+    // textarea / input 内は native undo を尊重 (1 文字単位)
+    if (tag === 'textarea' || tag === 'input') return;
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      undo();
+    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      redo();
+    }
+  }
+
+  let panelRoot: HTMLDivElement | undefined;
+
   onMount(() => {
     if (!host) return;
     view = createScriptEditor({
@@ -386,10 +425,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       },
       onChange: (text) => commitRawText(text),
     });
-    // panel 内でフォーカスがある時の Cmd+Z / Cmd+Shift+Z は scene undo / redo
-    if (host) {
-      host.addEventListener('keydown', onPanelKey);
-    }
+    // capture-phase で window に attach すると WorkspaceShell の global Ctrl+Z より先に動く
+    window.addEventListener('keydown', onPanelKey, true);
     const sel = SceneSelection.selected();
     if (sel) {
       const ref = availableScenes().find(
@@ -398,23 +435,6 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       if (ref) void loadScene(ref);
     }
   });
-
-  function onPanelKey(e: KeyboardEvent): void {
-    const meta = e.ctrlKey || e.metaKey;
-    if (!meta) return;
-    if (e.key === 'z' && !e.shiftKey) {
-      // textarea / input 内では既定の native undo を尊重 (1 文字単位)
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      if (tag === 'textarea' || tag === 'input') return;
-      e.preventDefault();
-      undo();
-    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      if (tag === 'textarea' || tag === 'input') return;
-      e.preventDefault();
-      redo();
-    }
-  }
 
   createEffect(() => {
     const sel = SceneSelection.selected();
@@ -428,9 +448,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   });
 
   onCleanup(() => {
-    // PR (ux-overhaul): 自動保存廃止。close 時の dirty は DirtyTracker に残し、
-    // 「閉じる時にユーザに保存を促す」のはヘッダ側の責務に集約。
-    if (host) host.removeEventListener('keydown', onPanelKey);
+    window.removeEventListener('keydown', onPanelKey, true);
     view?.destroy();
   });
 
@@ -441,7 +459,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   return (
-    <div class="panel-content panel-script">
+    <div class="panel-content panel-script" ref={panelRoot}>
       <div class="panel-script-meta">
         <span>シーン:</span>
         <select
@@ -520,13 +538,13 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       {/* visual モード: 上部にシーンメタ */}
       <Show when={mode() === 'visual'}>
         <div class="panel-script-scene-meta">
-          <Show when={parsed().title}>
-            <span class="panel-script-scene-title">{parsed().title}</span>
+          <Show when={parsed.title}>
+            <span class="panel-script-scene-title">{parsed.title}</span>
           </Show>
-          <Show when={parsed().cast.length > 0}>
+          <Show when={parsed.cast.length > 0}>
             <span class="panel-script-scene-cast">
               キャスト:{' '}
-              <For each={parsed().cast}>
+              <For each={parsed.cast}>
                 {(c) => <code class="panel-script-scene-cast-chip">{c}</code>}
               </For>
             </span>
@@ -561,7 +579,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       >
         <div class="panel-script-content-main">
           <ScriptVisualEditor
-            parsed={parsed()}
+            parsed={parsed}
             onChangeBlock={onChangeBlock}
             onDeleteBlock={onDeleteBlock}
             onMoveBlock={onMoveBlock}
@@ -570,7 +588,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           />
         </div>
         <ScriptContextRail
-          parsed={parsed()}
+          parsed={parsed}
           chapterSlug={scene()?.chapterSlug}
           sceneSlug={scene()?.sceneSlug}
         />

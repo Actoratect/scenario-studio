@@ -24,7 +24,6 @@ import {
   supportsFileSystemAccess,
   type PickedProject,
 } from '@scenario-studio/adapter-browser';
-import { FF7_SAMPLE } from 'virtual:ff7-sample';
 import {
   rememberProject,
   forgetProject,
@@ -92,32 +91,6 @@ export const ProjectService = {
     const picked = await pickProjectDirectory({ name });
     const result = await initializeProject(picked.adapter, picked.handle, { name });
     return openPicked(picked, result);
-  },
-
-  /**
-   * PR-AE: FF7 サンプルプロジェクトをユーザの選んだ空フォルダに展開して開く。
-   * Vite plugin (ff7SamplePlugin) が `virtual:ff7-sample` で渡してくる
-   * ファイルツリーを adapter.write* で書き出してから loadProject() する。
-   */
-  async openFf7Sample(): Promise<OpenProjectContext> {
-    setLastError(undefined);
-    const picked = await pickProjectDirectory({ name: 'FF7 (sample)' });
-
-    const entries = Object.entries(FF7_SAMPLE.files);
-    if (entries.length === 0) {
-      throw new Error(
-        'FF7 サンプルが bundle されていません (vite ビルドの sample-projects/ff7 を確認)',
-      );
-    }
-    for (const [path, entry] of entries) {
-      if (entry.kind === 'text') {
-        await picked.adapter.write(picked.handle, path, entry.text);
-      } else {
-        const bin = base64ToBytes(entry.base64);
-        await picked.adapter.writeBytes(picked.handle, path, bin);
-      }
-    }
-    return await openPicked(picked, await loadProject(picked.adapter, picked.handle));
   },
 
   /**
@@ -194,13 +167,6 @@ export const ProjectService = {
     setCurrentProject({ ...ctx });
   },
 };
-
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
 
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放

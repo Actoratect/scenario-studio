@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 0101MOONRABI01A7Q6S84K9C2H
+templateId: template.character
+slug: rabi
+fields:
+  gender: male
+  tone: energetic
+  display_name: ラピ
+  reading: らぴ
+  dev_name: Rabi
+  birth_year: 17
+  height: 178
+  appearance: 白い高速スーツ、耳型アンテナ付きヘルメット。
+  personality: 自信家で目立ちたがり。負けず嫌いだが根は素直。
+  first_person: 俺
