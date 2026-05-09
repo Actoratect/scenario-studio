@@ -151,7 +151,8 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
       setDragMode(undefined);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      props.onChange(rect());
+      // PR (ux-overhaul-3): drag 終了では onChange を呼ばない (= 自動保存しない)。
+      // ユーザーが「✓ 調整完了」ボタンを押した時に最終 rect を親に通知する。
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -253,8 +254,15 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
             type="button"
             class="ss-portrait-action"
             classList={{ 'ss-portrait-action--active': editing() }}
-            onClick={() => setEditing((b) => !b)}
-            title={editing() ? '調整モード終了' : 'サムネ範囲を調整'}
+            onClick={() => {
+              const next = !editing();
+              setEditing(next);
+              // PR (ux-overhaul-3): 編集モード終了時に rect を親に通知 (= 保存ステージング)
+              if (!next) {
+                props.onChange(rect());
+              }
+            }}
+            title={editing() ? '調整完了 (rect を保存)' : 'サムネ範囲を調整'}
           >
             {editing() ? '✓ 調整完了' : '✎ サムネ範囲を調整'}
           </button>
@@ -263,7 +271,7 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
               type="button"
               class="ss-portrait-action"
               onClick={resetRect}
-              title="サムネ範囲を画像全体にリセット"
+              title="サムネ範囲を画像全体にリセット (rect を保存)"
             >
               ⟲ 全体に戻す
             </button>
@@ -271,7 +279,7 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
         </Show>
         <Show when={editing()}>
           <span class="ss-portrait-hint">
-            枠 drag で位置、右下ハンドルでサイズ変更 (正方形維持)。確定はヘッダの「💾 保存」。
+            枠 drag で位置、右下ハンドルでサイズ変更。「✓ 調整完了」で確定 → ヘッダ「💾 保存」で永続化。
           </span>
         </Show>
       </div>

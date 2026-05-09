@@ -337,9 +337,22 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
 };
 
 /** PR (ux-overhaul-3): IME / cursor を破壊しない安定 textarea。
- *  ユーザー入力中は外部 value の DOM への上書きを抑止 (= 値が一致していればスキップ)。
- *  外部から block 参照が変わっても、DOM value が "新しい value" と既に一致していれば
- *  Solid に setProperty させない。 */
+ *
+ *  発生していた症状:
+ *    - 1 文字打つたびに focus が外れる / cursor が末尾に飛ぶ / 入力反映されない
+ *    - 日本語 IME で composing 中の文字が消える
+ *
+ *  原因:
+ *    - 親で setParsedSig すると props.value が変わる → Solid が textarea の `value` を
+ *      DOM に re-set する → IME composition が中断 / cursor reset
+ *
+ *  対応:
+ *    - `value=` を JSX 経由で reactive バインドしない (= Solid に DOM .value を触らせない)
+ *    - 代わりに初回マウント (ref callback) で初期値 set
+ *    - createEffect で props.value 変化を監視し、composing 中でなく、かつ DOM value と
+ *      値が違う時だけ ref.value を更新
+ *    - composition start/end で composing flag 切替、composing 中の input は無視
+ */
 const StableTextarea: Component<{
   class?: string;
   rows?: string;
@@ -349,20 +362,35 @@ const StableTextarea: Component<{
   onContextMenu?: (e: MouseEvent) => void;
 }> = (props) => {
   let ref: HTMLTextAreaElement | undefined;
-  // 外部 value が変わった時だけ DOM に流し込む。ユーザー入力で同期した場合は skip。
+  let composing = false;
+  // 外部 value 変化を tracked (ref callback 経由で初期値 set 済 → 以降は外部更新のみ反応)
   createEffect(() => {
     const v = props.value;
+    if (composing) return;
     if (ref && ref.value !== v) {
       ref.value = v;
     }
   });
   return (
     <textarea
-      ref={ref}
+      ref={(el) => {
+        ref = el;
+        if (el) el.value = props.value ?? '';
+      }}
       class={props.class}
       rows={props.rows}
       placeholder={props.placeholder}
-      onInput={(e) => props.onInput(e.currentTarget.value)}
+      onCompositionStart={() => {
+        composing = true;
+      }}
+      onCompositionEnd={(e) => {
+        composing = false;
+        props.onInput((e.currentTarget as HTMLTextAreaElement).value);
+      }}
+      onInput={(e) => {
+        if (composing) return;
+        props.onInput(e.currentTarget.value);
+      }}
       onContextMenu={(e) => props.onContextMenu?.(e)}
     />
   );

@@ -175,6 +175,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
     };
     mutate(nextParsed);
     plotStaging.set(sel.path, nextParsed);
+    const selectedSnapshot = sel; // closure 用に snapshot
     DirtyTracker.mark({
       key: sel.path,
       label: sel.label,
@@ -182,8 +183,28 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
         const ctx = ProjectService.currentProject();
         if (!ctx) return;
         const yaml = serializeSceneYaml(nextParsed);
-        await ctx.adapter.write(ctx.handle, sel.path, yaml);
-        plotStaging.delete(sel.path);
+        await ctx.adapter.write(ctx.handle, selectedSnapshot.path, yaml);
+        plotStaging.delete(selectedSnapshot.path);
+        // PR (ux-overhaul-3): 保存後に in-memory の chapter.scene.title を新しい
+        // plot.title に同期。これでプロットタブの card / Outline 等で即座に反映される。
+        const newTitle =
+          typeof nextPlotRaw['title'] === 'string' ? (nextPlotRaw['title'] as string) : undefined;
+        if (newTitle !== undefined) {
+          const nextChapters = ctx.project.scenario.chapters.map((c) =>
+            c.slug === selectedSnapshot.chapterSlug
+              ? {
+                  ...c,
+                  scenes: c.scenes.map((s) =>
+                    s.slug === selectedSnapshot.sceneSlug ? { ...s, title: newTitle } : s,
+                  ),
+                }
+              : c,
+          );
+          Object.assign(ctx.project, {
+            scenario: { ...ctx.project.scenario, chapters: nextChapters },
+          });
+          ProjectService.touch();
+        }
       },
     });
   }
