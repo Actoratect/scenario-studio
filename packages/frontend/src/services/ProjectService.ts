@@ -32,6 +32,7 @@ import {
   pinProject,
 } from './recent-projects.js';
 import type { RecentProject } from './recent-projects.js';
+import { GraphComments } from '../graph/graph-comments.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
@@ -160,6 +161,7 @@ export const ProjectService = {
     setCurrentProject(undefined);
     setLastError(undefined);
     GraphPositions.clear();
+    GraphComments.clear();
     ThumbnailService.clearAll();
   },
 
@@ -228,6 +230,7 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   };
   setCurrentProject(ctx);
   GraphPositions.switchProject(picked.handle.id);
+  GraphComments.switchProject(picked.handle.id);
   // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
   // (load 時点の内容 = 我々が知っている内容)
   void primeConflictBaseline(ctx);

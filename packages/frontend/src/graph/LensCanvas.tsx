@@ -1,6 +1,7 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
+import { GraphComments, type GraphComment } from './graph-comments';
 
 // SVG ベースの軽量グラフ canvas (PR-C/E)。
 // 機能:
@@ -40,7 +41,23 @@ interface ViewState {
 type DragMode =
   | { kind: 'pan'; startX: number; startY: number; vx: number; vy: number }
   | { kind: 'node'; id: NodeId; startX: number; startY: number; px: number; py: number }
-  | { kind: 'connect'; source: NodeId; toX: number; toY: number };
+  | { kind: 'connect'; source: NodeId; toX: number; toY: number }
+  | {
+      kind: 'comment-move';
+      id: string;
+      startX: number;
+      startY: number;
+      cx: number;
+      cy: number;
+    }
+  | {
+      kind: 'comment-resize';
+      id: string;
+      startX: number;
+      startY: number;
+      cw: number;
+      ch: number;
+    };
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
@@ -94,9 +111,28 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
       return;
     }
+    if (d.kind === 'comment-move') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(d.id, { x: d.cx + dx, y: d.cy + dy });
+      return;
+    }
+    if (d.kind === 'comment-resize') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(d.id, {
+        width: Math.max(80, d.cw + dx),
+        height: Math.max(40, d.ch + dy),
+      });
+      return;
+    }
     // connect: マウス位置を world に変換して rubber-band の終端に
-    const w = clientToWorld(e.clientX, e.clientY);
-    setDrag({ ...d, toX: w.x, toY: w.y });
+    if (d.kind === 'connect') {
+      const w = clientToWorld(e.clientX, e.clientY);
+      setDrag({ ...d, toX: w.x, toY: w.y });
+    }
   }
 
   function onMouseUp(e: MouseEvent): void {
@@ -289,6 +325,37 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
           }}
         </Show>
 
+        {/* comments (nodes より下に描画して、ノードを背景色で囲うイメージ) */}
+        <For each={GraphComments.comments()}>
+          {(c) => (
+            <CommentRect
+              comment={c}
+              onMoveStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-move',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cx: c.x,
+                  cy: c.y,
+                });
+              }}
+              onResizeStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-resize',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cw: c.width,
+                  ch: c.height,
+                });
+              }}
+            />
+          )}
+        </For>
+
         {/* nodes */}
         <For each={props.payload.nodes}>
           {(node) => {
@@ -382,6 +449,76 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         </For>
       </g>
     </svg>
+  );
+};
+
+/** SVG 内に foreignObject で配置するメモ box。背景色 + 編集可能 textarea + 角の resize handle。 */
+const CommentRect: Component<{
+  comment: GraphComment;
+  onMoveStart: (e: MouseEvent) => void;
+  onResizeStart: (e: MouseEvent) => void;
+}> = (props) => {
+  return (
+    <g class="lens-comment" transform={`translate(${props.comment.x}, ${props.comment.y})`}>
+      <rect
+        width={props.comment.width}
+        height={props.comment.height}
+        rx="6"
+        ry="6"
+        fill={props.comment.color ?? 'rgba(255, 240, 180, 0.85)'}
+        stroke="rgba(180, 140, 60, 0.6)"
+        stroke-width="1"
+        onMouseDown={props.onMoveStart}
+      />
+      <foreignObject
+        x="0"
+        y="0"
+        width={props.comment.width}
+        height={props.comment.height}
+        pointer-events="none"
+      >
+        <div
+          class="lens-comment-body"
+          style={{ width: `${props.comment.width}px`, height: `${props.comment.height}px` }}
+        >
+          <textarea
+            class="lens-comment-text"
+            value={props.comment.text}
+            onInput={(e) =>
+              GraphComments.update(props.comment.id, { text: e.currentTarget.value })
+            }
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="メモ / グループ説明"
+          />
+          <button
+            type="button"
+            class="lens-comment-delete"
+            title="メモを削除"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm('このメモを削除しますか?')) {
+                GraphComments.remove(props.comment.id);
+              }
+            }}
+          >
+            ×
+          </button>
+        </div>
+      </foreignObject>
+      {/* 右下リサイズハンドル (SVG 上に直接置く — foreignObject の pointer-events は none) */}
+      <rect
+        class="lens-comment-resize"
+        x={props.comment.width - 14}
+        y={props.comment.height - 14}
+        width="14"
+        height="14"
+        fill="rgba(180, 140, 60, 0.6)"
+        rx="2"
+        ry="2"
+        onMouseDown={props.onResizeStart}
+        style={{ cursor: 'nwse-resize' }}
+      />
+    </g>
   );
 };
 

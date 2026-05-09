@@ -20,6 +20,7 @@ import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
 import { DirtyTracker } from '../services/DirtyTracker';
+import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
 
 // 脚本エディタ Panel。
 // PR-AA: 既定は「視覚編集モード (visual)」— YAML を見せず、各ブロックをカードで描画。
@@ -132,6 +133,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       DirtyTracker.clear(ref.path);
       // 連続発話 lint を再評価
       bumpScriptLintVersion();
+      // 「登場した章」の集計を再構築 (cast / who: が変わった可能性)
+      SceneAppearanceIndex.invalidate();
     } catch (e) {
       console.error('script save failed', e);
       Toast.error(`脚本の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -184,6 +187,74 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const clamped = Math.max(0, Math.min(index, blocks.length));
     blocks.splice(clamped, 0, defaultBlock(kind, defaultWho));
     commitParsed({ ...cur, blocks });
+  }
+
+  /** 現在表示中の scene の title / slug をプロンプトで変更し、ファイルを rename。 */
+  async function renameCurrentScene(): Promise<void> {
+    const cur = scene();
+    const ctx = ProjectService.currentProject();
+    if (!cur || !ctx) {
+      Toast.info('シーンを選択してください');
+      return;
+    }
+    const newTitle = window.prompt('シーンのタイトル:', cur.label.split(' / ').slice(-1)[0] ?? '');
+    if (newTitle === null) return;
+    const newSlug = window.prompt(
+      'シーンの slug (英小文字 / 数字 / _ / -, 空欄で変更しない):',
+      cur.sceneSlug,
+    );
+    if (newSlug === null) return;
+    const trimmedSlug = newSlug.trim();
+    const trimmedTitle = newTitle.trim();
+    if (trimmedSlug === '' || !/^[a-z0-9_-]+$/i.test(trimmedSlug)) {
+      Toast.error(`不正な slug: ${trimmedSlug}`);
+      return;
+    }
+    try {
+      const result = await ctx.scenarioRepository.renameScene({
+        chapterSlug: cur.chapterSlug,
+        oldSlug: cur.sceneSlug,
+        newSlug: trimmedSlug,
+        newTitle: trimmedTitle === '' ? undefined : trimmedTitle,
+      });
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === cur.chapterSlug
+          ? {
+              ...c,
+              scenes: c.scenes.map((s) =>
+                s.slug === cur.sceneSlug
+                  ? {
+                      ...s,
+                      slug: result.slug,
+                      title: result.title,
+                      relativePath: `${result.slug}.scn.yaml`,
+                    }
+                  : s,
+              ),
+            }
+          : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+      ProjectService.touch();
+      // 表示中の scene 参照も更新 (新しい path に追従)
+      const newRef: SceneRef = {
+        chapterSlug: cur.chapterSlug,
+        sceneSlug: result.slug,
+        path: `Scenarios/${cur.chapterSlug}/${result.slug}.scn.yaml`,
+        label: cur.label.split(' / ').slice(0, -1).concat(result.title).join(' / '),
+      };
+      setScene(newRef);
+      SceneSelection.select({
+        chapterSlug: cur.chapterSlug,
+        sceneSlug: result.slug,
+        label: result.title,
+      });
+      Toast.success(`シーン名変更: ${cur.sceneSlug} → ${result.slug}`);
+    } catch (e) {
+      Toast.error(`シーン名変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   onMount(() => {
@@ -252,6 +323,16 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           <option value="">— サンプル脚本 —</option>
           <For each={availableScenes()}>{(s) => <option value={s.path}>{s.label}</option>}</For>
         </select>
+        <Show when={scene()}>
+          <button
+            type="button"
+            class="panel-script-rename"
+            onClick={() => void renameCurrentScene()}
+            title="シーンの名前 / slug を変更"
+          >
+            ✎
+          </button>
+        </Show>
         <Show when={saving()}>
           <span class="panel-script-saving">
             <Spinner /> 保存中…

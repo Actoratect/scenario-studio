@@ -1110,37 +1110,41 @@ button {
   border-left-color: var(--ss-text-faint);
 }
 
-/* ----- 挿入バー (ブロック間の hover insert) ----- */
+/* ----- 挿入バー (ブロック間の hover insert) — 「＋」 のみ、最低限の主張 ----- */
 .ss-script-insert-bar {
   position: relative;
-  height: 6px;
-  margin: -2px 0;
+  height: 4px;
+  margin: -1px 0;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
 .ss-script-insert-bar-trigger {
-  width: 100%;
-  height: 6px;
-  font-size: 11px;
+  width: 18px;
+  height: 4px;
+  font-size: 10px;
+  line-height: 1;
   color: transparent;
   background: transparent;
   border: 0;
-  border-radius: 3px;
+  border-radius: 999px;
   cursor: pointer;
+  padding: 0;
   transition:
     background 0.15s,
     color 0.15s,
+    width 0.15s,
     height 0.15s;
 }
 
 .ss-script-insert-bar:hover .ss-script-insert-bar-trigger,
 .ss-script-insert-bar--open .ss-script-insert-bar-trigger {
-  background: var(--ss-bg-info);
-  color: var(--ss-accent-sky);
-  height: 18px;
-  font-weight: 600;
+  background: var(--ss-accent-sky);
+  color: var(--ss-bg);
+  width: 22px;
+  height: 14px;
+  font-weight: 700;
 }
 
 .ss-script-insert-bar-menu {
@@ -4394,6 +4398,17 @@ button {
   /* マスク表現: 枠の外を暗く ↑ box-shadow で全画面を暗くしているのと等価 */
 }
 
+/* PR (ux-overhaul): 編集モード OFF — 細い枠だけを「目印」として薄く表示。
+ * 暗マスクなし、cursor も default。クリック / drag を受けない (cropper 親が pointer-events
+ * を制御)。範囲ガイドの目印として枠線のみ残す。 */
+.ss-portrait-crop--readonly {
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+}
+
 .ss-portrait-crop--dragging {
   border-color: var(--ss-accent-orange);
   cursor: grabbing;
@@ -4440,6 +4455,280 @@ button {
     background 0.12s,
     border-color 0.12s,
     color 0.12s;
+}
+
+/* PR (ux-overhaul): グラフ上のメモ (グループ注釈) */
+.lens-comment {
+  pointer-events: auto;
+}
+.lens-comment-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  pointer-events: auto;
+}
+.lens-comment-text {
+  flex: 1;
+  width: calc(100% - 6px);
+  height: calc(100% - 16px);
+  padding: 4px 6px;
+  margin: 3px 3px 0 3px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--ss-text);
+  border: 0;
+  resize: none;
+  box-sizing: border-box;
+}
+.lens-comment-text:focus {
+  outline: 1px solid var(--ss-accent-blue);
+  outline-offset: -1px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.lens-comment-delete {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--ss-text-muted);
+}
+.lens-comment-delete:hover {
+  background: var(--ss-accent-vermillion);
+  color: #fff;
+}
+
+.panel-graph-add-comment {
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.panel-graph-add-comment:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+
+/* relation type picker: 自由入力 input + 候補 details */
+.ss-relation-type-presets {
+  margin-top: 8px;
+}
+.ss-relation-type-presets summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+  user-select: none;
+}
+.ss-relation-type-presets summary:hover {
+  color: var(--ss-accent-blue);
+}
+
+/* PR (ux-overhaul): プロットタブの右 rail (PlotDetailRail) レイアウト */
+.panel-timeline--with-rail {
+  display: flex;
+  flex-direction: column;
+}
+.panel-timeline-with-rail {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.panel-timeline-with-rail .panel-timeline-track {
+  flex: 1;
+  min-width: 0;
+}
+.ss-plot-rail {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--ss-border-soft);
+  display: flex;
+  flex-direction: column;
+}
+.ss-plot-rail.ss-script-rail--collapsed {
+  width: 28px;
+}
+.ss-plot-rail-target {
+  margin: 0 0 2px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.ss-plot-rail-path {
+  margin: 0;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-family: 'SF Mono', Consolas, monospace;
+  word-break: break-all;
+}
+.ss-plot-rail-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+.ss-plot-rail-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.ss-plot-rail-reload {
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ss-plot-rail-reload:hover {
+  background: var(--ss-bg-info);
+}
+.panel-timeline-card-open {
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.panel-timeline-card-open:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+.panel-timeline-card--selected {
+  background: var(--ss-bg-info) !important;
+  border-color: var(--ss-accent-blue) !important;
+  box-shadow: 0 0 0 2px var(--ss-accent-blue) inset;
+}
+
+/* PR (ux-overhaul): Inspector「登場した章」セクション */
+.panel-inspector-appearances {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+}
+.panel-inspector-appearances-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ss-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-inspector-appearances-loading {
+  font-weight: 400;
+  color: var(--ss-text-faint);
+  font-size: 11px;
+}
+.panel-inspector-appearances-refresh {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--ss-text-muted);
+}
+.panel-inspector-appearances-refresh:hover {
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+.panel-inspector-appearances-empty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+  font-style: italic;
+}
+.panel-inspector-appearances-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.panel-inspector-appearances-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.panel-inspector-appearances-chapter-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ss-text-muted);
+}
+.panel-inspector-appearances-count {
+  color: var(--ss-text-faint);
+  font-weight: 400;
+}
+.panel-inspector-appearances-scenes {
+  list-style: none;
+  padding: 0 0 0 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.panel-inspector-appearances-scene {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--ss-text);
+  cursor: pointer;
+}
+.panel-inspector-appearances-scene:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+}
+.panel-inspector-appearances-line-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-portrait-action--active {
+  background: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-bg);
+}
+.ss-portrait-action--active:hover {
+  background: var(--ss-accent-blue);
+  color: var(--ss-bg);
 }
 
 .ss-portrait-action:hover {

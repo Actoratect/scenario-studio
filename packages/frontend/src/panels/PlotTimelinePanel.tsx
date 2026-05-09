@@ -6,6 +6,7 @@ import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
+import { PlotDetailRail, type PlotDetailSelection } from '../plot/PlotDetailRail';
 
 // Plot Timeline panel (PR-P)。
 // 章を横カラム、シーンを縦カードにした Kanban 風タイムラインで物語の流れを俯瞰。
@@ -140,7 +141,22 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
     return out;
   });
 
-  function activate(s: SceneSummary): void {
+  // PR (ux-overhaul): カードクリックは右側の「プロット詳細」を表示するだけにし、
+  //   実際に脚本タブにジャンプするのはカードの「📖 開く」ボタンに分けた。
+  const [detailSelection, setDetailSelection] = createSignal<PlotDetailSelection | undefined>(
+    undefined,
+  );
+
+  function selectForDetail(s: SceneSummary): void {
+    setDetailSelection({
+      chapterSlug: s.chapterSlug,
+      sceneSlug: s.sceneSlug,
+      path: `Scenarios/${s.chapterSlug}/${s.sceneSlug}.scn.yaml`,
+      label: s.title,
+    });
+  }
+
+  function openInScript(s: SceneSummary): void {
     SceneSelection.select({
       chapterSlug: s.chapterSlug,
       sceneSlug: s.sceneSlug,
@@ -165,7 +181,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
   });
 
   return (
-    <div class="panel-content panel-timeline">
+    <div class="panel-content panel-timeline panel-timeline--with-rail">
       <header class="panel-timeline-header">
         <span>
           Plot Timeline · <code>{params.api.id}</code>
@@ -175,6 +191,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
           行 · 登場 {stats().casts.size} 人
         </span>
       </header>
+      <div class="panel-timeline-with-rail">
       <div class="panel-timeline-track">
         <Show
           when={chapters().length > 0}
@@ -247,7 +264,12 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                       return (
                         <li
                           class="panel-timeline-card"
-                          classList={{ 'panel-timeline-card--busy': busy() }}
+                          classList={{
+                            'panel-timeline-card--busy': busy(),
+                            'panel-timeline-card--selected':
+                              detailSelection()?.chapterSlug === ch.slug &&
+                              detailSelection()?.sceneSlug === sc.slug,
+                          }}
                           draggable={true}
                           onDragStart={(e) => {
                             e.dataTransfer?.setData(
@@ -281,7 +303,19 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                               void moveSceneAcross(srcChap, Number(srcIdxStr), ch.slug, sIdx());
                             }
                           }}
-                          onClick={() => s() && activate(s() as SceneSummary)}
+                          onClick={() => {
+                            // クリックで右側「プロット詳細」を開く。
+                            // 実際の脚本ジャンプは「📖 開く」ボタンで明示的に。
+                            const sum = s();
+                            if (sum) selectForDetail(sum);
+                            else
+                              setDetailSelection({
+                                chapterSlug: ch.slug,
+                                sceneSlug: sc.slug,
+                                path: `Scenarios/${ch.slug}/${sc.slug}.scn.yaml`,
+                                label: sc.title,
+                              });
+                          }}
                         >
                           <div class="panel-timeline-card-header">
                             <span class="panel-timeline-drag-handle">⋮</span>
@@ -296,6 +330,27 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                                 </span>
                               )}
                             </Show>
+                            <button
+                              type="button"
+                              class="panel-timeline-card-open"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const sum = s();
+                                if (sum) openInScript(sum);
+                                else
+                                  openInScript({
+                                    chapterSlug: ch.slug,
+                                    sceneSlug: sc.slug,
+                                    title: sc.title,
+                                    cast: [],
+                                    lineCount: 0,
+                                    preview: '',
+                                  });
+                              }}
+                              title="脚本タブでこのシーンを開く"
+                            >
+                              📖 開く
+                            </button>
                           </div>
                           <Show when={s()?.beat}>
                             {(b) => <span class="panel-timeline-card-beat">{b()}</span>}
@@ -319,6 +374,8 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
             )}
           </For>
         </Show>
+      </div>
+      <PlotDetailRail selected={detailSelection()} />
       </div>
     </div>
   );

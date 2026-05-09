@@ -24,6 +24,9 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
   const [dragMode, setDragMode] = createSignal<DragMode>(undefined);
   const [hoverDrop, setHoverDrop] = createSignal(false);
   const [imgSize, setImgSize] = createSignal<{ w: number; h: number } | undefined>(undefined);
+  // PR (ux-overhaul): 通常は読み取り専用 (画像 + サムネ枠グレー線のみ)。
+  // 「✎ サムネ範囲を調整」を押した時だけ crop UI (マスク・ドラッグ可) になる。
+  const [editing, setEditing] = createSignal(false);
 
   // node.thumbnail を URL に解決。
   // 注意: createResource は source が falsy だと fetcher を呼ばず前回値を保持する。
@@ -217,21 +220,27 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
                 // 高さも同じ px (= 正方形)。これでグラフ・脚本サムネで歪まない。
                 <div
                   class="ss-portrait-crop"
-                  classList={{ 'ss-portrait-crop--dragging': dragMode() !== undefined }}
+                  classList={{
+                    'ss-portrait-crop--dragging': dragMode() !== undefined,
+                    'ss-portrait-crop--editing': editing(),
+                    'ss-portrait-crop--readonly': !editing(),
+                  }}
                   style={{
                     left: `${rect().x * sz().w}px`,
                     top: `${rect().y * sz().h}px`,
                     width: `${rect().size * sz().w}px`,
                     height: `${rect().size * sz().w}px`,
                   }}
-                  onMouseDown={(e) => startDrag(e, 'move')}
-                  title="ドラッグでサムネ位置を移動"
+                  onMouseDown={(e) => editing() && startDrag(e, 'move')}
+                  title={editing() ? 'ドラッグでサムネ位置を移動' : '✎ ボタンで調整モードへ'}
                 >
-                  <div
-                    class="ss-portrait-crop-handle"
-                    onMouseDown={(e) => startDrag(e, 'resize-br')}
-                    title="ドラッグでサムネサイズを変更 (正方形を維持)"
-                  />
+                  <Show when={editing()}>
+                    <div
+                      class="ss-portrait-crop-handle"
+                      onMouseDown={(e) => startDrag(e, 'resize-br')}
+                      title="ドラッグでサムネサイズを変更 (正方形を維持)"
+                    />
+                  </Show>
                 </div>
               )}
             </Show>
@@ -239,17 +248,32 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
         )}
       </Show>
       <div class="ss-portrait-actions">
-        <button
-          type="button"
-          class="ss-portrait-action"
-          onClick={resetRect}
-          title="サムネ範囲を画像全体にリセット"
-        >
-          ⟲ サムネ全体に戻す
-        </button>
-        <span class="ss-portrait-hint">
-          枠を drag で位置移動、右下ハンドルで サイズ変更 (正方形維持)。確定はヘッダの「💾 保存」で。
-        </span>
+        <Show when={url()}>
+          <button
+            type="button"
+            class="ss-portrait-action"
+            classList={{ 'ss-portrait-action--active': editing() }}
+            onClick={() => setEditing((b) => !b)}
+            title={editing() ? '調整モード終了' : 'サムネ範囲を調整'}
+          >
+            {editing() ? '✓ 調整完了' : '✎ サムネ範囲を調整'}
+          </button>
+          <Show when={editing()}>
+            <button
+              type="button"
+              class="ss-portrait-action"
+              onClick={resetRect}
+              title="サムネ範囲を画像全体にリセット"
+            >
+              ⟲ 全体に戻す
+            </button>
+          </Show>
+        </Show>
+        <Show when={editing()}>
+          <span class="ss-portrait-hint">
+            枠 drag で位置、右下ハンドルでサイズ変更 (正方形維持)。確定はヘッダの「💾 保存」。
+          </span>
+        </Show>
       </div>
     </div>
   );

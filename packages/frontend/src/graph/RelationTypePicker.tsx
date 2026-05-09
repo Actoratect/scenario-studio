@@ -36,34 +36,34 @@ export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>
 
           <div class="ss-modal-section">
-            <strong>関係の種類</strong>
-            <div class="ss-relation-type-grid">
-              <For each={RELATION_TYPES}>
-                {(rt) => (
-                  <button
-                    type="button"
-                    class="ss-relation-type-button"
-                    classList={{ 'ss-relation-type-button--active': type() === rt.id }}
-                    data-variant={type() === rt.id ? 'primary' : undefined}
-                    onClick={() => setType(rt.id)}
-                  >
-                    <span class="ss-relation-type-label">{rt.label}</span>
-                    <span class="ss-relation-type-meta">
-                      {rt.symmetric ? '対称' : `inv: ${rt.inverse}`}
-                    </span>
-                  </button>
-                )}
-              </For>
-            </div>
             <label class="ss-relation-type-custom">
-              <span>自由入力 (上記以外の独自タイプ)</span>
+              <strong>関係の種類 (自由入力)</strong>
               <input
                 type="text"
                 value={type()}
                 onInput={(e) => setType(e.currentTarget.value)}
-                placeholder="例: 師弟、ライバル、同僚、契約関係…"
+                placeholder="例: 友人、師弟、ライバル、同僚、宿敵、契約関係…"
+                autofocus
               />
             </label>
+            <details class="ss-relation-type-presets">
+              <summary>よく使う候補を見る (クリックで挿入)</summary>
+              <div class="ss-relation-type-grid">
+                <For each={RELATION_TYPES}>
+                  {(rt) => (
+                    <button
+                      type="button"
+                      class="ss-relation-type-button"
+                      classList={{ 'ss-relation-type-button--active': type() === rt.id }}
+                      onClick={() => setType(rt.id)}
+                      title={rt.symmetric ? '対称関係 (双方向)' : `逆関係: ${rt.inverse}`}
+                    >
+                      {rt.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </details>
           </div>
 
           <div class="ss-modal-section">

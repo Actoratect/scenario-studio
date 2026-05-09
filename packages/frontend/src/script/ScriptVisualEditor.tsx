@@ -179,8 +179,9 @@ const InsertBar: Component<{
         class="ss-script-insert-bar-trigger"
         onClick={() => setMenuOpen((b) => !b)}
         title={`位置 ${props.index} にブロックを挿入`}
+        aria-label={`位置 ${props.index} にブロックを挿入`}
       >
-        ＋ ここに挿入
+        ＋
       </button>
       <Show when={menuOpen()}>
         <div class="ss-script-insert-bar-menu">

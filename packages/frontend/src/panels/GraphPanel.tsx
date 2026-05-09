@@ -27,6 +27,7 @@ import { SceneSelection } from '../services/SceneSelection';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
+import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
 import { createResource } from 'solid-js';
 
@@ -327,6 +328,20 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               ノードクリックで Script に jump · 「次へ」=暗黙 next / 線=choice goto
             </span>
           </Show>
+          <button
+            type="button"
+            class="panel-graph-add-comment"
+            title="グラフに自由メモ (グループ説明など) を追加"
+            onClick={() => {
+              // 画面中央付近に新しいメモを置く (world 座標は単純に 0,0 + ランダム offset)
+              GraphComments.add({
+                x: 40 + Math.random() * 80,
+                y: 40 + Math.random() * 80,
+              });
+            }}
+          >
+            ＋ メモ
+          </button>
           <code class="panel-graph-id">{params.api.id}</code>
         </div>
         {/* PR-AN: 2 段目 — テンプレ別 visibility + ノード検索。

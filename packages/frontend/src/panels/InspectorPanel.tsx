@@ -34,6 +34,9 @@ import { NodeThumbnail } from '../global/NodeThumbnail';
 import { PortraitCropper } from '../global/PortraitCropper';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
 import { deriveGlossary } from '../services/GlossaryHighlight';
+import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
+import { SceneSelection } from '../services/SceneSelection';
+import { PanelFocus } from '../services/PanelFocus';
 
 // 選択中ノードの編集 UI。
 // テンプレート schema を読んで対応する form プリミティブを並べ、
@@ -440,10 +443,102 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
                 </For>
               </div>
             </Show>
+            {/* PR (ux-overhaul): 登場した章 / シーン (cast 自動集計) */}
+            <AppearancesSection node={node()!} />
           </div>
         </div>
       </Show>
     </div>
+  );
+};
+
+/** PR (ux-overhaul): 「このノードが who: として登場するシーン」を章別にまとめて表示。
+ *  scenario YAML をスキャンする SceneAppearanceIndex を遅延初期化して使う。
+ *  クリックで Script タブにジャンプ。 */
+const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
+  // mount 時に index 構築 (まだ build されていなければ)
+  onMount(() => SceneAppearanceIndex.ensureBuilt());
+
+  const identifiers = createMemo<string[]>(() => {
+    const ids = [props.node.slug];
+    const dev = props.node.fields['dev_name'];
+    if (typeof dev === 'string' && dev !== '' && dev !== props.node.slug) ids.push(dev);
+    return ids;
+  });
+
+  const groupedByChapter = createMemo(() => {
+    // SceneAppearanceIndex の signal を読むことで再評価
+    void SceneAppearanceIndex.byIdentifier();
+    const list = SceneAppearanceIndex.appearancesFor(...identifiers());
+    const map = new Map<string, { title: string; scenes: typeof list[number][] }>();
+    for (const a of list) {
+      const cur = map.get(a.chapterSlug);
+      if (cur) cur.scenes.push(a);
+      else map.set(a.chapterSlug, { title: a.chapterTitle, scenes: [a] });
+    }
+    return [...map.entries()];
+  });
+
+  function jump(chapterSlug: string, sceneSlug: string, label: string): void {
+    SceneSelection.select({ chapterSlug, sceneSlug, label });
+    PanelFocus.focus('script-1');
+  }
+
+  return (
+    <section class="panel-inspector-appearances">
+      <h4 class="panel-inspector-appearances-title">
+        🎬 登場した章
+        <Show when={SceneAppearanceIndex.building()}>
+          <span class="panel-inspector-appearances-loading"> (集計中…)</span>
+        </Show>
+        <button
+          type="button"
+          class="panel-inspector-appearances-refresh"
+          title="登場集計を再計算"
+          onClick={() => void SceneAppearanceIndex.refresh()}
+        >
+          ⟳
+        </button>
+      </h4>
+      <Show
+        when={groupedByChapter().length > 0}
+        fallback={
+          <p class="panel-inspector-appearances-empty">
+            このノードが who: で登場するシーンは見つかりませんでした。
+          </p>
+        }
+      >
+        <ul class="panel-inspector-appearances-list">
+          <For each={groupedByChapter()}>
+            {([chapterSlug, group]) => (
+              <li class="panel-inspector-appearances-chapter">
+                <span class="panel-inspector-appearances-chapter-title">
+                  📖 {group.title}{' '}
+                  <span class="panel-inspector-appearances-count">({group.scenes.length})</span>
+                </span>
+                <ul class="panel-inspector-appearances-scenes">
+                  <For each={group.scenes}>
+                    {(s) => (
+                      <li>
+                        <button
+                          type="button"
+                          class="panel-inspector-appearances-scene"
+                          onClick={() => jump(chapterSlug, s.sceneSlug, s.sceneTitle)}
+                          title={`${s.sceneTitle} を脚本タブで開く (発言 ${s.count})`}
+                        >
+                          🎬 {s.sceneTitle}
+                          <span class="panel-inspector-appearances-line-count">{s.count}</span>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </section>
   );
 };
 

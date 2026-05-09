@@ -159,7 +159,7 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
           {collapsed() ? '◀' : '▶'}
         </button>
         <Show when={!collapsed()}>
-          <span class="ss-script-rail-title">📋 シーン文脈</span>
+          <span class="ss-script-rail-title">📋 シーン詳細</span>
         </Show>
       </header>
 
