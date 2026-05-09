@@ -20,6 +20,52 @@ function cspPlugin(): Plugin {
   };
 }
 
+function devServiceWorkerCleanupPlugin(): Plugin {
+  const normalizedBase = BASE_PATH.endsWith('/') ? BASE_PATH : `${BASE_PATH}/`;
+  const swPaths = new Set(['/sw.js', `${normalizedBase}sw.js`]);
+  const cleanupSw = `
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    await self.registration.unregister();
+    for (const client of clients) {
+      if ('navigate' in client) {
+        client.navigate(client.url);
+      }
+    }
+  })());
+});
+`;
+
+  return {
+    name: 'scenario-studio:dev-sw-cleanup',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = req.url?.split('?')[0] ?? '';
+        if (!swPaths.has(path)) {
+          next();
+          return;
+        }
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Service-Worker-Allowed', '/');
+        res.end(cleanupSw);
+      });
+    },
+  };
+}
+
 // SolidJS + Vite + PWA。
 // M8: 本格的なキャッシュ戦略 — JS/CSS は SWR (新版を即座に学習しつつ古版で起動高速化)、
 // 画像は Cache-First (めったに変わらない)、index.html は NetworkFirst (新ビルド即反映)。
@@ -34,6 +80,7 @@ export default defineConfig({
   base: BASE_PATH,
   plugins: [
     solid(),
+    devServiceWorkerCleanupPlugin(),
     cspPlugin(),
     VitePWA({
       registerType: 'prompt',

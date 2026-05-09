@@ -16,6 +16,13 @@ export async function registerPwa(): Promise<void> {
         await reg.unregister();
         console.info('[Scenario Studio] dev: unregistered stale service worker');
       }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+        if (keys.length > 0) {
+          console.info(`[Scenario Studio] dev: cleared ${keys.length} stale cache(s)`);
+        }
+      }
     } catch (e) {
       console.warn('[Scenario Studio] failed to unregister SW', e);
     }
