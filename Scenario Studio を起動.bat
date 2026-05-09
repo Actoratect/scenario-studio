@@ -1,10 +1,5 @@
 @echo off
-REM Scenario Studio をダブルクリックで起動するための batch ファイル。
-REM 既存の vite (port 5173) を kill してから dev server を起動し、
-REM 5 秒後に既定ブラウザで http://localhost:5173/ を開く。
-REM
-REM 終了するときはこのウィンドウを閉じれば dev server も止まる。
-
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
@@ -12,22 +7,23 @@ echo === Scenario Studio launcher ===
 echo project: %CD%
 echo.
 
-REM 既存 vite を停止 (port 5173 を listen しているプロセスを kill)
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do (
-  echo [start] killing existing vite PID %%P ...
-  taskkill /F /PID %%P >nul 2>&1
+REM Kill any existing vite dev server on ports 5173-5180
+for /L %%P in (5173,1,5180) do (
+  for /f "tokens=5" %%I in ('netstat -ano -p tcp ^| findstr ":%%P " ^| findstr "LISTENING"') do (
+    echo killing PID %%I on port %%P
+    taskkill /F /PID %%I >nul 2>&1
+  )
 )
 
-REM ブラウザを 5 秒後に自動で開く (バックグラウンド)
+REM Open default browser after 5 seconds in background
 start "" /b cmd /c "timeout /t 5 /nobreak >nul && start http://localhost:5173/"
 
-REM dev server (front-end) を foreground で起動。Ctrl+C か window 閉じで停止。
-echo [start] starting vite dev server...
-echo (このウィンドウを閉じると dev server も停止します)
+echo Starting vite dev server...
+echo (Close this window to stop the server)
 echo.
+
 call npm --prefix packages\frontend run dev
 
-REM サーバが終了した場合は一時停止して結果を見せる
 echo.
-echo === dev server が終了しました ===
+echo === dev server stopped ===
 pause
