@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js';
+import { createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -116,27 +116,29 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
             <p class="ss-script-visual-empty">ブロック無し。下のボタンから追加してください。</p>
           }
         >
-          {/* 各ブロック前に「＋ 挿入」hover bar を入れる。最後のブロック後ろにも 1 個 */}
+          {/* 各ブロック前に「＋ 挿入」hover bar を入れる。最後のブロック後ろにも 1 個。
+           *  PR (ux-overhaul-3): For → Index に変更。block の identity が変わっても DOM を
+           *  保持するので、textarea を編集しても再 mount されず cursor が飛ばない。 */}
           <InsertBar index={0} onInsert={(k) => props.onInsertBlock(0, k)} />
-          <For each={props.parsed.blocks}>
+          <Index each={props.parsed.blocks}>
             {(block, i) => (
               <>
                 <ScriptBlockCard
-                  block={block}
-                  idx={i()}
+                  block={block()}
+                  idx={i}
                   total={props.parsed.blocks.length}
                   cast={props.parsed.cast}
                   parsed={props.parsed}
                   chapterSlug={props.chapterSlug}
                   sceneSlug={props.sceneSlug}
-                  onChange={(next) => props.onChangeBlock(i(), next)}
-                  onDelete={() => props.onDeleteBlock(i())}
-                  onMove={(delta) => props.onMoveBlock(i(), delta)}
+                  onChange={(next) => props.onChangeBlock(i, next)}
+                  onDelete={() => props.onDeleteBlock(i)}
+                  onMove={(delta) => props.onMoveBlock(i, delta)}
                 />
-                <InsertBar index={i() + 1} onInsert={(k) => props.onInsertBlock(i() + 1, k)} />
+                <InsertBar index={i + 1} onInsert={(k) => props.onInsertBlock(i + 1, k)} />
               </>
             )}
-          </For>
+          </Index>
         </Show>
       </div>
       <div class="ss-script-visual-add">

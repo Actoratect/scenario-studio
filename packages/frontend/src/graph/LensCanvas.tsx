@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
 import { GraphComments, type GraphComment } from './graph-comments';
@@ -85,11 +85,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   function onNodeMouseDown(e: MouseEvent, id: NodeId): void {
     if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault();
+    const p = pos(id);
     if (e.shiftKey) {
-      const p = pos(id);
       setDrag({ kind: 'connect', source: id, toX: p.x, toY: p.y });
     } else {
-      const p = pos(id);
       setDrag({ kind: 'node', id, startX: e.clientX, startY: e.clientY, px: p.x, py: p.y });
     }
   }
@@ -362,7 +362,9 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* nodes */}
         <For each={props.payload.nodes}>
           {(node) => {
-            const p = pos(node.id);
+            // PR (ux-overhaul-3): pos を memo にして props.positions の変化を tracked。
+            // For 子は 1 回しか走らないので、pos を let const で読むと初期値で固まる。
+            const p = createMemo(() => pos(node.id));
             const isSelected = () => props.selected === node.id;
             const dim = () => isDimmed(node.id);
             const isHover = () => hoverNode() === node.id;
@@ -375,7 +377,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   'lens-node--dimmed': dim(),
                   'lens-node--target-hover': connecting() && isHover(),
                 }}
-                transform={`translate(${p.x}, ${p.y})`}
+                transform={`translate(${p().x}, ${p().y})`}
                 onMouseDown={(e) => onNodeMouseDown(e, node.id)}
                 onMouseEnter={() => setHoverNode(node.id)}
                 onMouseLeave={() => setHoverNode(undefined)}
