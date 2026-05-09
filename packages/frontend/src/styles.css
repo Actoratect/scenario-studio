@@ -51,6 +51,13 @@
    * 画面ヘッダの「A-/A+/A大」ボタンから data-font-size 属性を root に立て、
    * このスケール変数 (1.0 を中心に 0.85〜1.30) で全体を伸縮。 */
   --ss-font-scale: 1;
+  --ss-font-9: calc(9px * var(--ss-font-scale));
+  --ss-font-10: calc(10px * var(--ss-font-scale));
+  --ss-font-11: calc(11px * var(--ss-font-scale));
+  --ss-font-12: calc(12px * var(--ss-font-scale));
+  --ss-font-13: calc(13px * var(--ss-font-scale));
+  --ss-font-14: calc(14px * var(--ss-font-scale));
+  --ss-font-18: calc(18px * var(--ss-font-scale));
 }
 
 html[data-font-size='small'] {
@@ -84,7 +91,7 @@ body,
     'Hiragino Kaku Gothic ProN',
     'Yu Gothic UI',
     sans-serif;
-  font-size: calc(13px * var(--ss-font-scale));
+  font-size: var(--ss-font-13);
 }
 
 /* OS dark mode の <input>/<textarea> のグレー化を抑止する保険 */
@@ -1637,6 +1644,82 @@ button {
   margin-left: auto;
   font-size: 10px;
   color: #aaa;
+}
+
+.panel-script-rename {
+  padding: 2px 8px;
+  font-size: var(--ss-font-11);
+  min-width: 44px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-script-rename:hover:not(:disabled) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-script-rename:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.panel-script-scene-meta,
+.panel-script-meta,
+.panel-script-scene-select,
+.panel-script-mode-toggle button,
+.ss-script-visual-add-label,
+.ss-script-visual-add-btn,
+.ss-script-insert-bar-item,
+.ss-script-line-who,
+.ss-script-cue-input,
+.ss-script-choice-bullet,
+.ss-script-choice-text,
+.ss-script-choice-then,
+.ss-script-choice-delete,
+.ss-script-choice-add,
+.ss-script-unknown,
+.ss-script-rail-issue,
+.ss-script-rail-ai-preview,
+.ss-script-rail-ai-preview pre {
+  font-size: var(--ss-font-11);
+}
+
+.panel-script-scene-title {
+  font-size: var(--ss-font-14);
+}
+
+.panel-script-scene-cast,
+.panel-script-saving,
+.ss-script-line-emotion,
+.ss-script-bgm-fade,
+.ss-script-bgm-fade input,
+.ss-script-rail-hint {
+  font-size: var(--ss-font-10);
+}
+
+.panel-script-scene-cast-chip,
+.ss-script-line-action-tag,
+.ss-script-card-num,
+.ss-script-rail-chip,
+.ss-script-rail-issue-rule {
+  font-size: var(--ss-font-9);
+}
+
+.ss-script-card-icon {
+  font-size: var(--ss-font-18);
+}
+
+.panel-script-host .cm-scroller,
+.ss-script-line-text,
+.ss-script-aside-text,
+.ss-script-stage-text,
+.ss-script-choice-prompt {
+  font-size: var(--ss-font-13);
 }
 
 /* PoC-B 大規模グラフベンチ panel */

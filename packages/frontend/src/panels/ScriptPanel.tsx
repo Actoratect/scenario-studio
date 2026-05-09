@@ -90,6 +90,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   let suppressHistory = false;
   const [saving, setSaving] = createSignal(false);
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
+  const [historyRevision, setHistoryRevision] = createSignal(0);
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
 
@@ -137,12 +138,25 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   const parsed = parsedStore;
 
   /** History snapshot を積む共通処理 (undo/redo 中以外)。 */
+  function touchHistory(): void {
+    setHistoryRevision((v) => v + 1);
+  }
+
+  const activeHistory = createMemo(() => {
+    historyRevision();
+    const target = scene();
+    return target ? getHistory(target.path) : undefined;
+  });
+  const canUndo = createMemo(() => (activeHistory()?.undo.length ?? 0) > 0);
+  const canRedo = createMemo(() => (activeHistory()?.redo.length ?? 0) > 0);
+
   function pushHistory(targetPath: string): void {
     if (suppressHistory) return;
     const h = getHistory(targetPath);
     h.undo.push(cloneScene(parsedStore));
     if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
     h.redo.length = 0;
+    touchHistory();
   }
 
   /** dirty 化 (毎 mutation 後に呼ぶ)。staging を最新の store snapshot で更新。 */
@@ -234,6 +248,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     if (!prev) return;
     h.redo.push(cloneScene(parsedStore));
     if (h.redo.length > HISTORY_LIMIT) h.redo.shift();
+    touchHistory();
     suppressHistory = true;
     try {
       setParsedStore(reconcile(prev));
@@ -251,6 +266,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     if (!next) return;
     h.undo.push(cloneScene(parsedStore));
     if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    touchHistory();
     suppressHistory = true;
     try {
       setParsedStore(reconcile(next));
@@ -410,19 +426,18 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   /** Ctrl/Cmd+Z / Ctrl/Cmd+Y を script panel スコープで先取り (capture phase で window) */
   function onPanelKey(e: KeyboardEvent): void {
     const meta = e.ctrlKey || e.metaKey;
-    if (!meta) return;
-    // Script Panel の DOM 内で発生したイベントだけ処理
+    if (!meta || e.isComposing) return;
     if (!panelRoot || !(e.target instanceof Node) || !panelRoot.contains(e.target)) return;
-    const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-    // textarea / input 内は native undo を尊重 (1 文字単位)
-    if (tag === 'textarea' || tag === 'input') return;
-    if (e.key === 'z' && !e.shiftKey) {
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       undo();
-    } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+    } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       redo();
     }
   }
@@ -509,17 +524,19 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
             type="button"
             class="panel-script-rename"
             onClick={undo}
+            disabled={!canUndo()}
             title="Undo (Ctrl+Z)"
           >
-            ↶
+            Undo
           </button>
           <button
             type="button"
             class="panel-script-rename"
             onClick={redo}
+            disabled={!canRedo()}
             title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
           >
-            ↷
+            Redo
           </button>
         </Show>
         <Show when={saving()}>
