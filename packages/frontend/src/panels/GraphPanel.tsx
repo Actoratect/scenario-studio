@@ -95,6 +95,8 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     new Set<string>(),
   );
   const [searchQuery, setSearchQuery] = createSignal('');
+  // PR (ux-overhaul-3): 関係 (edge) 表示 toggle
+  const [edgesVisible, setEdgesVisible] = createSignal(true);
 
   function toggleTemplate(templateId: string): void {
     const cur = hiddenTemplates();
@@ -134,12 +136,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const raw = rawLens();
     if (!raw) return undefined;
     const hidden = hiddenTemplates();
-    if (hidden.size === 0) return raw;
+    const showEdges = edgesVisible();
+    if (hidden.size === 0 && showEdges) return raw;
     const visibleNodes = raw.nodes.filter((n) => !hidden.has(n.templateId));
     const visibleIds = new Set<NodeId>(visibleNodes.map((n) => n.id));
-    const visibleEdges = raw.edges.filter(
+    let visibleEdges = raw.edges.filter(
       (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
     );
+    if (!showEdges) visibleEdges = [];
     return { nodes: visibleNodes, edges: visibleEdges };
   });
 
@@ -307,6 +311,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
               ⓘ Shift+drag で関係作成
             </span>
+            <label class="panel-graph-era-toggle" title="関係 (edge) 線の表示 / 非表示">
+              <input
+                type="checkbox"
+                checked={edgesVisible()}
+                onChange={(e) => setEdgesVisible(e.currentTarget.checked)}
+              />
+              関係を表示
+            </label>
             <label
               class="panel-graph-era-toggle"
               title="現在の時間軸で生存していないノードを薄く表示"

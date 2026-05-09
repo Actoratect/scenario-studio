@@ -68,6 +68,10 @@ function isMapping(v: unknown): v is { [k: string]: YamlValue } {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+// PR (ux-overhaul-3): per-path staging。タブを切替えても編集が破棄されないよう、
+// path -> ParsedScene を Map で保持。保存ボタンで flush + 該当 path の staging を delete。
+const plotStaging = new Map<string, ParsedScene>();
+
 function extractPlot(parsed: ParsedScene): PlotData {
   const plot = isMapping(parsed.meta['plot']) ? (parsed.meta['plot'] as { [k: string]: YamlValue }) : {};
   return {
@@ -109,10 +113,13 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   }
 
   // 選択シーンの YAML を resource で load。selected.path を key にして cache が変わる。
+  // staging に既存があればそれを優先 (タブ切替で編集を破棄しない)。
   const [parsed, { mutate, refetch }] = createResource(
     () => (props.selected ? props.selected.path : ''),
     async (path: string): Promise<ParsedScene | undefined> => {
       if (!path) return undefined;
+      const staged = plotStaging.get(path);
+      if (staged) return staged;
       const ctx = ProjectService.currentProject();
       if (!ctx) return undefined;
       if (!(await ctx.adapter.exists(ctx.handle, path))) return undefined;
@@ -167,6 +174,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
       blocks: cur.blocks,
     };
     mutate(nextParsed);
+    plotStaging.set(sel.path, nextParsed);
     DirtyTracker.mark({
       key: sel.path,
       label: sel.label,
@@ -175,6 +183,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
         if (!ctx) return;
         const yaml = serializeSceneYaml(nextParsed);
         await ctx.adapter.write(ctx.handle, sel.path, yaml);
+        plotStaging.delete(sel.path);
       },
     });
   }
@@ -302,10 +311,15 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
                       <button
                         type="button"
                         class="ss-plot-rail-reload"
-                        onClick={() => refetch()}
+                        onClick={() => {
+                          // 未保存 staging を破棄してファイルから再読込
+                          plotStaging.delete(sel().path);
+                          DirtyTracker.clear(sel().path);
+                          void refetch();
+                        }}
                         title="ファイルから再読込 (未保存変更は破棄)"
                       >
-                        ⟳ 再読込
+                        ⟳ 再読込 (未保存破棄)
                       </button>
                     </section>
                   </>

@@ -242,35 +242,40 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* edges */}
         <For each={props.payload.edges}>
           {(edge) => {
-            const s = pos(edge.source);
-            const t = pos(edge.target);
-            const dx = t.x - s.x;
-            const dy = t.y - s.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const ux = dx / len;
-            const uy = dy / len;
-            const sx = s.x + ux * NODE_RADIUS;
-            const sy = s.y + uy * NODE_RADIUS;
-            const tx = t.x - ux * NODE_RADIUS;
-            const ty = t.y - uy * NODE_RADIUS;
-            const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
-            const dim = isDimmed(edge.source) || isDimmed(edge.target);
-            const box = edgeBox(edge.label);
+            // PR (ux-overhaul-3): pos を memo にしてノード drag に追随する
+            const s = createMemo(() => pos(edge.source));
+            const t = createMemo(() => pos(edge.target));
+            const geom = createMemo(() => {
+              const sp = s();
+              const tp = t();
+              const dx = tp.x - sp.x;
+              const dy = tp.y - sp.y;
+              const len = Math.hypot(dx, dy) || 1;
+              const ux = dx / len;
+              const uy = dy / len;
+              const sx = sp.x + ux * NODE_RADIUS;
+              const sy = sp.y + uy * NODE_RADIUS;
+              const tx = tp.x - ux * NODE_RADIUS;
+              const ty = tp.y - uy * NODE_RADIUS;
+              return { sx, sy, tx, ty, mid: { x: (sx + tx) / 2, y: (sy + ty) / 2 } };
+            });
+            const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
+            const box = createMemo(() => edgeBox(edge.label));
             const explicit = edge.kind === 'explicit';
             return (
-              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim }}>
+              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
                 <line
-                  x1={sx}
-                  y1={sy}
-                  x2={tx}
-                  y2={ty}
+                  x1={geom().sx}
+                  y1={geom().sy}
+                  x2={geom().tx}
+                  y2={geom().ty}
                   stroke={explicit ? '#0072b2' : '#5a6068'}
                   stroke-width={explicit ? 2 : 1.5}
                   stroke-dasharray={explicit ? undefined : '4 3'}
                   marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
                 <g
-                  transform={`translate(${mid.x}, ${mid.y})`}
+                  transform={`translate(${geom().mid.x}, ${geom().mid.y})`}
                   class="lens-edge-label-group"
                   classList={{
                     'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
@@ -282,10 +287,10 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   }}
                 >
                   <rect
-                    x={-box.w / 2}
-                    y={-box.h / 2}
-                    width={box.w}
-                    height={box.h}
+                    x={-box().w / 2}
+                    y={-box().h / 2}
+                    width={box().w}
+                    height={box().h}
                     rx="4"
                     ry="4"
                     fill="#ffffff"
@@ -310,14 +315,16 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* connect モード中の rubber-band */}
         <Show when={drag()?.kind === 'connect'}>
           {(_) => {
-            const d = drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number };
-            const s = pos(d.source);
+            // PR (ux-overhaul-3): drag() を memo にして mousemove に追随させる
+            const dm = createMemo(
+              () => drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number },
+            );
             return (
               <line
-                x1={s.x}
-                y1={s.y}
-                x2={d.toX}
-                y2={d.toY}
+                x1={pos(dm().source).x}
+                y1={pos(dm().source).y}
+                x2={dm().toX}
+                y2={dm().toY}
                 stroke="#0072b2"
                 stroke-width="2"
                 stroke-dasharray="6 4"

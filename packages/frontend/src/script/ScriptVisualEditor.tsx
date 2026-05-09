@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -336,6 +336,38 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   );
 };
 
+/** PR (ux-overhaul-3): IME / cursor を破壊しない安定 textarea。
+ *  ユーザー入力中は外部 value の DOM への上書きを抑止 (= 値が一致していればスキップ)。
+ *  外部から block 参照が変わっても、DOM value が "新しい value" と既に一致していれば
+ *  Solid に setProperty させない。 */
+const StableTextarea: Component<{
+  class?: string;
+  rows?: string;
+  value: string;
+  placeholder?: string;
+  onInput: (value: string) => void;
+  onContextMenu?: (e: MouseEvent) => void;
+}> = (props) => {
+  let ref: HTMLTextAreaElement | undefined;
+  // 外部 value が変わった時だけ DOM に流し込む。ユーザー入力で同期した場合は skip。
+  createEffect(() => {
+    const v = props.value;
+    if (ref && ref.value !== v) {
+      ref.value = v;
+    }
+  });
+  return (
+    <textarea
+      ref={ref}
+      class={props.class}
+      rows={props.rows}
+      placeholder={props.placeholder}
+      onInput={(e) => props.onInput(e.currentTarget.value)}
+      onContextMenu={(e) => props.onContextMenu?.(e)}
+    />
+  );
+};
+
 const CharacterLine: Component<{
   block: ScriptBlock & { kind: 'line' | 'action' };
   characters: readonly { id: string; slug: string; devName: string; display: string }[];
@@ -408,12 +440,12 @@ const CharacterLine: Component<{
           <span class="ss-script-line-action-tag">行動</span>
         </Show>
       </div>
-      <textarea
+      <StableTextarea
         class="ss-script-line-text"
         rows="2"
         value={props.block.text}
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -443,12 +475,12 @@ const AsideBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-aside-text"
         rows="2"
         value={props.block.text}
         placeholder="心の声 / 独白を入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -478,12 +510,12 @@ const StageBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-stage-text"
         rows="2"
         value={props.block.text}
         placeholder="状況描写 / ステージを入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
