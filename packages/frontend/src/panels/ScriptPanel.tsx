@@ -264,11 +264,26 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     const target = scene();
     if (!target) return;
     pushHistory(target.path);
-    // produce() で対象 block だけを差し替える (= テキスト 1 文字編集なら、その text path
-    // だけの fine-grained update。textarea の DOM は再 mount されない)
+    // PR (ux-overhaul-5): block を REPLACE せず in-place mutation で path-level patch。
+    // これで store proxy の block 参照が保たれ、Index の signal が発火せず textarea
+    // が再 mount されない。同一 kind の field-by-field 差分だけを書き込む。
     setParsedStore(
       produce((s) => {
-        (s.blocks as ScriptBlock[])[idx] = next;
+        const cur = s.blocks[idx];
+        if (cur && cur.kind === next.kind) {
+          // 同じ kind: プロパティ単位で patch
+          const curRec = cur as unknown as Record<string, unknown>;
+          const nextRec = next as unknown as Record<string, unknown>;
+          for (const k of Object.keys(nextRec)) {
+            if (curRec[k] !== nextRec[k]) curRec[k] = nextRec[k];
+          }
+          for (const k of Object.keys(curRec)) {
+            if (!(k in nextRec)) delete curRec[k];
+          }
+        } else {
+          // kind が変わった → 全置換 (新しい proxy が作られる)
+          (s.blocks as ScriptBlock[])[idx] = next;
+        }
       }),
     );
     markDirty(target);

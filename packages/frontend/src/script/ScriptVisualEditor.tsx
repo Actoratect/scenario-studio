@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -336,10 +336,19 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   );
 };
 
-/** PR (ux-overhaul-4): シンプルな controlled textarea + IME composition 対応。
- *  ScriptPanel が createStore + produce で fine-grained reactivity を実現したので、
- *  textarea の value 同期はもはや問題にならない (該当 textarea の value 1 つだけ更新)。
- *  IME 中の親 state 更新による composition 中断だけは composing flag で防ぐ。 */
+/** PR (ux-overhaul-5): 最終 Stable textarea。
+ *
+ *  ScriptPanel が createStore + produce + in-place mutation で fine-grained reactivity を
+ *  実現済み。textarea は value bind を完全に外して uncontrolled として扱い、
+ *  外部更新だけを ref 経由で同期する。
+ *
+ *  原則:
+ *    - 初回マウント時に ref.value = props.value
+ *    - createEffect で props.value 変化を監視。composing 中でなく、DOM の現在値と
+ *      props.value が異なる時だけ ref.value = v (= 外部更新時のみ)
+ *    - ユーザー入力 (onInput) は composing でなければ親に通知
+ *    - IME composition (onCompositionStart/End) で composing flag。中の input は ignore
+ */
 const StableTextarea: Component<{
   class?: string;
   rows?: string;
@@ -348,23 +357,40 @@ const StableTextarea: Component<{
   onInput: (value: string) => void;
   onContextMenu?: (e: MouseEvent) => void;
 }> = (props) => {
+  let ref: HTMLTextAreaElement | undefined;
   let composing = false;
+  // 外部 value 変化のみ DOM に反映 (DEV: 強制 sync 時にログ → cursor 飛び事案を可視化)
+  createEffect(() => {
+    const v = props.value ?? '';
+    if (composing) return;
+    if (ref && ref.value !== v) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('[StableTextarea] external sync', {
+          dom: ref.value,
+          newValue: v,
+        });
+      }
+      ref.value = v;
+    }
+  });
   return (
     <textarea
+      ref={(el) => {
+        ref = el;
+        if (el) el.value = props.value ?? '';
+      }}
       class={props.class}
       rows={props.rows}
-      value={props.value ?? ''}
       placeholder={props.placeholder}
       onCompositionStart={() => {
         composing = true;
       }}
       onCompositionEnd={(e) => {
         composing = false;
-        // composition 確定値を親に通知
         props.onInput((e.currentTarget as HTMLTextAreaElement).value);
       }}
       onInput={(e) => {
-        // IME composition 中は親 state を更新しない (確定で onCompositionEnd が flush)
         if (composing) return;
         props.onInput(e.currentTarget.value);
       }}
