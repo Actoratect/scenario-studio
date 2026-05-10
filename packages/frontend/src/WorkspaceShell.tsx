@@ -1,7 +1,14 @@
 import { lazy, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
-import type { CreateComponentOptions, DockviewApi, IContentRenderer } from 'dockview-core';
+import type {
+  CreateComponentOptions,
+  DockviewApi,
+  IContentRenderer,
+  IDockviewPanel,
+  IGroupHeaderProps,
+  IHeaderActionsRenderer,
+} from 'dockview-core';
 import { SolidPanelView } from './dockview/SolidPanelView';
 import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
@@ -31,9 +38,10 @@ import { PanelFocus } from './services/PanelFocus';
 import { AiPatchQueue } from './services/AiPatchQueue';
 import { DirtyTracker } from './services/DirtyTracker';
 import { FontScaleService } from './services/FontScale';
+import { GlobalHistoryService } from './services/GlobalHistoryService';
+import { PanelPinService } from './services/PanelPinService';
 import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
-import { ScriptHistoryService } from './services/ScriptHistoryService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
 
@@ -70,6 +78,188 @@ const PANEL_REGISTRY = {
 type PanelName = keyof typeof PANEL_REGISTRY;
 function isPanelName(name: string): name is PanelName {
   return name in PANEL_REGISTRY;
+}
+
+const PANEL_TITLES: Record<PanelName, string> = {
+  graph: '🕸 グラフ',
+  inspector: '📝 インスペクタ',
+  outline: '📚 アウトライン',
+  synopsis: '📖 あらすじ',
+  script: '🎬 脚本',
+  bench: '🧪 ベンチ',
+  console: '⚠ コンソール',
+  ai: '🤖 AI',
+  settings: '⚙ 設定',
+  timeline: '🗂 プロット',
+  stats: '📊 統計',
+  'era-timeline': '⏳ 時間軸 年表',
+};
+
+const ADDABLE_PANELS: readonly PanelName[] = [
+  'graph',
+  'outline',
+  'script',
+  'inspector',
+  'synopsis',
+  'timeline',
+  'era-timeline',
+  'stats',
+  'ai',
+  'console',
+  'settings',
+  'bench',
+];
+
+function panelNameOf(panel: IDockviewPanel | undefined): PanelName | undefined {
+  const name = panel?.view.contentComponent;
+  return name && isPanelName(name) ? name : undefined;
+}
+
+function panelTitle(name: PanelName, pinned = false): string {
+  return pinned ? `📌 ${PANEL_TITLES[name]}` : PANEL_TITLES[name];
+}
+
+interface HeaderActionCallbacks {
+  addPanel: (name: PanelName, referencePanel?: IDockviewPanel) => void;
+  closePanel: (panel: IDockviewPanel) => void;
+  togglePin: (panel: IDockviewPanel) => void;
+}
+
+class WorkspaceHeaderActions implements IHeaderActionsRenderer {
+  readonly element = document.createElement('div');
+  private params: IGroupHeaderProps | undefined;
+  private activeDisposable: { dispose(): void } | undefined;
+  private open = false;
+
+  constructor(private readonly callbacks: HeaderActionCallbacks) {
+    this.element.className = 'workspace-panel-actions';
+  }
+
+  init(params: IGroupHeaderProps): void {
+    this.params = params;
+    this.activeDisposable = params.api.onDidActivePanelChange(() => this.render());
+    document.addEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.render();
+  }
+
+  dispose(): void {
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.activeDisposable?.dispose();
+    this.element.replaceChildren();
+  }
+
+  private readonly onDocumentPointerDown = (e: PointerEvent): void => {
+    if (!this.open) return;
+    if (e.target && this.element.contains(e.target as Node)) return;
+    this.open = false;
+    this.render();
+  };
+
+  private closeMenu(): void {
+    this.open = false;
+    this.render();
+  }
+
+  private addMenuButton(
+    parent: HTMLElement,
+    label: string,
+    onClick: () => void,
+    options: { title?: string; danger?: boolean; disabled?: boolean } = {},
+  ): void {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (options.title) button.title = options.title;
+    if (options.danger) button.classList.add('workspace-panel-menu-danger');
+    button.disabled = options.disabled === true;
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (button.disabled) return;
+      onClick();
+      this.closeMenu();
+    });
+    parent.appendChild(button);
+  }
+
+  private addSeparator(parent: HTMLElement): void {
+    const sep = document.createElement('span');
+    sep.className = 'workspace-panel-menu-separator';
+    parent.appendChild(sep);
+  }
+
+  private render(): void {
+    this.element.replaceChildren();
+    const active = this.params?.group.activePanel;
+    const activeName = panelNameOf(active);
+
+    if (active && (activeName === 'script' || activeName === 'inspector')) {
+      const pinned =
+        activeName === 'script'
+          ? PanelPinService.isScriptPinned(active.id)
+          : PanelPinService.isInspectorPinned(active.id);
+      const pinButton = document.createElement('button');
+      pinButton.type = 'button';
+      pinButton.className = 'workspace-panel-pin-button';
+      pinButton.classList.toggle('workspace-panel-pin-button--active', pinned);
+      pinButton.textContent = pinned ? '📌' : '📍';
+      pinButton.title = pinned ? 'ピン解除' : 'ピン止め';
+      pinButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.callbacks.togglePin(active);
+        this.render();
+      });
+      this.element.appendChild(pinButton);
+    }
+
+    const menuButton = document.createElement('button');
+    menuButton.type = 'button';
+    menuButton.className = 'workspace-panel-menu-button';
+    menuButton.textContent = '☰';
+    menuButton.title = 'ウィンドウメニュー';
+    menuButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.open = !this.open;
+      this.render();
+    });
+    this.element.appendChild(menuButton);
+
+    if (!this.open) return;
+    const menu = document.createElement('div');
+    menu.className = 'workspace-panel-menu';
+
+    if (active && activeName) {
+      this.addMenuButton(menu, '同じウィンドウを追加', () =>
+        this.callbacks.addPanel(activeName, active),
+      );
+      this.addSeparator(menu);
+    }
+
+    for (const name of ADDABLE_PANELS) {
+      this.addMenuButton(menu, `追加: ${PANEL_TITLES[name]}`, () =>
+        this.callbacks.addPanel(name, active),
+      );
+    }
+
+    if (active && (activeName === 'script' || activeName === 'inspector')) {
+      const pinned =
+        activeName === 'script'
+          ? PanelPinService.isScriptPinned(active.id)
+          : PanelPinService.isInspectorPinned(active.id);
+      this.addSeparator(menu);
+      this.addMenuButton(menu, pinned ? 'ピン解除' : 'ピン止め', () =>
+        this.callbacks.togglePin(active),
+      );
+    }
+
+    if (active) {
+      this.addSeparator(menu);
+      this.addMenuButton(menu, '閉じる', () => this.callbacks.closePanel(active), {
+        danger: true,
+      });
+    }
+
+    this.element.appendChild(menu);
+  }
 }
 
 // PR-AG: Dockview layout persistence
@@ -129,13 +319,14 @@ export const WorkspaceShell: Component = () => {
 
   function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
+    if (target.closest('.ss-script-visual')) return false;
     const tag = target.tagName.toLowerCase();
     return target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select';
   }
 
   function onKeydown(e: KeyboardEvent): void {
     const meta = e.ctrlKey || e.metaKey;
-    if (!meta) return;
+    if (!meta || e.isComposing) return;
     const key = e.key.toLowerCase();
     const ctx = ProjectService.currentProject();
     // Cmd+K: コマンド/検索 palette (project が無くても開けるが候補は空になる)
@@ -195,83 +386,135 @@ export const WorkspaceShell: Component = () => {
     }
     if (key === 'z' && !e.shiftKey) {
       if (isEditableTarget(e.target)) return;
+      if (!GlobalHistoryService.canUndo()) return;
       e.preventDefault();
-      if (ScriptHistoryService.undo()) return;
-      ctx.history.undo();
+      void GlobalHistoryService.undo();
     } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
       if (isEditableTarget(e.target)) return;
+      if (!GlobalHistoryService.canRedo()) return;
       e.preventDefault();
-      if (ScriptHistoryService.redo()) return;
-      ctx.history.redo();
+      void GlobalHistoryService.redo();
+    }
+  }
+
+  function nextPanelId(name: PanelName): string {
+    if (!api) return `${name}-${Date.now().toString(36)}`;
+    for (let i = 1; i < 1000; i += 1) {
+      const id = `${name}-${i}`;
+      if (!api.getPanel(id)) return id;
+    }
+    return `${name}-${Date.now().toString(36)}`;
+  }
+
+  function addWorkspacePanel(name: PanelName, referencePanel?: IDockviewPanel): void {
+    if (!api) return;
+    const id = nextPanelId(name);
+    if (referencePanel) {
+      api.addPanel({
+        id,
+        component: name,
+        title: panelTitle(name),
+        position: { referencePanel, direction: 'within' },
+      });
+    } else {
+      api.addPanel({ id, component: name, title: panelTitle(name) });
+    }
+  }
+
+  function closeWorkspacePanel(panel: IDockviewPanel): void {
+    PanelPinService.clearPanel(panel.id);
+    panel.api.close();
+  }
+
+  function togglePanelPin(panel: IDockviewPanel): void {
+    const name = panelNameOf(panel);
+    if (name === 'inspector') {
+      const wasPinned = PanelPinService.isInspectorPinned(panel.id);
+      const pinned = PanelPinService.toggleInspector(panel.id);
+      if (!wasPinned && !pinned) {
+        Toast.info('ピン止めするノードを選択してください', 1800);
+        return;
+      }
+      panel.setTitle(panelTitle(name, pinned));
+      return;
+    }
+    if (name === 'script') {
+      const wasPinned = PanelPinService.isScriptPinned(panel.id);
+      const pinned = PanelPinService.toggleScript(panel.id);
+      if (!wasPinned && !pinned) {
+        Toast.info('ピン止めするシーンを選択してください', 1800);
+        return;
+      }
+      panel.setTitle(panelTitle(name, pinned));
     }
   }
 
   function buildDefaultLayout(a: DockviewApi): void {
-    a.addPanel({ id: 'graph-1', component: 'graph', title: '🕸 グラフ' });
+    a.addPanel({ id: 'graph-1', component: 'graph', title: panelTitle('graph') });
     a.addPanel({
       id: 'inspector-1',
       component: 'inspector',
-      title: '📝 インスペクタ',
+      title: panelTitle('inspector'),
       position: { referencePanel: 'graph-1', direction: 'right' },
     });
     a.addPanel({
       id: 'outline-1',
       component: 'outline',
-      title: '📚 アウトライン',
+      title: panelTitle('outline'),
       position: { referencePanel: 'graph-1', direction: 'below' },
     });
     a.addPanel({
       id: 'synopsis-1',
       component: 'synopsis',
-      title: '📖 あらすじ',
+      title: panelTitle('synopsis'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'script-1',
       component: 'script',
-      title: '🎬 脚本',
+      title: panelTitle('script'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'bench-1',
       component: 'bench',
-      title: '🧪 ベンチ',
+      title: panelTitle('bench'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'console-1',
       component: 'console',
-      title: '⚠ コンソール',
+      title: panelTitle('console'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'ai-1',
       component: 'ai',
-      title: '🤖 AI',
+      title: panelTitle('ai'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'settings-1',
       component: 'settings',
-      title: '⚙ 設定',
+      title: panelTitle('settings'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'timeline-1',
       component: 'timeline',
-      title: '🗂 プロット',
+      title: panelTitle('timeline'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'stats-1',
       component: 'stats',
-      title: '📊 統計',
+      title: panelTitle('stats'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
     a.addPanel({
       id: 'era-timeline-1',
       component: 'era-timeline',
-      title: '⏳ 時間軸 年表',
+      title: panelTitle('era-timeline'),
       position: { referencePanel: 'outline-1', direction: 'within' },
     });
   }
@@ -301,6 +544,12 @@ export const WorkspaceShell: Component = () => {
     if (!host) return;
     api = createDockview(host, {
       className: 'dockview-theme-light',
+      createRightHeaderActionComponent: () =>
+        new WorkspaceHeaderActions({
+          addPanel: addWorkspacePanel,
+          closePanel: closeWorkspacePanel,
+          togglePin: togglePanelPin,
+        }),
       createComponent: (options: CreateComponentOptions): IContentRenderer => {
         if (!isPanelName(options.name)) {
           // 廃止された panel (例: glossary) が localStorage 由来で復元しようとされた場合は
@@ -343,7 +592,10 @@ export const WorkspaceShell: Component = () => {
     };
     api.onDidLayoutChange(persist);
     api.onDidAddPanel(persist);
-    api.onDidRemovePanel(persist);
+    api.onDidRemovePanel((panel) => {
+      PanelPinService.clearPanel(panel.id);
+      persist();
+    });
     api.onDidActivePanelChange(persist);
   });
 
@@ -379,22 +631,22 @@ export const WorkspaceShell: Component = () => {
           </Show>
         </button>
         <SaveStatusBadge />
-        <span class="workspace-script-history">
+        <span class="workspace-history">
           <button
-            class="workspace-export workspace-script-history-btn"
-            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canUndo()}
-            onClick={() => ScriptHistoryService.undo()}
-            title="脚本を戻す (Ctrl+Z)"
+            class="workspace-export workspace-history-btn"
+            disabled={!GlobalHistoryService.canUndo()}
+            onClick={() => void GlobalHistoryService.undo()}
+            title="全体を戻す (Ctrl+Z)"
           >
-            脚本戻る
+            ↶ 戻る
           </button>
           <button
-            class="workspace-export workspace-script-history-btn"
-            disabled={!ScriptHistoryService.canApply() || !ScriptHistoryService.canRedo()}
-            onClick={() => ScriptHistoryService.redo()}
-            title="脚本を進める (Ctrl+Y / Ctrl+Shift+Z)"
+            class="workspace-export workspace-history-btn"
+            disabled={!GlobalHistoryService.canRedo()}
+            onClick={() => void GlobalHistoryService.redo()}
+            title="全体を進める (Ctrl+Y / Ctrl+Shift+Z)"
           >
-            脚本進む
+            ↷ 進む
           </button>
         </span>
         <button

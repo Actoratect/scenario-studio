@@ -32,6 +32,23 @@ async function rebuild(): Promise<void> {
   setBuilding(true);
   try {
     const map = new Map<string, SceneAppearance[]>();
+    const nodeTerms = buildNodeSearchTerms();
+
+    function addCounter(counter: Map<string, number>, raw: string, amount: number): void {
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      let matched = false;
+      for (const entry of nodeTerms) {
+        if (!entry.allTermsLower.has(lower)) continue;
+        matched = true;
+        for (const id of entry.identifiers) {
+          counter.set(id, (counter.get(id) ?? 0) + amount);
+        }
+      }
+      if (!matched) counter.set(trimmed, (counter.get(trimmed) ?? 0) + amount);
+    }
+
     for (const ch of ctx.project.scenario.chapters) {
       for (const sc of ch.scenes) {
         const path = `Scenarios/${ch.slug}/${sc.relativePath}`;
@@ -50,11 +67,18 @@ async function rebuild(): Promise<void> {
         }
         const v = isMapping(parsed) ? parsed : {};
         const counter = new Map<string, number>();
+        const textParts: string[] = [];
         // plot.cast (= 編集者が宣言したキャスト)
         const plot = isMapping(v['plot']) ? (v['plot'] as { [k: string]: YamlValue }) : undefined;
+        if (plot) {
+          for (const key of ['title', 'beat', 'status']) {
+            const value = plot[key];
+            if (typeof value === 'string') textParts.push(value);
+          }
+        }
         if (plot && Array.isArray(plot['cast'])) {
           for (const c of plot['cast']) {
-            if (typeof c === 'string' && c.trim()) counter.set(c, counter.get(c) ?? 0);
+            if (typeof c === 'string' && c.trim()) addCounter(counter, c, 0);
           }
         }
         // script[].who を集計
@@ -63,8 +87,29 @@ async function rebuild(): Promise<void> {
           if (!isMapping(item)) continue;
           const who = item['who'];
           if (typeof who === 'string' && who.trim()) {
-            counter.set(who, (counter.get(who) ?? 0) + 1);
+            addCounter(counter, who, 1);
           }
+          for (const key of ['text', 'name', 'cue', 'prompt']) {
+            const value = item[key];
+            if (typeof value === 'string') textParts.push(value);
+          }
+          const options = item['options'];
+          if (Array.isArray(options)) {
+            for (const option of options) {
+              if (!isMapping(option)) continue;
+              const text = option['text'];
+              if (typeof text === 'string') textParts.push(text);
+            }
+          }
+        }
+        const sceneText = textParts.join('\n').toLowerCase();
+        for (const entry of nodeTerms) {
+          let hits = 0;
+          for (const term of entry.searchTerms) {
+            hits += countOccurrences(sceneText, term.toLowerCase());
+          }
+          if (hits <= 0) continue;
+          for (const id of entry.identifiers) counter.set(id, (counter.get(id) ?? 0) + hits);
         }
         for (const [identifier, count] of counter) {
           const arr = map.get(identifier) ?? [];
@@ -130,4 +175,54 @@ export const SceneAppearanceIndex = {
 
 function isMapping(v: unknown): v is { [k: string]: YamlValue } {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function buildNodeSearchTerms(): readonly {
+  identifiers: readonly string[];
+  searchTerms: readonly string[];
+  allTermsLower: ReadonlySet<string>;
+}[] {
+  const ctx = ProjectService.currentProject();
+  if (!ctx) return [];
+  const out: {
+    identifiers: string[];
+    searchTerms: string[];
+    allTermsLower: ReadonlySet<string>;
+  }[] = [];
+  for (const node of ctx.project.nodes.values()) {
+    const identifiers = new Set<string>([node.slug]);
+    const dev = node.fields['dev_name'];
+    if (typeof dev === 'string' && dev.trim() !== '') identifiers.add(dev.trim());
+    const terms = new Set<string>(identifiers);
+    const display = node.fields['display_name'];
+    if (typeof display === 'string' && display.trim() !== '') terms.add(display.trim());
+    for (const alias of splitAliases(node.fields['aliases'])) terms.add(alias);
+    const searchTerms = [...terms].filter((term) => term.length >= 2);
+    out.push({
+      identifiers: [...identifiers],
+      searchTerms,
+      allTermsLower: new Set([...terms].map((term) => term.toLowerCase())),
+    });
+  }
+  return out;
+}
+
+function splitAliases(value: unknown): readonly string[] {
+  if (typeof value !== 'string') return [];
+  return value
+    .split(/[\n,、]/u)
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let from = 0;
+  while (true) {
+    const index = haystack.indexOf(needle, from);
+    if (index === -1) return count;
+    count += 1;
+    from = index + needle.length;
+  }
 }

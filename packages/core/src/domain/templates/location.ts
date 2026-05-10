@@ -37,7 +37,7 @@ export const LOCATION_TEMPLATE: TemplateDefinition = {
     },
     {
       id: 'parent_location',
-      label: '親 location',
+      label: '親場所',
       type: 'node_ref',
       referencesTemplateId: templateId('template.location'),
       group: '関係',

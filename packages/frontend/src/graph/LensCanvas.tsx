@@ -1,6 +1,7 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
+import { StableTextarea } from '../global/StableTextControl';
 import { GraphComments, type GraphComment } from './graph-comments';
 
 // SVG ベースの軽量グラフ canvas (PR-C/E)。
@@ -28,9 +29,12 @@ export interface LensCanvasProps {
   onEdgeClick?: (edge: LensEdge) => void;
   selected?: NodeId | undefined;
   dimmed?: ReadonlySet<NodeId>;
+  nodeRadius?: number | undefined;
+  viewKey?: string | undefined;
 }
 
-const NODE_RADIUS = 22;
+const DEFAULT_NODE_RADIUS = 22;
+const GRAPH_VIEW_PREFIX = 'scenario-studio:graph-view:';
 
 interface ViewState {
   x: number;
@@ -61,9 +65,42 @@ type DragMode =
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
-  const [view, setView] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
+  const [view, setViewSignal] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
   const [hoverNode, setHoverNode] = createSignal<NodeId | undefined>(undefined);
+  const radius = (): number => props.nodeRadius ?? DEFAULT_NODE_RADIUS;
+  const edgeRoutes = createMemo(() => {
+    const groups = new Map<string, LensEdge[]>();
+    for (const edge of props.payload.edges) {
+      const key = unorderedPairKey(edge.source, edge.target);
+      const arr = groups.get(key) ?? [];
+      arr.push(edge);
+      groups.set(key, arr);
+    }
+    const out = new Map<string, { offset: number; labelT: number }>();
+    for (const group of groups.values()) {
+      const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+      const step = 14;
+      const center = (sorted.length - 1) / 2;
+      sorted.forEach((edge, i) => {
+        const direction = directedPairSign(edge.source, edge.target);
+        out.set(edge.id, {
+          offset: (i - center) * step * direction,
+          labelT: 0.55,
+        });
+      });
+    }
+    return out;
+  });
+
+  function setView(next: ViewState): void {
+    setViewSignal(next);
+    saveView(props.viewKey, next);
+  }
+
+  createEffect(() => {
+    setViewSignal(loadView(props.viewKey));
+  });
 
   function clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
     const rect = svg?.getBoundingClientRect();
@@ -139,9 +176,9 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     const d = drag();
     setDrag(null);
     if (!d || d.kind !== 'connect') return;
-    // ターゲット node の解決: マウス up 位置に最も近いノード (距離 NODE_RADIUS 以内)
+    // ターゲット node の解決: マウス up 位置に最も近いノード
     const w = clientToWorld(e.clientX, e.clientY);
-    const target = nearestNodeWithin(w, NODE_RADIUS * 1.5);
+    const target = nearestNodeWithin(w, radius() * 1.5);
     if (target && target !== d.source) {
       props.onCreateRelation?.(d.source, target);
     }
@@ -253,11 +290,28 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
               const len = Math.hypot(dx, dy) || 1;
               const ux = dx / len;
               const uy = dy / len;
-              const sx = sp.x + ux * NODE_RADIUS;
-              const sy = sp.y + uy * NODE_RADIUS;
-              const tx = tp.x - ux * NODE_RADIUS;
-              const ty = tp.y - uy * NODE_RADIUS;
-              return { sx, sy, tx, ty, mid: { x: (sx + tx) / 2, y: (sy + ty) / 2 } };
+              const r = radius();
+              const sx = sp.x + ux * r;
+              const sy = sp.y + uy * r;
+              const tx = tp.x - ux * r;
+              const ty = tp.y - uy * r;
+              const route = edgeRoutes().get(edge.id) ?? { offset: 0, labelT: 0.55 };
+              const px = -uy;
+              const py = ux;
+              const osx = sx + px * route.offset;
+              const osy = sy + py * route.offset;
+              const otx = tx + px * route.offset;
+              const oty = ty + py * route.offset;
+              return {
+                sx: osx,
+                sy: osy,
+                tx: otx,
+                ty: oty,
+                label: {
+                  x: osx + (otx - osx) * route.labelT,
+                  y: osy + (oty - osy) * route.labelT,
+                },
+              };
             });
             const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
             const box = createMemo(() => edgeBox(edge.label));
@@ -275,7 +329,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
                 <g
-                  transform={`translate(${geom().mid.x}, ${geom().mid.y})`}
+                  transform={`translate(${geom().label.x}, ${geom().label.y})`}
                   class="lens-edge-label-group"
                   classList={{
                     'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
@@ -401,7 +455,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   when={props.thumbnailUrls?.get(node.id)}
                   fallback={
                     <circle
-                      r={NODE_RADIUS}
+                      r={radius()}
                       fill={colorForTemplate(node.templateId)}
                       stroke={
                         isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
@@ -414,20 +468,20 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     <>
                       <defs>
                         <clipPath id={`clip-${node.id}`}>
-                          <circle r={NODE_RADIUS} />
+                          <circle r={radius()} />
                         </clipPath>
                       </defs>
                       <image
                         href={url()}
-                        x={-NODE_RADIUS}
-                        y={-NODE_RADIUS}
-                        width={NODE_RADIUS * 2}
-                        height={NODE_RADIUS * 2}
+                        x={-radius()}
+                        y={-radius()}
+                        width={radius() * 2}
+                        height={radius() * 2}
                         clip-path={`url(#clip-${node.id})`}
                         preserveAspectRatio="xMidYMid slice"
                       />
                       <circle
-                        r={NODE_RADIUS}
+                        r={radius()}
                         fill="none"
                         stroke={
                           isSelected()
@@ -454,7 +508,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                 </Show>
                 <text
                   class="lens-node-label"
-                  y={NODE_RADIUS + 14 / view().scale}
+                  y={radius() + 14 / view().scale}
                   style={{ 'font-size': `${11 / view().scale}px` }}
                 >
                   {node.label}
@@ -484,7 +538,7 @@ const CommentRect: Component<{
         fill={props.comment.color ?? 'rgba(255, 240, 180, 0.85)'}
         stroke="rgba(180, 140, 60, 0.6)"
         stroke-width="1"
-        onMouseDown={props.onMoveStart}
+        onMouseDown={(e) => props.onMoveStart(e)}
       />
       <foreignObject
         x="0"
@@ -497,12 +551,10 @@ const CommentRect: Component<{
           class="lens-comment-body"
           style={{ width: `${props.comment.width}px`, height: `${props.comment.height}px` }}
         >
-          <textarea
+          <StableTextarea
             class="lens-comment-text"
             value={props.comment.text}
-            onInput={(e) =>
-              GraphComments.update(props.comment.id, { text: e.currentTarget.value })
-            }
+            onInput={(value) => GraphComments.update(props.comment.id, { text: value })}
             onMouseDown={(e) => e.stopPropagation()}
             placeholder="メモ / グループ説明"
           />
@@ -531,7 +583,7 @@ const CommentRect: Component<{
         fill="rgba(180, 140, 60, 0.6)"
         rx="2"
         ry="2"
-        onMouseDown={props.onResizeStart}
+        onMouseDown={(e) => props.onResizeStart(e)}
         style={{ cursor: 'nwse-resize' }}
       />
     </g>
@@ -540,6 +592,38 @@ const CommentRect: Component<{
 
 function clampScale(s: number): number {
   return Math.max(0.1, Math.min(4, s));
+}
+
+function loadView(key: string | undefined): ViewState {
+  if (!key || typeof localStorage === 'undefined') return { x: 0, y: 0, scale: 1 };
+  try {
+    const raw = localStorage.getItem(`${GRAPH_VIEW_PREFIX}${key}`);
+    if (!raw) return { x: 0, y: 0, scale: 1 };
+    const parsed = JSON.parse(raw) as Partial<ViewState>;
+    const x = typeof parsed.x === 'number' ? parsed.x : 0;
+    const y = typeof parsed.y === 'number' ? parsed.y : 0;
+    const scale = typeof parsed.scale === 'number' ? clampScale(parsed.scale) : 1;
+    return { x, y, scale };
+  } catch {
+    return { x: 0, y: 0, scale: 1 };
+  }
+}
+
+function saveView(key: string | undefined, view: ViewState): void {
+  if (!key || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(`${GRAPH_VIEW_PREFIX}${key}`, JSON.stringify(view));
+  } catch {
+    /* quota */
+  }
+}
+
+function unorderedPairKey(a: NodeId, b: NodeId): string {
+  return String(a) < String(b) ? `${a}\u0000${b}` : `${b}\u0000${a}`;
+}
+
+function directedPairSign(a: NodeId, b: NodeId): 1 | -1 {
+  return String(a) < String(b) ? 1 : -1;
 }
 
 function colorForTemplate(templateId: string): string {

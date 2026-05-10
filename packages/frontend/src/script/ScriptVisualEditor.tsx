@@ -8,6 +8,7 @@ import {
   type ScriptBlockChoiceOption,
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
+import { StableTextInput } from '../global/StableTextControl';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
@@ -230,18 +231,20 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
     const out: { id: string; slug: string; devName: string; display: string }[] = [];
     for (const n of ctx.project.nodes.values()) {
       if (n.templateId !== 'template.character') continue;
-      const dn = typeof n.fields['dev_name'] === 'string' ? n.fields['dev_name'] : '';
+      const dn = typeof n.fields['dev_name'] === 'string' ? n.fields['dev_name'].trim() : '';
       const display =
         typeof n.fields['display_name'] === 'string'
           ? (n.fields['display_name'] as string)
           : n.slug;
-      out.push({ id: n.id, slug: n.slug, devName: dn || n.slug, display });
+      out.push({ id: n.id, slug: n.slug, devName: dn, display });
     }
     return out.sort((a, b) => a.display.localeCompare(b.display));
   });
 
   function findCharByIdentifier(identifier: string) {
-    return characters().find((c) => c.devName === identifier || c.slug === identifier);
+    return characters().find(
+      (c) => c.slug === identifier || c.devName === identifier || c.display === identifier,
+    );
   }
 
   return (
@@ -365,7 +368,6 @@ const StableTextarea: Component<{
     if (composing) return;
     if (ref && ref.value !== v) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.debug('[StableTextarea] external sync', {
           dom: ref.value,
           newValue: v,
@@ -402,34 +404,58 @@ const StableTextarea: Component<{
 const CharacterLine: Component<{
   block: ScriptBlock & { kind: 'line' | 'action' };
   characters: readonly { id: string; slug: string; devName: string; display: string }[];
-  findChar: (id: string) => { id: string; display: string } | undefined;
+  findChar: (id: string) => { id: string; slug: string; devName: string; display: string } | undefined;
   onChange: (next: ScriptBlock) => void;
   parsed: ParsedScene;
   blockIndex: number;
   chapterSlug?: string | undefined;
   sceneSlug?: string | undefined;
 }> = (props) => {
+  let whoSelect: HTMLSelectElement | undefined;
   const ctx = createMemo(() => ProjectService.currentProject());
   const charNode = createMemo(() => {
     const found = props.findChar(props.block.who);
     if (!found) return undefined;
     return ctx()?.project.nodes.get(found.id as never);
   });
+  const selectedChar = createMemo(() => props.findChar(props.block.who));
+  const hasCurrentOption = createMemo(() =>
+    props.characters.some((c) => optionValue(c) === props.block.who),
+  );
+
+  createEffect(() => {
+    const value = props.block.who;
+    if (whoSelect && whoSelect.value !== value) whoSelect.value = value;
+  });
+
+  function optionValue(c: { slug: string; devName: string; display: string }): string {
+    if (props.block.who === c.slug || props.block.who === c.devName) return props.block.who;
+    if (props.block.who === c.display) return props.block.who;
+    return c.devName || c.slug;
+  }
 
   return (
     <>
       <div class="ss-script-line-header">
         <Show when={charNode()}>{(n) => <NodeThumbnail node={n()} size={36} />}</Show>
         <select
+          ref={whoSelect}
           class="ss-script-line-who"
           value={props.block.who}
           onChange={(e) => props.onChange({ ...props.block, who: e.currentTarget.value })}
         >
-          <option value="">— who —</option>
+          <option value="" selected={props.block.who === ''}>
+            — 未選択 —
+          </option>
+          <Show when={props.block.who !== '' && !hasCurrentOption()}>
+            <option value={props.block.who} selected>
+              {selectedChar() ? selectedChar()!.display : `未登録: ${props.block.who}`}
+            </option>
+          </Show>
           <For each={props.characters}>
             {(c) => (
-              <option value={c.devName}>
-                {c.display} ({c.devName})
+              <option value={optionValue(c)} selected={optionValue(c) === props.block.who}>
+                {c.display}
               </option>
             )}
           </For>
@@ -571,12 +597,11 @@ const SfxBlock: Component<{
   onChange: (next: ScriptBlock) => void;
 }> = (props) => {
   return (
-    <input
-      type="text"
+    <StableTextInput
       class="ss-script-cue-input"
       value={props.block.name}
       placeholder="効果音名 (例: thunder_far)"
-      onInput={(e) => props.onChange({ ...props.block, name: e.currentTarget.value })}
+      onInput={(value) => props.onChange({ ...props.block, name: value })}
     />
   );
 };
@@ -587,12 +612,11 @@ const BgmBlock: Component<{
 }> = (props) => {
   return (
     <div class="ss-script-bgm-row">
-      <input
-        type="text"
+      <StableTextInput
         class="ss-script-cue-input"
         value={props.block.cue}
         placeholder="BGM cue (例: bgm_tense)"
-        onInput={(e) => props.onChange({ ...props.block, cue: e.currentTarget.value })}
+        onInput={(value) => props.onChange({ ...props.block, cue: value })}
       />
       <label class="ss-script-bgm-fade">
         fade:
@@ -635,32 +659,29 @@ const ChoiceBlockView: Component<{
 
   return (
     <>
-      <input
-        type="text"
+      <StableTextInput
         class="ss-script-choice-prompt"
         value={props.block.prompt}
         placeholder="質問 / プロンプト"
-        onInput={(e) => props.onChange({ ...props.block, prompt: e.currentTarget.value })}
+        onInput={(value) => props.onChange({ ...props.block, prompt: value })}
       />
       <ul class="ss-script-choice-options">
         <For each={props.block.options ?? []}>
           {(opt, i) => (
             <li class="ss-script-choice-option">
               <span class="ss-script-choice-bullet">{i() + 1}.</span>
-              <input
-                type="text"
+              <StableTextInput
                 class="ss-script-choice-text"
                 value={opt.text}
                 placeholder="選択肢テキスト"
-                onInput={(e) => setOption(i(), { text: e.currentTarget.value })}
+                onInput={(value) => setOption(i(), { text: value })}
               />
-              <input
-                type="text"
+              <StableTextInput
                 class="ss-script-choice-then"
                 value={opt.then ?? ''}
                 placeholder="飛び先 (任意, 例: scene.next)"
-                onInput={(e) => {
-                  const v = e.currentTarget.value;
+                onInput={(value) => {
+                  const v = value;
                   setOption(i(), v === '' ? { then: undefined } : { then: v });
                 }}
               />
@@ -698,15 +719,15 @@ const GlossaryChips: Component<{ text: string }> = (props) => {
     return scanGlossary(props.text, glossary);
   });
   return (
-    <Show when={result().okTerms.length > 0 || result().violations.length > 0}>
+    <Show when={result().okItems.length > 0 || result().violations.length > 0}>
       <div class="ss-script-glossary-chips">
-        <For each={result().okTerms}>
-          {(term) => (
+        <For each={result().okItems}>
+          {(item) => (
             <span
               class="ss-script-glossary-chip ss-script-glossary-chip--ok"
-              title="用語集に登録済"
+              title={`${item.sourceLabel ?? '用語'}として登録済`}
             >
-              ✓ {term}
+              ✓ {item.sourceLabel ?? '用語'}: {item.term}
             </span>
           )}
         </For>
@@ -716,7 +737,7 @@ const GlossaryChips: Component<{ text: string }> = (props) => {
               class="ss-script-glossary-chip ss-script-glossary-chip--warn"
               title={`禁止表記: 「${v.match}」→ 正式「${v.term}」を推奨`}
             >
-              ⚠ {v.match} → {v.term}
+              ⚠ {v.sourceLabel ?? '用語'}: {v.match} → {v.term}
             </span>
           )}
         </For>

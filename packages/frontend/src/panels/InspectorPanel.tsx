@@ -1,4 +1,14 @@
-import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
@@ -37,6 +47,9 @@ import { deriveGlossary } from '../services/GlossaryHighlight';
 import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
 import { SceneSelection } from '../services/SceneSelection';
 import { PanelFocus } from '../services/PanelFocus';
+import { PanelPinService } from '../services/PanelPinService';
+
+type ProjectContext = NonNullable<ReturnType<typeof ProjectService.currentProject>>;
 
 // 選択中ノードの編集 UI。
 // テンプレート schema を読んで対応する form プリミティブを並べ、
@@ -47,11 +60,14 @@ import { PanelFocus } from '../services/PanelFocus';
 
 export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const scheduler = useSaveScheduler();
+  const panelNodeId = createMemo<NodeId | undefined>(
+    () => PanelPinService.inspectorNode(params.api.id) ?? SelectionContext.selectedNodeId(),
+  );
 
   // project.nodes は immutable Map なので、ProjectService.currentProject() の参照変化を起点にメモ化
   const node = createMemo<ScenarioNode | undefined>(() => {
     const ctx = ProjectService.currentProject();
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!ctx || !id) return undefined;
     return ctx.project.nodes.get(id);
   });
@@ -105,8 +121,11 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
 
   // Solid 側の rerender を促すための tick。NodeFieldStore.observe で signal を起動。
   let unsubscribe: (() => void) | undefined;
-  onMount(() => {
-    const id = SelectionContext.selectedNodeId();
+  let suppressStoreNotify = false;
+  createEffect(() => {
+    unsubscribe?.();
+    unsubscribe = undefined;
+    const id = panelNodeId();
     if (!id) return;
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -114,13 +133,24 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     if (!store) return;
     unsubscribe = store.observe(() => {
       // ProjectModel.nodes を更新 — Inspector の render を促す
-      bumpProject(ctx, id);
+      if (suppressStoreNotify) return;
+      syncProjectNodeFields(ctx, id, { notify: true });
     });
   });
   onCleanup(() => unsubscribe?.());
 
+  function isTextLikeField(fieldId: string): boolean {
+    const field = template()?.fields.find((f) => f.id === fieldId);
+    return (
+      field?.type === 'string' ||
+      field?.type === 'media_ref' ||
+      field?.type === 'multiline_string' ||
+      field?.type === 'markdown'
+    );
+  }
+
   function setField(fieldId: string, value: FieldValue): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     const ctx = ProjectService.currentProject();
     if (!id || !ctx) return;
     // 非 base Era で編集 → variant override に書く (base.fields は触らない)
@@ -130,13 +160,19 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     }
     const store = ctx.history.get(id);
     if (!store) return;
-    store.set(fieldId, value);
-    bumpProject(ctx, id);
+    const deferNotify = isTextLikeField(fieldId);
+    suppressStoreNotify = true;
+    try {
+      store.set(fieldId, value);
+    } finally {
+      suppressStoreNotify = false;
+    }
+    syncProjectNodeFields(ctx, id, { notify: !deferNotify });
     scheduler.schedule(id);
   }
 
   function removeOverride(fieldId: string): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!id || EraContext.isBase()) return;
     void VariantsService.removeFieldOverride(id, EraContext.currentEraId(), fieldId);
   }
@@ -186,11 +222,12 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
   const longGroups = createMemo(() => buildGroups(isLongField));
 
   function onFieldBlur(): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!id) return;
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     ctx.history.get(id)?.markUndoBoundary();
+    syncProjectNodeFields(ctx, id, { notify: true });
   }
 
   async function renameNode(): Promise<void> {
@@ -208,6 +245,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       const updated = { ...n, slug: trimmed };
       nextMap.set(n.id, updated);
       Object.assign(ctx.project, { nodes: nextMap });
+      ProjectService.touch();
       Toast.success(`slug を変更: ${n.slug} → ${trimmed}`);
     } catch (e) {
       Toast.error(`slug 変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -294,8 +332,14 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       await ctx.nodeRepository.delete(n.id);
       const nextMap = new Map(ctx.project.nodes);
       nextMap.delete(n.id);
+      const nextRelations = ctx.project.relations.filter((r) => r.source !== n.id && r.target !== n.id);
+      await ctx.relationsRepository.save(nextRelations);
       Object.assign(ctx.project, { nodes: nextMap });
+      Object.assign(ctx.project, { relations: nextRelations });
+      ctx.history.unregister(n.id);
       SelectionContext.selectNode(undefined);
+      PanelPinService.clearPanel(params.api.id);
+      ProjectService.touch();
       Toast.success(`ノードを削除: ${n.slug}`);
     } catch (e) {
       Toast.error(`削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -331,6 +375,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
               {devName()}
             </span>
             <span class="panel-inspector-template-tag">{template()!.displayName}</span>
+            <Show when={PanelPinService.isInspectorPinned(params.api.id)}>
+              <span class="panel-inspector-era-tag">📌 pinned</span>
+            </Show>
             <Show when={!EraContext.isBase()}>
               <span class="panel-inspector-era-tag">
                 ◆ {EraContext.currentEraId()}
@@ -452,7 +499,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
   );
 };
 
-/** PR (ux-overhaul): 「このノードが who: として登場するシーン」を章別にまとめて表示。
+/** PR (ux-overhaul): このノードが登場/言及されるシーンを章別にまとめて表示。
  *  scenario YAML をスキャンする SceneAppearanceIndex を遅延初期化して使う。
  *  クリックで Script タブにジャンプ。 */
 const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
@@ -504,7 +551,7 @@ const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
         when={groupedByChapter().length > 0}
         fallback={
           <p class="panel-inspector-appearances-empty">
-            このノードが who: で登場するシーンは見つかりませんでした。
+            このノードが登場または言及されるシーンは見つかりませんでした。
           </p>
         }
       >
@@ -524,7 +571,7 @@ const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
                           type="button"
                           class="panel-inspector-appearances-scene"
                           onClick={() => jump(chapterSlug, s.sceneSlug, s.sceneTitle)}
-                          title={`${s.sceneTitle} を脚本タブで開く (発言 ${s.count})`}
+                          title={`${s.sceneTitle} を脚本タブで開く (出現 ${s.count})`}
                         >
                           🎬 {s.sceneTitle}
                           <span class="panel-inspector-appearances-line-count">{s.count}</span>
@@ -917,9 +964,10 @@ const NodeRefPreview: Component<{
  * Solid signal は ProjectService.currentProject の identity 変更で reflow する想定。
  * MVP は in-place 差替 + ctx 再 set で促す (M4 で createStore を本格導入し細粒度反応にする)。
  */
-function bumpProject(
-  ctx: ReturnType<typeof ProjectService.currentProject> & object,
+function syncProjectNodeFields(
+  ctx: ProjectContext,
   id: NodeId,
+  options: { notify: boolean },
 ): void {
   const store = ctx.history.get(id);
   if (!store) return;
@@ -932,4 +980,5 @@ function bumpProject(
   // Map は immutable (ReadonlyMap) として公開しているが、
   // M3 では in-place 差替を許容 (M4 で immer 化)。
   Object.assign(ctx.project, { nodes: nextNodes });
+  if (options.notify) ProjectService.touch();
 }

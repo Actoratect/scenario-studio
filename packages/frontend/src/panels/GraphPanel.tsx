@@ -44,6 +44,7 @@ import { createResource } from 'solid-js';
 
 type LensMode = 'relationship' | 'plot-flow';
 const LENS_MODE_KEY = 'scenario-studio:graph-lens-mode';
+const NODE_SIZE_KEY = 'scenario-studio:graph-node-size';
 
 const TEMPLATE_TOGGLES: ReadonlyArray<{ id: string; label: string; emoji: string }> = [
   { id: CHARACTER_TEMPLATE.id, label: 'キャラ', emoji: '👤' },
@@ -79,11 +80,27 @@ function saveLensMode(m: LensMode): void {
   }
 }
 
+function loadNodeSize(): number {
+  if (typeof localStorage === 'undefined') return 22;
+  const v = Number(localStorage.getItem(NODE_SIZE_KEY));
+  return Number.isFinite(v) ? Math.max(14, Math.min(44, v)) : 22;
+}
+
+function saveNodeSize(size: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(NODE_SIZE_KEY, String(size));
+  } catch {
+    /* quota */
+  }
+}
+
 export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
   const [lensMode, setLensMode] = createSignal<LensMode>(loadLensMode());
+  const [nodeSize, setNodeSize] = createSignal(loadNodeSize());
 
   function setLensModeAndPersist(m: LensMode): void {
     setLensMode(m);
@@ -104,6 +121,12 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     if (next.has(templateId)) next.delete(templateId);
     else next.add(templateId);
     setHiddenTemplates(next);
+  }
+
+  function setNodeSizeAndPersist(size: number): void {
+    const clamped = Math.max(14, Math.min(44, size));
+    setNodeSize(clamped);
+    saveNodeSize(clamped);
   }
 
   /** Plot Flow 用の解析 (unreachable / unresolved transitions も含む) */
@@ -148,7 +171,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   });
 
   const fallbackPositions = createMemo(() => {
-    const l = lens();
+    const l = rawLens();
     if (!l) return new Map<NodeId, { x: number; y: number }>();
     return deterministicCircularLayout(l, {
       centerX: 600,
@@ -295,6 +318,18 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               </span>
             )}
           </Show>
+          <label class="panel-graph-size-control" title="グラフノードの表示サイズ">
+            サイズ
+            <input
+              type="range"
+              min="14"
+              max="44"
+              step="1"
+              value={nodeSize()}
+              onInput={(e) => setNodeSizeAndPersist(Number(e.currentTarget.value))}
+            />
+            <span>{nodeSize()}</span>
+          </label>
           <Show when={lensMode() === 'plot-flow' && plotFlowAnalysis()}>
             {(a) => (
               <Show when={a().unreachable.length > 0 || a().unresolvedTransitions.length > 0}>
@@ -416,6 +451,8 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             onEdgeClick={startEdit}
             selected={SelectionContext.selectedNodeId()}
             dimmed={dimmed()}
+            nodeRadius={nodeSize()}
+            viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${lensMode()}`}
           />
         </Show>
       </div>
@@ -428,13 +465,20 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         onSubmit={(input) => {
           const p = pending();
           if (!p) return;
-          void RelationsService.add({
-            source: p.source,
-            target: p.target,
-            type: input.type,
-          }).then((rel) => {
-            if (rel && input.label) void RelationsService.setLabel(rel.id, input.label);
-          });
+          void (async () => {
+            await RelationsService.add({
+              source: p.source,
+              target: p.target,
+              type: input.type,
+            });
+            if (input.reverseType) {
+              await RelationsService.add({
+                source: p.target,
+                target: p.source,
+                type: input.reverseType,
+              });
+            }
+          })();
         }}
       />
       <RelationTypePicker
@@ -447,7 +491,6 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           const e = editing();
           if (!e) return;
           void RelationsService.setType(e.relationId, input.type);
-          void RelationsService.setLabel(e.relationId, input.label);
         }}
         onDelete={() => {
           const e = editing();

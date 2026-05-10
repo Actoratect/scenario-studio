@@ -3,10 +3,11 @@ import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import { parseYaml, type YamlValue } from '@scenario-studio/core';
 import { PanelFocus } from '../services/PanelFocus';
+import { PlotSelection } from '../services/PlotSelection';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
-import { PlotDetailRail, type PlotDetailSelection } from '../plot/PlotDetailRail';
+import { PlotDetailRail } from '../plot/PlotDetailRail';
 
 // Plot Timeline panel (PR-P)。
 // 章を横カラム、シーンを縦カードにした Kanban 風タイムラインで物語の流れを俯瞰。
@@ -141,19 +142,27 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
     return out;
   });
 
-  // PR (ux-overhaul): カードクリックは右側の「プロット詳細」を表示するだけにし、
-  //   実際に脚本タブにジャンプするのはカードの「📖 開く」ボタンに分けた。
-  const [detailSelection, setDetailSelection] = createSignal<PlotDetailSelection | undefined>(
-    undefined,
-  );
-
   function selectForDetail(s: SceneSummary): void {
-    setDetailSelection({
+    PlotSelection.select({
+      kind: 'scene',
       chapterSlug: s.chapterSlug,
       sceneSlug: s.sceneSlug,
-      path: `Scenarios/${s.chapterSlug}/${s.sceneSlug}.scn.yaml`,
       label: s.title,
     });
+  }
+
+  function selectChapterForDetail(chapterSlug: string, title: string): void {
+    PlotSelection.select({ kind: 'chapter', chapterSlug, label: title });
+  }
+
+  function isSelectedChapter(chapterSlug: string): boolean {
+    const sel = PlotSelection.selected();
+    return sel?.kind === 'chapter' && sel.chapterSlug === chapterSlug;
+  }
+
+  function isSelectedScene(chapterSlug: string, sceneSlug: string): boolean {
+    const sel = PlotSelection.selected();
+    return sel?.kind === 'scene' && sel.chapterSlug === chapterSlug && sel.sceneSlug === sceneSlug;
   }
 
   function openInScript(s: SceneSummary): void {
@@ -197,7 +206,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
           when={chapters().length > 0}
           fallback={
             <div class="panel-timeline-empty">
-              <p>章がまだありません。Outline タブで「+ Chapter」を押してください。</p>
+              <p>章がまだありません。アウトラインで「+ チャプター」を押してください。</p>
             </div>
           }
         >
@@ -205,6 +214,9 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
             {(ch, idx) => (
               <div
                 class="panel-timeline-column"
+                classList={{
+                  'panel-timeline-column--selected': isSelectedChapter(ch.slug),
+                }}
                 onDragOver={(e) => {
                   // 章 drag (並び替え) または scene drag (他章への末尾追加) を受け付ける
                   if (
@@ -241,12 +253,12 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                     e.dataTransfer?.setData('application/x-ss-chapter', String(idx()));
                     e.dataTransfer!.effectAllowed = 'move';
                   }}
+                  onClick={() => selectChapterForDetail(ch.slug, ch.title)}
                   title="ドラッグで章を並べ替え"
                 >
                   <span class="panel-timeline-drag-handle">⋮⋮</span>
                   <span class="panel-timeline-column-num">{idx() + 1}</span>
                   <span class="panel-timeline-column-title">{ch.title}</span>
-                  <span class="panel-timeline-column-slug">{ch.slug}</span>
                 </div>
                 <Show when={ch.summary}>
                   {(s) => <p class="panel-timeline-column-summary">{s()}</p>}
@@ -255,7 +267,9 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                   <For
                     each={ch.scenes}
                     fallback={
-                      <li class="panel-timeline-empty-scene">シーン無し (Outline で「+ Scene」)</li>
+                      <li class="panel-timeline-empty-scene">
+                        シーン無し (アウトラインで「+ シーン」)
+                      </li>
                     }
                   >
                     {(sc, sIdx) => {
@@ -266,9 +280,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                           class="panel-timeline-card"
                           classList={{
                             'panel-timeline-card--busy': busy(),
-                            'panel-timeline-card--selected':
-                              detailSelection()?.chapterSlug === ch.slug &&
-                              detailSelection()?.sceneSlug === sc.slug,
+                            'panel-timeline-card--selected': isSelectedScene(ch.slug, sc.slug),
                           }}
                           draggable={true}
                           onDragStart={(e) => {
@@ -309,10 +321,10 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
                             const sum = s();
                             if (sum) selectForDetail(sum);
                             else
-                              setDetailSelection({
+                              PlotSelection.select({
+                                kind: 'scene',
                                 chapterSlug: ch.slug,
                                 sceneSlug: sc.slug,
-                                path: `Scenarios/${ch.slug}/${sc.slug}.scn.yaml`,
                                 label: sc.title,
                               });
                           }}
@@ -375,7 +387,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
           </For>
         </Show>
       </div>
-      <PlotDetailRail selected={detailSelection()} />
+      <PlotDetailRail selected={PlotSelection.selected()} />
       </div>
     </div>
   );

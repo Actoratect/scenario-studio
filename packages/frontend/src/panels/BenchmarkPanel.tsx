@@ -66,7 +66,7 @@ export const BenchmarkPanel: Component<GroupPanelPartInitParameters> = (params) 
           PoC-B grade-graph bench · <code>{params.api.id}</code>
         </span>
         <label>
-          Nodes:
+          要素:
           <select
             disabled={running()}
             value={nodeCount()}

@@ -1,4 +1,4 @@
-import { createEffect, on } from 'solid-js';
+import { createEffect } from 'solid-js';
 import type { Component } from 'solid-js';
 import { FormField } from './FormField';
 import type { FormFieldProps } from './FormField';
@@ -16,17 +16,39 @@ export interface TextInputProps extends FormFieldProps {
 }
 
 export const TextInput: Component<TextInputProps> = (props) => {
+  let ref: HTMLInputElement | undefined;
+  let composing = false;
+
+  createEffect(() => {
+    const next = props.value ?? '';
+    if (!ref || composing || ref.value === next) return;
+    ref.value = next;
+  });
+
   return (
     <FormField {...props} inputId={props.fieldId}>
       <input
+        ref={(el) => {
+          ref = el;
+          el.value = props.value ?? '';
+        }}
         type="text"
         id={props.fieldId}
         class="ssf-input"
-        value={props.value ?? ''}
         disabled={props.disabled}
         placeholder={props.placeholder}
         maxLength={props.maxLength}
-        onInput={(e) => props.onInput?.(e.currentTarget.value)}
+        onCompositionStart={() => {
+          composing = true;
+        }}
+        onCompositionEnd={(e) => {
+          composing = false;
+          props.onInput?.(e.currentTarget.value);
+        }}
+        onInput={(e) => {
+          if (composing) return;
+          props.onInput?.(e.currentTarget.value);
+        }}
         onBlur={() => props.onBlur?.()}
         onContextMenu={(e) => props.onContextMenu?.(e)}
       />
@@ -50,6 +72,7 @@ export const MultilineInput: Component<TextInputProps & { rows?: number | undefi
   props,
 ) => {
   let ref: HTMLTextAreaElement | undefined;
+  let composing = false;
 
   function autoResize(): void {
     const el = ref;
@@ -62,33 +85,36 @@ export const MultilineInput: Component<TextInputProps & { rows?: number | undefi
     el.style.height = `${el.scrollHeight + 2}px`; // +2 px for border buffer
   }
 
-  // props.value が外部から変化したとき (= 別ノード切替 / 初期 hydrate / プログラマ
-  // 変更) も内容に合わせて高さを更新する。on() で tracking 対象を明示。
-  createEffect(
-    on(
-      () => props.value,
-      () => {
-        // DOM 更新後の layout を待ってから測る
-        requestAnimationFrame(autoResize);
-      },
-    ),
-  );
+  createEffect(() => {
+    const next = props.value ?? '';
+    if (ref && !composing && ref.value !== next) ref.value = next;
+    requestAnimationFrame(autoResize);
+  });
 
   return (
     <FormField {...props} inputId={props.fieldId}>
       <textarea
         ref={(el) => {
           ref = el;
+          el.value = props.value ?? '';
           requestAnimationFrame(autoResize);
         }}
         id={props.fieldId}
         class="ssf-textarea ssf-textarea--autosize"
-        value={props.value ?? ''}
         disabled={props.disabled}
         placeholder={props.placeholder}
         maxLength={props.maxLength}
         rows={props.rows ?? 2}
+        onCompositionStart={() => {
+          composing = true;
+        }}
+        onCompositionEnd={(e) => {
+          composing = false;
+          props.onInput?.(e.currentTarget.value);
+          requestAnimationFrame(autoResize);
+        }}
         onInput={(e) => {
+          if (composing) return;
           autoResize();
           props.onInput?.(e.currentTarget.value);
         }}
