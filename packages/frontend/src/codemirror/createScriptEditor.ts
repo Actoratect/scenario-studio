@@ -94,7 +94,7 @@ const lightTheme = EditorView.theme(
     },
     '.cm-search label': {
       color: '#5a6068',
-      fontSize: '12px',
+      fontSize: 'var(--ss-font-12)',
     },
     '.cm-search [name=close]': {
       color: '#5a6068',

@@ -1,4 +1,14 @@
-import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  Index,
+  Match,
+  Show,
+  Switch,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -6,12 +16,14 @@ import {
   type ScriptBlock,
   type ScriptBlockChoice,
   type ScriptBlockChoiceOption,
+  type ScriptBlockImage,
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { StableTextInput } from '../global/StableTextControl';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
+import { ScriptImageService } from '../services/ScriptImageService';
 import { deriveGlossary, scanGlossary } from '../services/GlossaryHighlight';
 import { KNOWN_EMOTIONS, emotionLabel } from './emotions';
 
@@ -94,6 +106,7 @@ const KIND_META: Record<ScriptBlock['kind'], { icon: string; label: string; colo
   sfx: { icon: '🔊', label: 'SFX', color: 'orange' },
   bgm: { icon: '🎵', label: 'BGM', color: 'orange' },
   choice: { icon: '🌟', label: '選択肢', color: 'vermillion' },
+  image: { icon: 'IMG', label: '画像', color: 'teal' },
   unknown: { icon: '❓', label: '不明', color: 'faint' },
 };
 
@@ -105,7 +118,12 @@ const ADDABLE_KINDS: readonly ScriptBlock['kind'][] = [
   'sfx',
   'bgm',
   'choice',
+  'image',
 ];
+
+function keepPointerFromStealingFocus(e: MouseEvent): void {
+  e.preventDefault();
+}
 
 export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) => {
   return (
@@ -150,6 +168,7 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
               type="button"
               class="ss-script-visual-add-btn"
               data-color={KIND_META[k].color}
+              onMouseDown={keepPointerFromStealingFocus}
               onClick={() => props.onAppendBlock(k)}
               title={`${KIND_META[k].label} ブロックを末尾に追加`}
             >
@@ -180,6 +199,7 @@ const InsertBar: Component<{
       <button
         type="button"
         class="ss-script-insert-bar-trigger"
+        onMouseDown={keepPointerFromStealingFocus}
         onClick={() => setMenuOpen((b) => !b)}
         title={`位置 ${props.index} にブロックを挿入`}
         aria-label={`位置 ${props.index} にブロックを挿入`}
@@ -194,6 +214,7 @@ const InsertBar: Component<{
                 type="button"
                 class="ss-script-insert-bar-item"
                 data-color={KIND_META[k].color}
+                onMouseDown={keepPointerFromStealingFocus}
                 onClick={() => {
                   props.onInsert(k);
                   setMenuOpen(false);
@@ -304,6 +325,9 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
           <Match when={props.block.kind === 'choice'}>
             <ChoiceBlockView block={props.block as ScriptBlockChoice} onChange={props.onChange} />
           </Match>
+          <Match when={props.block.kind === 'image'}>
+            <ImageBlockView block={props.block as ScriptBlockImage} onChange={props.onChange} />
+          </Match>
           <Match when={props.block.kind === 'unknown'}>
             <UnknownBlockView block={props.block as ScriptBlock & { kind: 'unknown' }} />
           </Match>
@@ -313,6 +337,7 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           disabled={props.idx === 0}
+          onMouseDown={keepPointerFromStealingFocus}
           onClick={() => props.onMove(-1)}
           title="上へ"
         >
@@ -321,6 +346,7 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           disabled={props.idx === props.total - 1}
+          onMouseDown={keepPointerFromStealingFocus}
           onClick={() => props.onMove(1)}
           title="下へ"
         >
@@ -329,6 +355,7 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           class="ss-script-card-delete"
+          onMouseDown={keepPointerFromStealingFocus}
           onClick={() => props.onDelete()}
           title="削除 (確認なし — 取り消しは Ctrl+Z)"
         >
@@ -688,6 +715,7 @@ const ChoiceBlockView: Component<{
               <button
                 type="button"
                 class="ss-script-choice-delete"
+                onMouseDown={keepPointerFromStealingFocus}
                 onClick={() => removeOption(i())}
                 title="この選択肢を削除"
               >
@@ -697,10 +725,121 @@ const ChoiceBlockView: Component<{
           )}
         </For>
       </ul>
-      <button type="button" class="ss-script-choice-add" onClick={addOption}>
+      <button
+        type="button"
+        class="ss-script-choice-add"
+        onMouseDown={keepPointerFromStealingFocus}
+        onClick={addOption}
+      >
         + 選択肢を追加
       </button>
     </>
+  );
+};
+
+const ImageBlockView: Component<{
+  block: ScriptBlockImage;
+  onChange: (next: ScriptBlock) => void;
+}> = (props) => {
+  let fileInput: HTMLInputElement | undefined;
+  const [imageUrl] = createResource(
+    () => props.block.src,
+    async (src) => (src ? await ScriptImageService.resolveUrl(src) : undefined),
+  );
+
+  async function acceptFile(file: File | undefined): Promise<void> {
+    if (!file) return;
+    const src = await ScriptImageService.upload(file);
+    if (!src) return;
+    props.onChange({ kind: 'image', src });
+  }
+
+  function onFileChange(e: Event): void {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    void acceptFile(file);
+  }
+
+  function onDragOver(e: DragEvent): void {
+    if (![...(e.dataTransfer?.items ?? [])].some((item) => item.type.startsWith('image/'))) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onDrop(e: DragEvent): void {
+    e.preventDefault();
+    const files = [...(e.dataTransfer?.files ?? [])];
+    const file = files.find((f) => f.type.startsWith('image/'));
+    void acceptFile(file);
+  }
+
+  return (
+    <div class="ss-script-image-block">
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+        class="ss-script-image-file"
+        onChange={onFileChange}
+      />
+      <div
+        class="ss-script-image-frame"
+        classList={{ 'ss-script-image-frame--empty': props.block.src === '' }}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        <Show
+          when={props.block.src !== ''}
+          fallback={
+            <button
+              type="button"
+              class="ss-script-image-empty"
+              onMouseDown={keepPointerFromStealingFocus}
+              onClick={() => fileInput?.click()}
+            >
+              画像を選択またはドロップ
+            </button>
+          }
+        >
+          <Show
+            when={imageUrl()}
+            fallback={
+              <div class="ss-script-image-missing">
+                <span>画像を読み込めません</span>
+                <code>{props.block.src}</code>
+              </div>
+            }
+          >
+            {(url) => (
+              <img
+                class="ss-script-image-img"
+                src={url()}
+                alt=""
+              />
+            )}
+          </Show>
+        </Show>
+      </div>
+      <div class="ss-script-image-toolbar">
+        <button
+          type="button"
+          onMouseDown={keepPointerFromStealingFocus}
+          onClick={() => fileInput?.click()}
+        >
+          画像を選択
+        </button>
+        <Show when={props.block.src !== ''}>
+          <button
+            type="button"
+            onMouseDown={keepPointerFromStealingFocus}
+            onClick={() => props.onChange({ kind: 'image', src: '' })}
+          >
+            画像を削除
+          </button>
+        </Show>
+      </div>
+    </div>
   );
 };
 

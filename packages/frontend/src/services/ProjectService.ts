@@ -9,6 +9,7 @@ import {
   type FileSystemAdapter,
   type FsEraRepository,
   type FsGlossaryRepository,
+  type FsPlotBoardRepository,
   type FsRelationsRepository,
   type FsScenarioRepository,
   type LoadProjectResult,
@@ -35,6 +36,8 @@ import { GraphComments } from '../graph/graph-comments.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
+import { GlobalHistoryService } from './GlobalHistoryService.js';
+import { ScriptHistoryService } from './ScriptHistoryService.js';
 import { Toast } from './Toast.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
@@ -52,6 +55,7 @@ export interface OpenProjectContext {
   scenarioRepository: FsScenarioRepository;
   glossaryRepository: FsGlossaryRepository;
   relationsRepository: FsRelationsRepository;
+  plotBoardRepository: FsPlotBoardRepository;
   templates: TemplateRegistry;
   history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
@@ -61,6 +65,14 @@ export interface OpenProjectContext {
 const [currentProject, setCurrentProject] = createSignal<OpenProjectContext | undefined>(undefined);
 const [recentProjects, setRecentProjects] = createSignal<readonly RecentProject[]>([]);
 const [lastError, setLastError] = createSignal<Error | undefined>(undefined);
+let disposeGlobalProjectHistory: (() => void) | undefined;
+
+function resetGlobalProjectHistory(): void {
+  disposeGlobalProjectHistory?.();
+  disposeGlobalProjectHistory = undefined;
+  GlobalHistoryService.clear();
+  ScriptHistoryService.clear();
+}
 
 export const ProjectService = {
   currentProject,
@@ -127,6 +139,7 @@ export const ProjectService = {
 
   close(): void {
     const ctx = currentProject();
+    resetGlobalProjectHistory();
     if (ctx) {
       ctx.history.destroy();
       ConflictDetector.clear(ctx.handle);
@@ -171,6 +184,7 @@ export const ProjectService = {
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放
   const prev = currentProject();
+  resetGlobalProjectHistory();
   if (prev) {
     prev.history.destroy();
     ConflictDetector.clear(prev.handle);
@@ -180,6 +194,17 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   for (const node of loaded.project.nodes.values()) {
     history.register(node);
   }
+  const unregisterProjectController = GlobalHistoryService.registerProjectController({
+    canUndo: () => history.pendingUndo > 0,
+    canRedo: () => history.pendingRedo > 0,
+    undo: () => history.undo(),
+    redo: () => history.redo(),
+  });
+  const unregisterProjectHistoryObserver = history.observe(() => GlobalHistoryService.recordProject());
+  disposeGlobalProjectHistory = () => {
+    unregisterProjectHistoryObserver();
+    unregisterProjectController();
+  };
 
   const ctx: OpenProjectContext = {
     adapter: picked.adapter,
@@ -190,13 +215,14 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     scenarioRepository: loaded.scenarioRepository,
     glossaryRepository: loaded.glossaryRepository,
     relationsRepository: loaded.relationsRepository,
+    plotBoardRepository: loaded.plotBoardRepository,
     templates: loaded.templates,
     history,
     rawDirectoryHandle: picked.rawDirectoryHandle,
   };
   setCurrentProject(ctx);
-  GraphPositions.switchProject(picked.handle.id);
-  GraphComments.switchProject(picked.handle.id);
+  GraphPositions.switchProject(picked.adapter, picked.handle);
+  GraphComments.switchProject(picked.adapter, picked.handle);
   // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
   // (load 時点の内容 = 我々が知っている内容)
   void primeConflictBaseline(ctx);
@@ -214,13 +240,16 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     );
     console.warn('[ProjectService] chapter load errors:', loadErrors);
   }
-  return rememberProject({
+  void rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,
     directoryHandle: picked.rawDirectoryHandle,
   })
     .then(() => ProjectService.refreshRecent())
-    .then(() => ctx);
+    .catch((e) => {
+      console.warn('[ProjectService] recent project update failed', e);
+    });
+  return Promise.resolve(ctx);
 }
 
 async function primeConflictBaseline(ctx: OpenProjectContext): Promise<void> {

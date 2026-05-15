@@ -53,6 +53,8 @@ describe('ProjectLoader', () => {
     expect(reloaded.project.glossary).toEqual([]);
     // PR-E で relations が hydrate される (relations.yaml が無ければ空配列)
     expect(reloaded.project.relations).toEqual([]);
+    // Graph Plot Board は未作成なら空配列
+    expect(reloaded.project.plotBoards).toEqual([]);
   });
 
   it('loadProject throws ProjectNotInitializedError when settings missing', async () => {

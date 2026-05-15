@@ -80,6 +80,21 @@ describe('ProjectHistory', () => {
     h.destroy();
   });
 
+  it('notifies observers for local edits', () => {
+    const h = new ProjectHistory();
+    const s = h.register(node('a', { x: 1 }));
+    const seen: string[] = [];
+    const dispose = h.observe((event) => seen.push(event.nodeId));
+
+    s.set('x', 2);
+    expect(seen).toEqual(['a']);
+
+    dispose();
+    s.set('x', 3);
+    expect(seen).toEqual(['a']);
+    h.destroy();
+  });
+
   it('unregister destroys store and undo skips its missing entries', () => {
     const h = new ProjectHistory();
     const sa = h.register(node('a', { x: 1 }));

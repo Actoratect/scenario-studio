@@ -23,6 +23,7 @@ const KNOWN_KINDS: readonly string[] = [
   'action',
   'line',
   'choice',
+  'image',
   'sfx',
   'bgm',
   'voice',

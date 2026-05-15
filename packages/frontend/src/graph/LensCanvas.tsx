@@ -23,6 +23,7 @@ export interface LensCanvasProps {
   onSelect?: (id: NodeId) => void;
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
+  onPositionCommit?: (id: NodeId, p: { x: number; y: number }) => void;
   /** Shift+drag で関係作成 (source → target)。 */
   onCreateRelation?: (source: NodeId, target: NodeId) => void;
   /** edge ラベルクリック (relation type 変更 / 削除 picker)。 */
@@ -152,20 +153,24 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       const v = view();
       const dx = (e.clientX - d.startX) / v.scale;
       const dy = (e.clientY - d.startY) / v.scale;
-      GraphComments.update(d.id, { x: d.cx + dx, y: d.cy + dy });
+      GraphComments.update(d.id, { x: d.cx + dx, y: d.cy + dy }, { persist: false });
       return;
     }
     if (d.kind === 'comment-resize') {
       const v = view();
       const dx = (e.clientX - d.startX) / v.scale;
       const dy = (e.clientY - d.startY) / v.scale;
-      GraphComments.update(d.id, {
-        width: Math.max(80, d.cw + dx),
-        height: Math.max(40, d.ch + dy),
-      });
+      GraphComments.update(
+        d.id,
+        {
+          width: Math.max(80, d.cw + dx),
+          height: Math.max(40, d.ch + dy),
+        },
+        { persist: false },
+      );
       return;
     }
-    // connect: マウス位置を world に変換して rubber-band の終端に
+    // Keep the rubber-band endpoint in world coordinates while connecting.
     if (d.kind === 'connect') {
       const w = clientToWorld(e.clientX, e.clientY);
       setDrag({ ...d, toX: w.x, toY: w.y });
@@ -175,7 +180,40 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   function onMouseUp(e: MouseEvent): void {
     const d = drag();
     setDrag(null);
-    if (!d || d.kind !== 'connect') return;
+    if (!d) return;
+    if (d.kind === 'node') {
+      const p = pos(d.id);
+      const moved = Math.hypot(p.x - d.px, p.y - d.py);
+      if (moved < 6) {
+        props.onPositionChange?.(d.id, { x: d.px, y: d.py });
+      } else {
+        props.onPositionCommit?.(d.id, p);
+      }
+      return;
+    }
+    if (d.kind === 'comment-move') {
+      const current = GraphComments.comments().find((c) => c.id === d.id);
+      const moved = current ? Math.hypot(current.x - d.cx, current.y - d.cy) : 0;
+      if (moved < 6) {
+        GraphComments.update(d.id, { x: d.cx, y: d.cy }, { persist: false });
+      } else {
+        GraphComments.commit(d.id);
+      }
+      return;
+    }
+    if (d.kind === 'comment-resize') {
+      const current = GraphComments.comments().find((c) => c.id === d.id);
+      const resized = current
+        ? Math.max(Math.abs(current.width - d.cw), Math.abs(current.height - d.ch))
+        : 0;
+      if (resized < 6) {
+        GraphComments.update(d.id, { width: d.cw, height: d.ch }, { persist: false });
+      } else {
+        GraphComments.commit(d.id);
+      }
+      return;
+    }
+    if (d.kind !== 'connect') return;
     // ターゲット node の解決: マウス up 位置に最も近いノード
     const w = clientToWorld(e.clientX, e.clientY);
     const target = nearestNodeWithin(w, radius() * 1.5);

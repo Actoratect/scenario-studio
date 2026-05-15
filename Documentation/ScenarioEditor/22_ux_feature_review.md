@@ -533,6 +533,7 @@ await ThumbnailService.uploadForNode(node, file, file.name);
 | P0 | Field Context AI Actions | タブ移動なしで画像生成 / テキスト提案を使える。AI の体感価値が高い |
 | P0 | Local Agent Handoff | ローカル Codex / コーディングAI / IDE を前提にした本ツールの主戦場 |
 | P0 | Plot Flow Lens | チーム理解と分岐デバッグに効く。既存 Graph 資産を活かせる |
+| P1 | Graph Plot Board | 並行プロットと脚本メモをグラフ上で作れる。Plot Flow の次に伸ばすと自然 |
 | P1 | Unity Readiness Panel | Phase 2 の価値を先に見せられる。Export の信頼性を上げる |
 | P1 | Review Package / Reader Mode | チーム導入の摩擦を下げる。非開発者に渡しやすい |
 | P1 | AI Patch Queue | AI の価値を「安全な変更」に進める |
@@ -560,6 +561,14 @@ await ThumbnailService.uploadForNode(node, file, file.name);
 - Lens 切替 UI
 - choice / goto edge 表示
 - unreachable warning は Console に出す
+
+### UX-3B: Graph Plot Board v1
+
+- `PlotBoards/main.board.yaml` にプロット / 脚本メモを保存
+- `thread` / `beat` / `memo` ノードをカード表示
+- ノード追加、移動、本文編集、削除を GraphPanel で行う
+- シーン / キャラ / 場所へのアンカーは保存だけ先に入れる
+- 詳細仕様は `25_graph_plot_board.md`
 
 ### UX-4: Export Readiness Dry-run
 

@@ -36,6 +36,7 @@
   --ss-accent-vermillion: #d55e00; /* error / danger */
   --ss-accent-yellow: #f0e442; /* highlight */
   --ss-accent-purple: #cc79a7;
+  --ss-accent-teal: #007f7a;
 
   /* severity background — accent をそのまま使うとコントラストが厳しいので
      pastel 化したサーフェスを別途用意 */
@@ -309,14 +310,19 @@ button {
   }
 }
 
-/* 操作中だけかぶせる薄い半透明 overlay。reading impossible にはしない。 */
+/* Keep local loading feedback small and non-blocking. */
 .ss-loading-overlay {
   position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.65);
-  display: flex;
+  top: 8px;
+  right: 8px;
+  max-width: min(280px, calc(100% - 16px));
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--ss-bg) 94%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   font-size: 12px;
   color: var(--ss-text-muted);
@@ -1249,6 +1255,9 @@ button {
 .ss-script-visual-add-btn[data-color='vermillion'] {
   border-left-color: var(--ss-accent-vermillion);
 }
+.ss-script-visual-add-btn[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+}
 .ss-script-visual-add-btn[data-color='faint'] {
   border-left-color: var(--ss-text-faint);
 }
@@ -1335,6 +1344,9 @@ button {
 .ss-script-insert-bar-item[data-color='vermillion'] {
   border-left-color: var(--ss-accent-vermillion);
 }
+.ss-script-insert-bar-item[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+}
 .ss-script-insert-bar-item[data-color='faint'] {
   border-left-color: var(--ss-text-faint);
 }
@@ -1370,6 +1382,10 @@ button {
   border-left-color: var(--ss-accent-vermillion);
   background: #fef4ef;
 }
+.ss-script-card[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+  background: #f1fbfa;
+}
 .ss-script-card[data-color='faint'] {
   border-left-color: var(--ss-text-faint);
   background: var(--ss-bg-soft);
@@ -1384,6 +1400,12 @@ button {
 
 .ss-script-card-icon {
   font-size: 18px;
+}
+
+.ss-script-card[data-color='teal'] .ss-script-card-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ss-accent-teal);
 }
 
 .ss-script-card-num {
@@ -1613,6 +1635,101 @@ button {
   background: var(--ss-bg-info);
   color: var(--ss-accent-blue);
   border-color: var(--ss-accent-blue);
+}
+
+.ss-script-image-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ss-script-image-file {
+  display: none;
+}
+
+.ss-script-image-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 180px;
+  padding: 10px;
+  background: #f8fbfb;
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ss-script-image-frame--empty {
+  border-style: dashed;
+  background: var(--ss-bg-subtle);
+}
+
+.ss-script-image-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 720px);
+  max-height: min(420px, 52vh);
+  object-fit: contain;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.ss-script-image-empty,
+.ss-script-image-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 150px;
+  color: var(--ss-text-muted);
+  text-align: center;
+}
+
+.ss-script-image-empty {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ss-script-image-empty:hover {
+  color: var(--ss-accent-teal);
+}
+
+.ss-script-image-missing code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+}
+
+.ss-script-image-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.ss-script-image-toolbar button {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ss-text);
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ss-script-image-toolbar button:hover {
+  color: var(--ss-accent-teal);
+  border-color: var(--ss-accent-teal);
 }
 
 .ss-script-unknown {
@@ -1933,9 +2050,17 @@ button {
 
 /* App-level loading + workspace shell */
 .app-loading {
-  padding: 32px;
-  font-size: 14px;
-  color: #555;
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--ss-text-muted);
+  background: color-mix(in srgb, var(--ss-bg) 94%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .workspace {
@@ -3887,6 +4012,11 @@ button {
   border-radius: 3px;
 }
 
+.panel-graph-search--wide {
+  max-width: 520px;
+  margin-left: 0;
+}
+
 .panel-graph-search:focus-visible {
   border-color: var(--ss-accent-blue);
 }
@@ -4857,6 +4987,229 @@ button {
   background: var(--ss-bg-info);
   border-color: var(--ss-accent-blue);
   color: var(--ss-accent-blue);
+}
+
+/* Graph Plot Board */
+.plot-board-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.plot-board-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--ss-bg) 92%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.plot-board-toolbar button {
+  padding: 4px 9px;
+  font-size: 12px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot-board-toolbar button:hover {
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-toolbar-hint {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+  white-space: nowrap;
+}
+
+.plot-board-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.plot-board-canvas--dragging {
+  cursor: grabbing;
+}
+
+.plot-board-edge line {
+  stroke: #4b5563;
+  stroke-width: 1.8;
+}
+
+.plot-board-edge-label {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.plot-board-edge-label:hover {
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-rubber {
+  stroke: var(--ss-accent-blue);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.plot-board-card-fo--dimmed {
+  opacity: 0.28;
+}
+
+.plot-board-card {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-left-width: 5px;
+  border-radius: 7px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.11);
+}
+
+.plot-board-card[data-kind='thread'] {
+  border-left-color: #0072b2;
+}
+
+.plot-board-card[data-kind='beat'] {
+  border-left-color: #009e73;
+}
+
+.plot-board-card[data-kind='memo'] {
+  border-left-color: #e69f00;
+}
+
+.plot-board-card[data-kind='question'] {
+  border-left-color: #cc79a7;
+}
+
+.plot-board-card[data-kind='scene_ref'] {
+  border-left-color: #5a6068;
+}
+
+.plot-board-card--target {
+  outline: 3px solid var(--ss-accent-blue);
+  outline-offset: -3px;
+}
+
+.plot-board-card-header {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  box-sizing: border-box;
+  background: var(--ss-bg-soft);
+  border-bottom: 1px solid var(--ss-border-soft);
+  cursor: grab;
+  user-select: none;
+}
+
+.plot-board-card-header:active {
+  cursor: grabbing;
+}
+
+.plot-board-card-kind {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ss-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.plot-board-card-header select {
+  width: 74px;
+  height: 22px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+}
+
+.plot-board-card-header button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot-board-card-header button:hover {
+  color: #fff;
+  background: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
+.plot-board-card-title {
+  width: 100%;
+  min-height: 31px;
+  box-sizing: border-box;
+  padding: 5px 8px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ss-text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ss-border-soft);
+}
+
+.plot-board-card-body {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  resize: none;
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: inherit;
+  color: var(--ss-text);
+  background: transparent;
+  border: 0;
+}
+
+.plot-board-card-title:focus,
+.plot-board-card-body:focus {
+  outline: 2px solid var(--ss-accent-blue);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--ss-bg-info) 35%, transparent);
 }
 
 /* relation type picker: 自由入力 input + 候補 details */

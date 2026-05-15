@@ -14,6 +14,7 @@ async function persist(next: readonly Relation[]): Promise<void> {
   if (!ctx) return;
   await ctx.relationsRepository.save(next);
   Object.assign(ctx.project, { relations: next });
+  ProjectService.touch();
 }
 
 export const RelationsService = {

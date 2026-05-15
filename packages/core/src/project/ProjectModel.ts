@@ -3,6 +3,7 @@ import type { ScenarioNode } from '../domain/node.js';
 import type { ScenarioStructure } from '../domain/scenario.js';
 import type { GlossaryTerm } from '../domain/GlossaryRepository.js';
 import type { Relation } from '../domain/Relation.js';
+import type { PlotBoard } from '../domain/PlotBoard.js';
 import type { ProjectSettings } from './ProjectSettings.js';
 import type { NodeId } from '../domain/era.js';
 
@@ -23,6 +24,8 @@ export interface ProjectModel {
   glossary: readonly GlossaryTerm[];
   /** 明示的なノード間関係 (PR-E、Relations/relations.yaml hydrate)。 */
   relations: readonly Relation[];
+  /** ノードベースのプロット / 脚本メモボード。 */
+  plotBoards: readonly PlotBoard[];
 }
 
 /**
@@ -43,6 +46,7 @@ export const PROJECT_DIRS: readonly string[] = [
   'Localization',
   'Media',
   'Relations',
+  'PlotBoards',
 ];
 
 /**

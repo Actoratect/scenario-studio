@@ -5,7 +5,15 @@ import type { EditorView } from '@codemirror/view';
 // その text: "" の中にカーソルを移動して即タイプ可能にする。
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §5
 
-export type SnippetKind = 'line' | 'stage' | 'aside' | 'action' | 'sfx' | 'bgm' | 'choice';
+export type SnippetKind =
+  | 'line'
+  | 'stage'
+  | 'aside'
+  | 'action'
+  | 'sfx'
+  | 'bgm'
+  | 'choice'
+  | 'image';
 
 interface SnippetDef {
   kind: SnippetKind;
@@ -59,6 +67,12 @@ export const SNIPPETS: readonly SnippetDef[] = [
     template: () =>
       `  - { kind: choice, prompt: "", options: [{ text: "選択 A", then: scene.next }] }`,
     cursorAnchor: 'prompt: "',
+  },
+  {
+    kind: 'image',
+    label: '画像',
+    template: () => `  - { kind: image, src: "" }`,
+    cursorAnchor: 'src: "',
   },
 ];
 

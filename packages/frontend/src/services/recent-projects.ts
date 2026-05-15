@@ -33,6 +33,10 @@ export interface RecentProject {
   pinned: boolean;
 }
 
+interface FileSystemHandleWithIdentity {
+  isSameEntry?: (other: FileSystemHandle) => Promise<boolean>;
+}
+
 let dbPromise: Promise<IDBPDatabase<RecentProjectsSchema>> | undefined;
 
 function db(): Promise<IDBPDatabase<RecentProjectsSchema>> {
@@ -67,12 +71,24 @@ export async function rememberProject(project: {
   name: string;
   directoryHandle: FileSystemDirectoryHandle;
 }): Promise<void> {
-  // 既存 entry の pinned を保持して、lastOpened のみ更新
-  const existing = await (await db()).get(STORE, project.id);
-  await (
-    await db()
-  ).put(STORE, {
-    id: project.id,
+  const conn = await db();
+  const all = await conn.getAll(STORE);
+  let existing = all.find((p) => p.id === project.id);
+  if (!existing) {
+    const picked = project.directoryHandle as FileSystemHandleWithIdentity;
+    for (const item of all) {
+      try {
+        if (await picked.isSameEntry?.(item.directoryHandle)) {
+          existing = item;
+          break;
+        }
+      } catch {
+        /* permission / browser quirk: fall back to new entry */
+      }
+    }
+  }
+  await conn.put(STORE, {
+    id: existing?.id ?? project.id,
     name: project.name,
     lastOpened: Date.now(),
     directoryHandle: project.directoryHandle,

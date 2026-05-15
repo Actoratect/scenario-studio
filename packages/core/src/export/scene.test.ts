@@ -17,6 +17,7 @@ script:
   - { kind: sfx, name: thunder }
   - { kind: bgm, cue: bgm_tense }
   - { kind: choice, prompt: どうする? }
+  - { kind: image, src: Media/script/shot.png, caption: Shot reference }
 `;
 
 function makeChar(slug: string, devName: string, displayName: string): ScenarioNode {
@@ -49,6 +50,8 @@ describe('exportScene', () => {
     expect(out).toContain('(独白) 心の声');
     expect(out).toContain('[SFX: thunder]');
     expect(out).toContain('[BGM: bgm_tense]');
+    expect(out).toContain('Media/script/shot.png');
+    expect(out).toContain('Shot reference');
     expect(out).toContain('[選択肢] どうする?');
   });
 
@@ -63,6 +66,7 @@ describe('exportScene', () => {
     expect(out).toContain('**バレット** *(angry)*: おい!');
     expect(out).toContain('> *(独白)* 心の声');
     expect(out).toContain('`SFX: thunder`');
+    expect(out).toContain('![Shot reference](Media/script/shot.png)');
   });
 
   it('未解決 who は dev_name / slug をそのまま出す', () => {

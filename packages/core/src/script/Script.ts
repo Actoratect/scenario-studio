@@ -52,6 +52,12 @@ export interface ScriptBlockChoice {
   prompt: string;
   options?: readonly ScriptBlockChoiceOption[];
 }
+export interface ScriptBlockImage {
+  kind: 'image';
+  src: string;
+  alt?: string | undefined;
+  caption?: string | undefined;
+}
 export interface ScriptBlockUnknown {
   kind: 'unknown';
   raw: YamlValue;
@@ -65,6 +71,7 @@ export type ScriptBlock =
   | ScriptBlockSfx
   | ScriptBlockBgm
   | ScriptBlockChoice
+  | ScriptBlockImage
   | ScriptBlockUnknown;
 
 export interface ParsedScene {
@@ -156,6 +163,13 @@ function parseBlock(item: YamlValue): ScriptBlock {
       }
       return out;
     }
+    case 'image':
+      return {
+        kind: 'image',
+        src: typeof item['src'] === 'string' ? item['src'] : '',
+        ...(typeof item['alt'] === 'string' ? { alt: item['alt'] } : {}),
+        ...(typeof item['caption'] === 'string' ? { caption: item['caption'] } : {}),
+      };
     default:
       return { kind: 'unknown', raw: item };
   }
@@ -201,6 +215,12 @@ function blockToYaml(b: ScriptBlock): YamlValue {
           return opt;
         });
       }
+      return obj;
+    }
+    case 'image': {
+      const obj: { [k: string]: YamlValue } = { kind: 'image', src: b.src };
+      if (b.alt !== undefined && b.alt !== '') obj['alt'] = b.alt;
+      if (b.caption !== undefined && b.caption !== '') obj['caption'] = b.caption;
       return obj;
     }
     case 'unknown':

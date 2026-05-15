@@ -47,6 +47,21 @@ export const ProjectPicker: Component = () => {
     }
   }
 
+  async function onOpenRecent(id: string): Promise<void> {
+    const recent = ProjectService.recentProjects().find((p) => p.id === id);
+    if (!recent) return;
+    setBusy(true);
+    try {
+      const opened = await ProjectService.openRecent(recent);
+      if (!opened) Toast.error('最近開いたプロジェクトの権限を取得できませんでした');
+    } catch (e) {
+      console.error('open recent failed', e);
+      Toast.error(`プロジェクトを開けません: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div class="picker">
       <header class="picker-header">
@@ -119,7 +134,7 @@ export const ProjectPicker: Component = () => {
                     <button
                       class="picker-recent-open"
                       disabled={busy()}
-                      onClick={() => void ProjectService.openRecent(r)}
+                      onClick={() => void onOpenRecent(r.id)}
                     >
                       <strong>{r.name}</strong>
                       <span class="picker-recent-time">

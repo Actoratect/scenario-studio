@@ -1,7 +1,7 @@
 import type { NodeId } from '../domain/era.js';
 import type { ScenarioNode } from '../domain/node.js';
 import type { Relation, RelationId } from '../domain/Relation.js';
-import { getRelationType, type RelationType } from '../domain/relations.js';
+import type { RelationType } from '../domain/relations.js';
 import type { TemplateRegistry } from '../domain/templates/index.js';
 
 // ScenarioNode 集合と TemplateRegistry から「Relationship Lens」用の
@@ -90,18 +90,11 @@ export function computeRelationshipLens(
   // Explicit: PR-E Relation エンティティ
   for (const rel of relations) {
     if (!validIds.has(rel.source) || !validIds.has(rel.target)) continue;
-    const typeLabel = (() => {
-      try {
-        return getRelationType(rel.type).label;
-      } catch {
-        return rel.type;
-      }
-    })();
     edges.push({
       id: rel.id,
       source: rel.source,
       target: rel.target,
-      label: rel.label && rel.label !== '' ? rel.label : typeLabel,
+      label: rel.label && rel.label !== '' ? rel.label : rel.type,
       kind: 'explicit',
       relationId: rel.id,
       relationType: rel.type,

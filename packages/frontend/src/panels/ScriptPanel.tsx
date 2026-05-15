@@ -16,6 +16,7 @@ import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptS
 import { ScriptContextRail } from '../script/ScriptContextRail';
 import { ScriptVisualEditor } from '../script/ScriptVisualEditor';
 import { KNOWN_EMOTIONS } from '../script/emotions';
+import { preserveScrollDuringMutation } from '../script/scrollPreservation';
 import { bumpScriptLintVersion } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
@@ -461,16 +462,17 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     ScriptHistoryService.setActivePath(scene()?.path);
   }
 
+  function visualScrollElements(): HTMLElement[] {
+    const elements: HTMLElement[] = [];
+    for (const selector of ['.panel-script-content-main', '.panel-script-content']) {
+      const el = panelRoot?.querySelector(selector) as HTMLElement | null;
+      if (el && !elements.includes(el)) elements.push(el);
+    }
+    return elements;
+  }
+
   function preserveVisualScroll(run: () => void): void {
-    const scroller = panelRoot?.querySelector('.panel-script-content-main') as HTMLElement | null;
-    const scrollTop = scroller?.scrollTop ?? 0;
-    const scrollLeft = scroller?.scrollLeft ?? 0;
-    run();
-    if (!scroller) return;
-    requestAnimationFrame(() => {
-      scroller.scrollTop = scrollTop;
-      scroller.scrollLeft = scrollLeft;
-    });
+    preserveScrollDuringMutation(visualScrollElements(), run);
   }
 
   let panelRoot: HTMLDivElement | undefined;
@@ -678,6 +680,8 @@ function defaultBlock(kind: ScriptBlock['kind'], defaultWho: string): ScriptBloc
       return { kind: 'bgm', cue: '', fade: 1.0 };
     case 'choice':
       return { kind: 'choice', prompt: '', options: [{ text: '選択 A' }] };
+    case 'image':
+      return { kind: 'image', src: '' };
     case 'unknown':
       return { kind: 'unknown', raw: null };
   }

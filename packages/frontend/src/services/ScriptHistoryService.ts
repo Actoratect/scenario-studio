@@ -3,10 +3,15 @@ import { unwrap } from 'solid-js/store';
 import type { ParsedScene } from '@scenario-studio/core';
 
 const HISTORY_LIMIT = 100;
+const DEFAULT_MERGE_WINDOW_MS = 800;
 
 interface HistoryStacks {
   undo: ParsedScene[];
   redo: ParsedScene[];
+  lastPush: {
+    mergeKey: string;
+    time: number;
+  } | undefined;
 }
 
 interface ScriptHistoryController {
@@ -26,7 +31,7 @@ function touch(): void {
 function getHistory(path: string): HistoryStacks {
   let h = sceneHistory.get(path);
   if (!h) {
-    h = { undo: [], redo: [] };
+    h = { undo: [], redo: [], lastPush: undefined };
     sceneHistory.set(path, h);
   }
   return h;
@@ -78,10 +83,24 @@ export const ScriptHistoryService = {
     return activeController !== undefined;
   },
 
-  push(path: string, scene: ParsedScene): void {
+  push(
+    path: string,
+    scene: ParsedScene,
+    options: { readonly mergeKey?: string; readonly mergeWindowMs?: number } = {},
+  ): void {
     const h = getHistory(path);
-    h.undo.push(cloneScene(scene));
-    if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    const now = Date.now();
+    const mergeWindowMs = options.mergeWindowMs ?? DEFAULT_MERGE_WINDOW_MS;
+    const canMerge =
+      options.mergeKey !== undefined &&
+      h.lastPush?.mergeKey === options.mergeKey &&
+      now - h.lastPush.time <= mergeWindowMs &&
+      h.undo.length > 0;
+    if (!canMerge) {
+      h.undo.push(cloneScene(scene));
+      if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    }
+    h.lastPush = options.mergeKey ? { mergeKey: options.mergeKey, time: now } : undefined;
     h.redo.length = 0;
     setActivePathSignal(path);
     touch();
@@ -93,6 +112,7 @@ export const ScriptHistoryService = {
     if (!prev) return undefined;
     h.redo.push(cloneScene(current));
     if (h.redo.length > HISTORY_LIMIT) h.redo.shift();
+    h.lastPush = undefined;
     setActivePathSignal(path);
     touch();
     return cloneScene(prev);
@@ -104,6 +124,7 @@ export const ScriptHistoryService = {
     if (!next) return undefined;
     h.undo.push(cloneScene(current));
     if (h.undo.length > HISTORY_LIMIT) h.undo.shift();
+    h.lastPush = undefined;
     setActivePathSignal(path);
     touch();
     return cloneScene(next);
@@ -119,5 +140,11 @@ export const ScriptHistoryService = {
     if (!activeController || !ScriptHistoryService.canRedo()) return false;
     activeController.redo();
     return true;
+  },
+
+  clear(): void {
+    sceneHistory.clear();
+    setActivePathSignal(undefined);
+    touch();
   },
 };

@@ -37,7 +37,7 @@ describe('FsRelationsRepository', () => {
     expect(reloaded[0]?.label).toBe('宿敵');
   });
 
-  it('drops entries with unknown type', async () => {
+  it('keeps free text relation types', async () => {
     await adapter.write(
       handle,
       'Relations/relations.yaml',
@@ -49,7 +49,7 @@ relations:
 `,
     );
     const loaded = await repo.load();
-    expect(loaded.length).toBe(1);
-    expect(loaded[0]?.type).toBe('friend');
+    expect(loaded.length).toBe(2);
+    expect(loaded.map((r) => r.type)).toEqual(['not_a_real_type', 'friend']);
   });
 });

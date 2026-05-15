@@ -5,16 +5,12 @@ import type { YamlValue } from '../yaml/index.js';
 import { nodeId } from './era.js';
 import type { Relation } from './Relation.js';
 import { relationId } from './Relation.js';
-import type { RelationType } from './relations.js';
-import { RELATION_TYPES } from './relations.js';
 
 // `Relations/relations.yaml` の load / save。
 // MVP は単一ファイル + array モデル。書込みは「全件 dump」(size 数百で問題なし)。
 // 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md §2
 
 const RELATIONS_FILE = 'Relations/relations.yaml';
-
-const VALID_TYPES = new Set<RelationType>(RELATION_TYPES.map((r) => r.id));
 
 export class FsRelationsRepository {
   constructor(
@@ -38,7 +34,7 @@ export class FsRelationsRepository {
         typeof r['source'] !== 'string' ||
         typeof r['target'] !== 'string' ||
         typeof r['type'] !== 'string' ||
-        !VALID_TYPES.has(r['type'] as RelationType)
+        r['type'].trim() === ''
       ) {
         continue;
       }
@@ -46,7 +42,7 @@ export class FsRelationsRepository {
         id: relationId(r['id']),
         source: nodeId(r['source']),
         target: nodeId(r['target']),
-        type: r['type'] as RelationType,
+        type: r['type'],
       };
       if (typeof r['label'] === 'string') {
         out.push({ ...rel, label: r['label'] });

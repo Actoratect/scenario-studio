@@ -99,7 +99,7 @@ describe('computeRelationshipLens', () => {
     expect(fields).toEqual(['faction', 'leader']);
   });
 
-  it('merges explicit Relation entities with type label (PR-E)', () => {
+  it('merges explicit Relation entities with free text type label', () => {
     const tmpl = new TemplateRegistry();
     const a = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
@@ -121,7 +121,7 @@ describe('computeRelationshipLens', () => {
     ]);
     expect(lens.edges.length).toBe(1);
     expect(lens.edges[0]!.kind).toBe('explicit');
-    expect(lens.edges[0]!.label).toBe('友人'); // RELATION_TYPES.friend.label
+    expect(lens.edges[0]!.label).toBe('friend');
     expect(lens.edges[0]!.relationType).toBe('friend');
   });
 
