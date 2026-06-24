@@ -682,6 +682,8 @@ function defaultBlock(kind: ScriptBlock['kind'], defaultWho: string): ScriptBloc
       return { kind: 'choice', prompt: '', options: [{ text: '選択 A' }] };
     case 'image':
       return { kind: 'image', src: '' };
+    case 'comment':
+      return { kind: 'comment', text: '' };
     case 'unknown':
       return { kind: 'unknown', raw: null };
   }

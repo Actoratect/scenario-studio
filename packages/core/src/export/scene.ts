@@ -81,6 +81,9 @@ function renderText(
       case 'image':
         lines.push(`[画像: ${item.src ?? ''}]${item.caption ? ` ${item.caption}` : ''}`);
         break;
+      case 'comment':
+        lines.push(`[コメント] ${item.text ?? ''}`);
+        break;
       default:
         lines.push(`[${item.kind}] ${item.text ?? ''}`);
     }
@@ -131,6 +134,10 @@ function renderMarkdown(
       case 'image':
         lines.push(`![${item.caption ?? 'image'}](${item.src ?? ''})`);
         if (item.caption) lines.push(`*${item.caption}*`);
+        lines.push('');
+        break;
+      case 'comment':
+        lines.push(`> 📝 ${item.text ?? ''}`);
         lines.push('');
         break;
       default:

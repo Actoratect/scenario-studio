@@ -58,6 +58,11 @@ export interface ScriptBlockImage {
   alt?: string | undefined;
   caption?: string | undefined;
 }
+/** 作者向けの注釈/プロットメモ。プレイヤーには出さない。 */
+export interface ScriptBlockComment {
+  kind: 'comment';
+  text: string;
+}
 export interface ScriptBlockUnknown {
   kind: 'unknown';
   raw: YamlValue;
@@ -72,6 +77,7 @@ export type ScriptBlock =
   | ScriptBlockBgm
   | ScriptBlockChoice
   | ScriptBlockImage
+  | ScriptBlockComment
   | ScriptBlockUnknown;
 
 export interface ParsedScene {
@@ -170,6 +176,11 @@ function parseBlock(item: YamlValue): ScriptBlock {
         ...(typeof item['alt'] === 'string' ? { alt: item['alt'] } : {}),
         ...(typeof item['caption'] === 'string' ? { caption: item['caption'] } : {}),
       };
+    case 'comment':
+      return {
+        kind: 'comment',
+        text: typeof item['text'] === 'string' ? item['text'] : '',
+      };
     default:
       return { kind: 'unknown', raw: item };
   }
@@ -223,6 +234,8 @@ function blockToYaml(b: ScriptBlock): YamlValue {
       if (b.caption !== undefined && b.caption !== '') obj['caption'] = b.caption;
       return obj;
     }
+    case 'comment':
+      return { kind: 'comment', text: b.text };
     case 'unknown':
       return b.raw;
   }

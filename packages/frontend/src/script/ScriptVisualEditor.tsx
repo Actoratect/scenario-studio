@@ -107,6 +107,7 @@ const KIND_META: Record<ScriptBlock['kind'], { icon: string; label: string; colo
   bgm: { icon: '🎵', label: 'BGM', color: 'orange' },
   choice: { icon: '🌟', label: '選択肢', color: 'vermillion' },
   image: { icon: 'IMG', label: '画像', color: 'teal' },
+  comment: { icon: '📝', label: 'コメント', color: 'faint' },
   unknown: { icon: '❓', label: '不明', color: 'faint' },
 };
 
@@ -119,6 +120,7 @@ const ADDABLE_KINDS: readonly ScriptBlock['kind'][] = [
   'bgm',
   'choice',
   'image',
+  'comment',
 ];
 
 function keepPointerFromStealingFocus(e: MouseEvent): void {
@@ -328,6 +330,12 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
           <Match when={props.block.kind === 'image'}>
             <ImageBlockView block={props.block as ScriptBlockImage} onChange={props.onChange} />
           </Match>
+          <Match when={props.block.kind === 'comment'}>
+            <CommentBlock
+              block={props.block as ScriptBlock & { kind: 'comment' }}
+              onChange={props.onChange}
+            />
+          </Match>
           <Match when={props.block.kind === 'unknown'}>
             <UnknownBlockView block={props.block as ScriptBlock & { kind: 'unknown' }} />
           </Match>
@@ -389,20 +397,26 @@ const StableTextarea: Component<{
 }> = (props) => {
   let ref: HTMLTextAreaElement | undefined;
   let composing = false;
-  // 外部 value 変化のみ DOM に反映 (DEV: 強制 sync 時にログ → cursor 飛び事案を可視化)
+
+  // 内容の改行に合わせて高さを自動調整する。
+  // 旧版は rows 固定 + ユーザーリサイズ可で、Index が DOM を位置で再利用するため
+  // 手動リサイズした高さが別シナリオに切り替えても残っていた (バグ報告)。
+  function autoResize(): void {
+    if (!ref) return;
+    ref.style.height = 'auto';
+    // border-box でクリップしないよう border 分 (offsetHeight - clientHeight) を足す。
+    const border = ref.offsetHeight - ref.clientHeight;
+    ref.style.height = `${ref.scrollHeight + border}px`;
+  }
+
+  // 外部 value 変化を DOM に反映 + 高さ再計算 (シナリオ切替で新しい値が来た時も含む)。
   createEffect(() => {
     const v = props.value ?? '';
     if (composing) return;
-    if (ref && ref.value !== v) {
-      if (import.meta.env.DEV) {
-        console.debug('[StableTextarea] external sync', {
-          dom: ref.value,
-          newValue: v,
-        });
-      }
-      ref.value = v;
-    }
+    if (ref && ref.value !== v) ref.value = v;
+    autoResize();
   });
+
   return (
     <textarea
       ref={(el) => {
@@ -417,9 +431,11 @@ const StableTextarea: Component<{
       }}
       onCompositionEnd={(e) => {
         composing = false;
+        autoResize();
         props.onInput((e.currentTarget as HTMLTextAreaElement).value);
       }}
       onInput={(e) => {
+        autoResize();
         if (composing) return;
         props.onInput(e.currentTarget.value);
       }}
@@ -840,6 +856,20 @@ const ImageBlockView: Component<{
         </Show>
       </div>
     </div>
+  );
+};
+
+const CommentBlock: Component<{
+  block: ScriptBlock & { kind: 'comment' };
+  onChange: (next: ScriptBlock) => void;
+}> = (props) => {
+  return (
+    <StableTextarea
+      class="ss-script-comment-text"
+      value={props.block.text}
+      placeholder="作者向けコメント / プロットメモ (本編には出ません)"
+      onInput={(text) => props.onChange({ ...props.block, text })}
+    />
   );
 };
 

@@ -23,3 +23,21 @@ describe('scene script image block', () => {
     expect(serialized).toContain('caption: Opening composition');
   });
 });
+
+describe('scene script comment block', () => {
+  it('round-trips comment blocks (not treated as unknown)', () => {
+    const parsed = parseSceneYaml(`script:
+  - kind: comment
+    text: "※このシーンは本制作では脚本化予定。"
+`);
+
+    expect(parsed.blocks[0]).toEqual({
+      kind: 'comment',
+      text: '※このシーンは本制作では脚本化予定。',
+    });
+
+    const serialized = serializeSceneYaml(parsed);
+    expect(serialized).toContain('kind: comment');
+    expect(serialized).toContain('※このシーンは本制作では脚本化予定。');
+  });
+});

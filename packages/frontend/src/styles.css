@@ -1592,7 +1592,8 @@ button {
 
 .ss-script-line-text,
 .ss-script-aside-text,
-.ss-script-stage-text {
+.ss-script-stage-text,
+.ss-script-comment-text {
   width: 100%;
   padding: 6px 8px;
   font-size: 13px;
@@ -1600,7 +1601,9 @@ button {
   line-height: 1.5;
   border: 1px solid var(--ss-border);
   border-radius: 3px;
-  resize: vertical;
+  /* 高さは内容に応じて JS で自動調整するため、手動リサイズ無効 + 溢れ非表示。 */
+  resize: none;
+  overflow: hidden;
   background: var(--ss-bg);
   color: var(--ss-text);
   box-sizing: border-box;
@@ -1613,6 +1616,12 @@ button {
 .ss-script-stage-text {
   background: var(--ss-bg-subtle);
   font-weight: 500;
+}
+
+.ss-script-comment-text {
+  background: var(--ss-bg-subtle);
+  color: var(--ss-text-muted);
+  border-style: dashed;
 }
 
 .ss-script-cue-input {
@@ -2079,6 +2088,7 @@ button {
 .ss-script-line-text,
 .ss-script-aside-text,
 .ss-script-stage-text,
+.ss-script-comment-text,
 .ss-script-choice-prompt {
   font-size: var(--ss-font-13);
 }
