@@ -2,6 +2,7 @@ import { createEffect, createMemo, createResource, createSignal, onCleanup, Show
 import type { Component } from 'solid-js';
 import type { ScenarioNode, ThumbnailRect } from '@scenario-studio/core';
 import { ThumbnailService } from '../services/ThumbnailService';
+import { clampRectToImage, maxSquareSize, squareHeightFraction } from './portraitCrop';
 
 // PR-AC: 立ち絵 (full portrait) を表示し、その上に正方形クロップ枠を被せる。
 // ドラッグで枠を動かし、四隅でリサイズ可能。確定すると onChange に正規化座標 (0..1) を返す。
@@ -43,43 +44,6 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
 
   // crop rect (0..1 normalized)。空 default で開始し、node 切替 / image load で sync。
   const [rect, setRect] = createSignal<ThumbnailRect>({ x: 0, y: 0, size: 1 });
-
-  /**
-   * 画像 dims が判明している時点で rect を **真の正方形が image 内に収まる範囲** に
-   * クランプする。size は image WIDTH の 0..1 で、square 高さ = size / aspectWH。
-   * 縦長画像 (aspectWH < 1) で size=1 のままだと sizeInH > 1 になり、Y 移動が
-   * マイナス領域に clamp されて「下に動かない」「resize で一気に縮む」バグになる。
-   * 初期化時に必ず通すことで両症状を絶つ。
-   */
-  function clampRectToImage(raw: ThumbnailRect, img: { w: number; h: number }): ThumbnailRect {
-    const aspectWH = img.w / img.h; // 縦長 → < 1, 横長 → > 1
-    // size を maxFitSize にすると square が image 高さ / 幅いっぱいになり、
-    // y / x の移動余地が 0 になる → 「下に動かせない」「resize で広げられない」
-    // 症状になる。デフォルト未指定の場合は意図的に小さくして余地を残す。
-    const maxFitSize = Math.max(0.05, Math.min(1, aspectWH));
-    const isUninit = raw.size >= 0.999 && raw.x <= 0.001 && raw.y <= 0.001;
-    let size: number;
-    let xRaw: number;
-    let yRaw: number;
-    if (isUninit) {
-      // 中央 50% 幅の square + 上寄せ (= 顔位置の目安) を初期値に
-      size = Math.min(maxFitSize, 0.5);
-      xRaw = (1 - size) / 2;
-      yRaw = 0.08;
-    } else {
-      size = Math.max(0.05, Math.min(raw.size, maxFitSize));
-      xRaw = raw.x;
-      yRaw = raw.y;
-    }
-    const sizeInH = size / aspectWH;
-    const maxX = Math.max(0, 1 - size);
-    const maxY = Math.max(0, 1 - sizeInH);
-    return {
-      x: Math.max(0, Math.min(maxX, xRaw)),
-      y: Math.max(0, Math.min(maxY, yRaw)),
-      size,
-    };
-  }
 
   // node が切り替わったら rect を再 initialize
   createEffect(() => {
@@ -123,15 +87,15 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
     const aspectWH = img.w / img.h; // 画像の幅÷高さ
 
     // image 内に収まる正方形の最大 size (= image WIDTH の 0..1)
-    const absoluteMaxSize = Math.max(0.05, Math.min(1, aspectWH));
+    const absoluteMaxSize = maxSquareSize(aspectWH);
 
     function onMove(ev: MouseEvent): void {
       // dx は表示幅基準 = 画像幅基準 (width fraction)
       const dxW = (ev.clientX - startX) / sz!.w;
       const dyH = (ev.clientY - startY) / sz!.h;
       if (mode === 'move') {
-        // 正方形高さ (height fraction) = size / aspectWH
-        const sizeInH = startRect.size / aspectWH;
+        // 正方形の高さ占有率 = size * aspectWH。これで縦移動余地を正しく確保する。
+        const sizeInH = squareHeightFraction(startRect.size, aspectWH);
         const nx = clamp01(startRect.x + dxW, 0, Math.max(0, 1 - startRect.size));
         const ny = clamp01(startRect.y + dyH, 0, Math.max(0, 1 - sizeInH));
         setRect({ x: nx, y: ny, size: startRect.size });
@@ -141,7 +105,7 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
         // 大きくしたら image 端を超える場合は x/y を auto-adjust して残す。
         const delta = dxW;
         const newSize = Math.max(0.1, Math.min(absoluteMaxSize, startRect.size + delta));
-        const newSizeInH = newSize / aspectWH;
+        const newSizeInH = squareHeightFraction(newSize, aspectWH);
         const newX = Math.min(startRect.x, Math.max(0, 1 - newSize));
         const newY = Math.min(startRect.y, Math.max(0, 1 - newSizeInH));
         setRect({ x: newX, y: newY, size: newSize });
