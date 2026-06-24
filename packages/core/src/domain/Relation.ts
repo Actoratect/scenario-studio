@@ -23,4 +23,10 @@ export interface Relation {
   type: RelationType;
   /** UI 表示用の自由テキスト (空でも OK)。type だけでは語れない補足。 */
   label?: string;
+  /** source → target 視点の役割ラベル (例: 兄)。YAML では label_from。 */
+  labelFrom?: string;
+  /** target → source 視点の役割ラベル (例: 妹)。YAML では label_to。 */
+  labelTo?: string;
+  /** 関係の説明 (プロット用の長文も可)。YAML では description。 */
+  description?: string;
 }

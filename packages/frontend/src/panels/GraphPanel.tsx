@@ -30,6 +30,7 @@ import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { PlotBoardCanvas } from '../graph/PlotBoardCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
+import { RelationDetailEditor } from '../graph/RelationDetailEditor';
 import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
 import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
@@ -66,8 +67,12 @@ interface PendingPicker {
 
 interface EditingPicker {
   relationId: RelationId;
-  current: { type: RelationType; label?: string };
-  caption: string;
+  type: string;
+  labelFrom?: string | undefined;
+  labelTo?: string | undefined;
+  description?: string | undefined;
+  sourceName: string;
+  targetName: string;
 }
 
 interface EdgeEditState {
@@ -334,8 +339,12 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     if (edge.kind !== 'explicit' || !edge.relationId || !edge.relationType) return;
     setEditing({
       relationId: edge.relationId,
-      current: { type: edge.relationType, label: edge.label },
-      caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
+      type: edge.relationType,
+      labelFrom: edge.labelFrom,
+      labelTo: edge.labelTo,
+      description: edge.description,
+      sourceName: nodeLabel(edge.source),
+      targetName: nodeLabel(edge.target),
     });
   }
 
@@ -615,16 +624,25 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           })();
         }}
       />
-      <RelationTypePicker
+      <RelationDetailEditor
         open={!!editing()}
-        canDelete={true}
-        caption={editing()?.caption}
-        initial={editing()?.current}
+        sourceName={editing()?.sourceName ?? ''}
+        targetName={editing()?.targetName ?? ''}
+        initial={
+          editing()
+            ? {
+                type: editing()!.type,
+                labelFrom: editing()!.labelFrom,
+                labelTo: editing()!.labelTo,
+                description: editing()!.description,
+              }
+            : undefined
+        }
         onClose={() => setEditing(undefined)}
-        onSubmit={(input) => {
+        onSubmit={(details) => {
           const e = editing();
           if (!e) return;
-          void RelationsService.setType(e.relationId, input.type);
+          void RelationsService.setDetails(e.relationId, details);
         }}
         onDelete={() => {
           const e = editing();

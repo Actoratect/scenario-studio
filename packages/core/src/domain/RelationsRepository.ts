@@ -29,10 +29,13 @@ export class FsRelationsRepository {
     for (const item of items) {
       if (typeof item !== 'object' || item === null || Array.isArray(item)) continue;
       const r = item as { [k: string]: YamlValue };
+      // source/target は from/to も別名として受け付ける (外部変換データ互換)。
+      const source = pickString(r['source']) ?? pickString(r['from']);
+      const target = pickString(r['target']) ?? pickString(r['to']);
       if (
         typeof r['id'] !== 'string' ||
-        typeof r['source'] !== 'string' ||
-        typeof r['target'] !== 'string' ||
+        source === undefined ||
+        target === undefined ||
         typeof r['type'] !== 'string' ||
         r['type'].trim() === ''
       ) {
@@ -40,15 +43,21 @@ export class FsRelationsRepository {
       }
       const rel: Relation = {
         id: relationId(r['id']),
-        source: nodeId(r['source']),
-        target: nodeId(r['target']),
+        source: nodeId(source),
+        target: nodeId(target),
         type: r['type'],
       };
-      if (typeof r['label'] === 'string') {
-        out.push({ ...rel, label: r['label'] });
-      } else {
-        out.push(rel);
-      }
+      const label = pickNonEmpty(r['label']);
+      const labelFrom = pickNonEmpty(r['labelFrom']) ?? pickNonEmpty(r['label_from']);
+      const labelTo = pickNonEmpty(r['labelTo']) ?? pickNonEmpty(r['label_to']);
+      const description = pickNonEmpty(r['description']);
+      out.push({
+        ...rel,
+        ...(label !== undefined ? { label } : {}),
+        ...(labelFrom !== undefined ? { labelFrom } : {}),
+        ...(labelTo !== undefined ? { labelTo } : {}),
+        ...(description !== undefined ? { description } : {}),
+      });
     }
     return out;
   }
@@ -65,11 +74,22 @@ export class FsRelationsRepository {
           type: r.type,
         };
         if (r.label !== undefined && r.label !== '') obj['label'] = r.label;
+        if (r.labelFrom !== undefined && r.labelFrom !== '') obj['label_from'] = r.labelFrom;
+        if (r.labelTo !== undefined && r.labelTo !== '') obj['label_to'] = r.labelTo;
+        if (r.description !== undefined && r.description !== '') obj['description'] = r.description;
         return obj;
       }),
     };
     await this.adapter.write(this.handle, RELATIONS_FILE, stringifyYaml(sanitizeYamlTree(out)));
   }
+}
+
+function pickString(v: YamlValue | undefined): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+
+function pickNonEmpty(v: YamlValue | undefined): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
 }
 
 /** 新規 Relation のひな形 (id 自動生成)。 */

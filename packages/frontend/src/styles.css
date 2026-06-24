@@ -635,6 +635,17 @@ button {
   border-color: var(--ss-accent-blue);
 }
 
+/* 関係編集 modal: 双方向ラベルを 2 カラムで並べる。 */
+.ss-relation-label-row {
+  display: flex;
+  gap: 10px;
+}
+
+.ss-relation-label-row label {
+  flex: 1;
+  min-width: 0;
+}
+
 .ss-modal-actions {
   display: flex;
   align-items: center;

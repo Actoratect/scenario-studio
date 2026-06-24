@@ -17,6 +17,18 @@ async function persist(next: readonly Relation[]): Promise<void> {
   ProjectService.touch();
 }
 
+/** 任意フィールドを trim して設定。空文字なら未設定 (キー削除) にする。 */
+function setOptional(
+  rel: Relation,
+  key: 'labelFrom' | 'labelTo' | 'description',
+  value: string | undefined,
+): void {
+  if (value === undefined) return;
+  const trimmed = value.trim();
+  if (trimmed === '') delete rel[key];
+  else rel[key] = trimmed;
+}
+
 export const RelationsService = {
   async add(input: {
     source: NodeId;
@@ -53,6 +65,30 @@ export const RelationsService = {
     const next = ctx.project.relations.map((r) => (r.id === id ? { ...r, type } : r));
     try {
       await persist(next);
+    } catch (e) {
+      Toast.error(`関係の更新に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  },
+
+  /** 種類 + 双方向ラベル + 説明をまとめて更新する (グラフの関係編集 modal 用)。 */
+  async setDetails(
+    id: RelationId,
+    patch: { type?: string; labelFrom?: string; labelTo?: string; description?: string },
+  ): Promise<void> {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const next = ctx.project.relations.map((r) => {
+      if (r.id !== id) return r;
+      const updated: Relation = { ...r };
+      if (patch.type !== undefined && patch.type.trim() !== '') updated.type = patch.type.trim();
+      setOptional(updated, 'labelFrom', patch.labelFrom);
+      setOptional(updated, 'labelTo', patch.labelTo);
+      setOptional(updated, 'description', patch.description);
+      return updated;
+    });
+    try {
+      await persist(next);
+      Toast.success('関係を更新しました', 1500);
     } catch (e) {
       Toast.error(`関係の更新に失敗: ${e instanceof Error ? e.message : String(e)}`);
     }

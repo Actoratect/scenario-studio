@@ -52,4 +52,48 @@ relations:
     expect(loaded.length).toBe(2);
     expect(loaded.map((r) => r.type)).toEqual(['not_a_real_type', 'friend']);
   });
+
+  it('loads from/to + label_from/label_to/description schema (external conversion compat)', async () => {
+    await adapter.write(
+      handle,
+      'Relations/relations.yaml',
+      `schemaVersion: 1
+kind: relations
+relations:
+  - id: rel01
+    from: node.melos
+    to: node.imoto
+    type: family
+    label_from: 兄
+    label_to: 妹
+    description: メロスの唯一の肉親。
+`,
+    );
+    const loaded = await repo.load();
+    expect(loaded).toEqual([
+      {
+        id: 'rel01',
+        source: 'node.melos',
+        target: 'node.imoto',
+        type: 'family',
+        labelFrom: '兄',
+        labelTo: '妹',
+        description: 'メロスの唯一の肉親。',
+      },
+    ]);
+  });
+
+  it('round-trips directional labels + description (no data loss on save)', async () => {
+    const rel = createRelation({
+      source: nodeId('node.a'),
+      target: nodeId('node.b'),
+      type: 'family',
+      labelFrom: '兄',
+      labelTo: '妹',
+      description: '二人で村に暮らしていた。',
+    });
+    await repo.save([rel]);
+    const reloaded = await repo.load();
+    expect(reloaded).toEqual([rel]);
+  });
 });
