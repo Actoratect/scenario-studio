@@ -28,6 +28,12 @@ interface PlotBoardHistoryController {
   canRedo: () => boolean;
   undo: () => boolean | Promise<boolean>;
   redo: () => boolean | Promise<boolean>;
+  /**
+   * undo/redo スタックの最古エントリ (この side の plotBoard マーカー) が
+   * 上限超過でトリムされた時に呼ぶ。controller 側が保持するスナップショットを
+   * 同期して捨て、マーカーとスナップショットの本数ズレ (孤立) を防ぐ。
+   */
+  onTrimOldest?: (side: 'undo' | 'redo') => void;
 }
 
 const undoStack: HistoryEntry[] = [];
@@ -43,8 +49,11 @@ function touch(): void {
   setRevision((v) => v + 1);
 }
 
-function trim(stack: HistoryEntry[]): void {
-  while (stack.length > HISTORY_LIMIT) stack.shift();
+function trim(stack: HistoryEntry[], side: 'undo' | 'redo'): void {
+  while (stack.length > HISTORY_LIMIT) {
+    const dropped = stack.shift();
+    if (dropped?.domain === 'plotBoard') plotBoardController?.onTrimOldest?.(side);
+  }
 }
 
 function applyState(entry: HistoryEntry, direction: 'undo' | 'redo'): ApplyState {
@@ -119,7 +128,8 @@ async function applyTop(
 
     if (ok) {
       target.push(entry);
-      trim(target);
+      // target は undo 方向なら redoStack、redo 方向なら undoStack。
+      trim(target, direction === 'undo' ? 'redo' : 'undo');
       touch();
       return true;
     }
@@ -131,7 +141,7 @@ async function applyTop(
 function record(entry: HistoryEntry): void {
   if (applying) return;
   undoStack.push(entry);
-  trim(undoStack);
+  trim(undoStack, 'undo');
   redoStack.length = 0;
   touch();
 }

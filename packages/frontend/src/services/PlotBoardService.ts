@@ -118,8 +118,10 @@ function recordHistory(ctx: OpenProjectContext, before: PlotBoard): void {
   ensureHistoryProject(ctx);
   if (applyingHistory) return;
   undoBoards.push(cloneBoard(before));
-  while (undoBoards.length > 200) undoBoards.shift();
   redoBoards.length = 0;
+  // 上限トリムは GlobalHistoryService の単一スタックに委譲する。plotBoard マーカーが
+  // トリムされると onTrimOldest が呼ばれ undoBoards も同期で削るため、本数が常に一致し
+  // 孤立スナップショットが残らない (旧: 独立 200 トリムで desync していた)。
   GlobalHistoryService.recordPlotBoard();
 }
 
@@ -172,6 +174,9 @@ GlobalHistoryService.registerPlotBoardController({
   canRedo: () => canUseHistory(redoBoards),
   undo: () => restoreHistoryBoard(undoBoards, redoBoards),
   redo: () => restoreHistoryBoard(redoBoards, undoBoards),
+  onTrimOldest: (side) => {
+    (side === 'undo' ? undoBoards : redoBoards).shift();
+  },
 });
 
 export const PlotBoardService = {

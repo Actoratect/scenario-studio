@@ -5261,6 +5261,31 @@ button {
   text-overflow: ellipsis;
 }
 
+/* summary モードの題名インライン編集。ヘッダに溶け込ませ、focus 時のみ枠を出す。 */
+.plot-board-card-kind-edit {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ss-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.plot-board-card-kind-edit:hover {
+  border-color: var(--ss-border-soft);
+}
+
+.plot-board-card-kind-edit:focus {
+  outline: none;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border-color: var(--ss-accent-blue);
+}
+
 .plot-board-card-header button {
   min-width: 22px;
   height: 22px;

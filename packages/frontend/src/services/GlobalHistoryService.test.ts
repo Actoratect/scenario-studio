@@ -99,4 +99,34 @@ describe('GlobalHistoryService', () => {
 
     unregisterProject();
   });
+
+  it('notifies the plotBoard controller to drop snapshots trimmed past the limit', () => {
+    const trims: Array<'undo' | 'redo'> = [];
+    // controller 側の snapshot 本数を模した値。undoBoards.length に相当。
+    let snapshots = 0;
+    const unregister = GlobalHistoryService.registerPlotBoardController({
+      canUndo: () => snapshots > 0,
+      canRedo: () => false,
+      undo: () => false,
+      redo: () => false,
+      onTrimOldest: (side) => {
+        trims.push(side);
+        snapshots -= 1;
+      },
+    });
+
+    const LIMIT = 200;
+    for (let i = 0; i < LIMIT + 30; i += 1) {
+      snapshots += 1; // recordHistory が undoBoards.push する分
+      GlobalHistoryService.recordPlotBoard();
+    }
+
+    // 上限超過の 30 件分、最古マーカーがトリムされ onTrimOldest('undo') が呼ばれる。
+    expect(trims).toHaveLength(30);
+    expect(trims.every((s) => s === 'undo')).toBe(true);
+    // マーカー本数と snapshot 本数が一致 (孤立スナップショットが残らない)。
+    expect(snapshots).toBe(LIMIT);
+
+    unregister();
+  });
 });

@@ -22,7 +22,7 @@ import type {
   ScenarioNode,
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
-import { StableTextarea } from '../global/StableTextControl';
+import { StableTextarea, StableTextInput } from '../global/StableTextControl';
 
 export interface PlotBoardCanvasProps {
   board: PlotBoard;
@@ -71,7 +71,6 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
   const [view, setViewSignal] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
-  const [hoverNode, setHoverNode] = createSignal<PlotBoardNodeId | undefined>(undefined);
 
   const nodeById = createMemo(() => {
     const map = new Map<PlotBoardNodeId, PlotBoardNode>();
@@ -250,6 +249,15 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
     return props.dimmed?.has(id) ?? false;
   }
 
+  // 接続ドラッグ中の接続先候補。確定 (onMouseUp の nearestNode) と同じ基準で
+  // ハイライトするため、ポインタ位置の最近傍ノードを使う (旧 hover 基準だと
+  // ハイライト無しのまま接続成立するなど挙動が乖離していた)。
+  const connectTarget = createMemo<PlotBoardNodeId | undefined>(() => {
+    const d = drag();
+    if (!d || d.kind !== 'connect') return undefined;
+    return nearestNode({ x: d.toX, y: d.toY }, d.source);
+  });
+
   return (
     <div class="plot-board-shell">
       <div class="plot-board-toolbar">
@@ -361,12 +369,10 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
                   width={size().width}
                   height={size().height}
                   classList={{ 'plot-board-card-fo--dimmed': isDimmed(node.id) }}
-                  onMouseEnter={() => setHoverNode(node.id)}
-                  onMouseLeave={() => setHoverNode(undefined)}
                 >
                   <PlotBoardMemoCard
                     node={node}
-                    target={drag()?.kind === 'connect' && hoverNode() === node.id}
+                    target={connectTarget() === node.id}
                     referenceNodeById={referenceNodeById()}
                     referenceNodes={sortedReferenceNodes()}
                     onHeaderMouseDown={(e) => onHeaderMouseDown(e, node)}
@@ -412,7 +418,6 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
   });
 
   const mode = createMemo(() => props.node.viewMode ?? 'summary');
-  const title = createMemo(() => firstLineTitle(draftText()));
   const summaryBody = createMemo(() => bodyWithoutTitle(draftText()));
   const selectedRefs = createMemo(() => selectedReferenceNodes(props.node, props.referenceNodeById));
   const availableRefs = createMemo(() => availableReferenceNodes(props.node, props.referenceNodes));
@@ -441,6 +446,17 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
     setDraftText(value === '' ? head : `${head}\n${value}`);
   }
 
+  // summary モードでは題名 (1行目) をヘッダのインライン入力で直接編集できる。
+  // 旧版は「全文」へ切替えないと改題できなかった。
+  const rawTitle = createMemo(() => draftText().split(/\r?\n/, 1)[0] ?? '');
+
+  function updateTitle(value: string): void {
+    setEditing(true);
+    const head = value.replace(/[\r\n]+/g, ' ');
+    const body = bodyWithoutTitle(draftText());
+    setDraftText(body === '' ? head : `${head}\n${body}`);
+  }
+
   function onBlur(): void {
     commitDraft(true);
     setEditing(false);
@@ -464,9 +480,24 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
         title="ドラッグで移動 / Shift+ドラッグで接続"
         onMouseDown={props.onHeaderMouseDown}
       >
-        <span class="plot-board-card-kind" title={mode() === 'summary' ? title() : 'メモ'}>
-          {mode() === 'summary' ? title() : 'メモ'}
-        </span>
+        <Show
+          when={mode() === 'summary'}
+          fallback={
+            <span class="plot-board-card-kind" title="メモ">
+              メモ
+            </span>
+          }
+        >
+          <StableTextInput
+            class="plot-board-card-kind plot-board-card-kind-edit"
+            value={rawTitle()}
+            placeholder="表題"
+            onInput={updateTitle}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        </Show>
         <button
           type="button"
           class="plot-board-mode-toggle"
@@ -679,17 +710,34 @@ function edgeGeometry(
   const t = centerOf(target);
   const dx = t.x - s.x;
   const dy = t.y - s.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
+  // 端点は各カードの実サイズから矩形境界との交点で求める。
+  // 固定オフセット (旧 92/46) と違い、可変幅/full カードでも矢印頭が縁にぴたりと付く。
+  const start = rectBorderPoint(s, cardSizeOf(source), dx, dy);
+  const end = rectBorderPoint(t, cardSizeOf(target), -dx, -dy);
   return {
-    sx: s.x + ux * 92,
-    sy: s.y + uy * 46,
-    tx: t.x - ux * 92,
-    ty: t.y - uy * 46,
-    mx: s.x + dx * 0.55,
-    my: s.y + dy * 0.55,
+    sx: start.x,
+    sy: start.y,
+    tx: end.x,
+    ty: end.y,
+    mx: (start.x + end.x) / 2,
+    my: (start.y + end.y) / 2,
   };
+}
+
+// 中心 center から方向 (dx,dy) へ伸ばした半直線と、幅/高さ size の矩形境界との交点。
+function rectBorderPoint(
+  center: PlotBoardPosition,
+  size: { width: number; height: number },
+  dx: number,
+  dy: number,
+): PlotBoardPosition {
+  const hw = size.width / 2;
+  const hh = size.height / 2;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  if (adx < 1e-6 && ady < 1e-6) return { x: center.x, y: center.y };
+  const scale = 1 / Math.max(adx / hw, ady / hh);
+  return { x: center.x + dx * scale, y: center.y + dy * scale };
 }
 
 // width/height は壊れた YAML 由来で NaN/Infinity になり得る (parseNode は finite を

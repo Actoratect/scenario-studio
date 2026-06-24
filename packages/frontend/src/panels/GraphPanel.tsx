@@ -30,6 +30,7 @@ import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { PlotBoardCanvas } from '../graph/PlotBoardCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
+import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
 import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
 import { PlotBoardService } from '../services/PlotBoardService';
@@ -69,6 +70,13 @@ interface EditingPicker {
   caption: string;
 }
 
+interface EdgeEditState {
+  edgeId: PlotBoardEdgeId;
+  type: string;
+  label?: string | undefined;
+  caption: string;
+}
+
 function loadLensMode(): LensMode {
   if (typeof localStorage === 'undefined') return 'relationship';
   const v = localStorage.getItem(LENS_MODE_KEY);
@@ -104,6 +112,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
+  const [edgeEdit, setEdgeEdit] = createSignal<EdgeEditState | undefined>(undefined);
   const [lensMode, setLensMode] = createSignal<LensMode>(loadLensMode());
   const [nodeSize, setNodeSize] = createSignal(loadNodeSize());
 
@@ -334,17 +343,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const board = plotBoard();
     const edge = board?.edges.find((e) => e.id === edgeId);
     if (!edge) return;
-    const input = window.prompt(
-      '線の種類 / ラベルを入力してください。空欄で削除します。',
-      edge.label || edge.type,
-    );
-    if (input === null) return;
-    const trimmed = input.trim();
-    if (trimmed === '') {
-      if (window.confirm('この線を削除しますか?')) PlotBoardService.removeEdge(edgeId);
-      return;
-    }
-    PlotBoardService.updateEdge(edgeId, { type: trimmed, label: trimmed });
+    const titleOf = (id: PlotBoardNodeId): string =>
+      board?.nodes.find((n) => n.id === id)?.title?.split(/\r?\n/, 1)[0] || '無題';
+    setEdgeEdit({
+      edgeId,
+      type: edge.type,
+      label: edge.label,
+      caption: `${titleOf(edge.source)} → ${titleOf(edge.target)}`,
+    });
   }
 
   return (
@@ -624,6 +630,20 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           const e = editing();
           if (!e) return;
           void RelationsService.remove(e.relationId);
+        }}
+      />
+      <PlotEdgeEditor
+        open={!!edgeEdit()}
+        initial={edgeEdit() ? { type: edgeEdit()!.type, label: edgeEdit()!.label } : undefined}
+        caption={edgeEdit()?.caption}
+        onClose={() => setEdgeEdit(undefined)}
+        onSubmit={(label) => {
+          const e = edgeEdit();
+          if (e) PlotBoardService.updateEdge(e.edgeId, { label });
+        }}
+        onDelete={() => {
+          const e = edgeEdit();
+          if (e) PlotBoardService.removeEdge(e.edgeId);
         }}
       />
     </div>
