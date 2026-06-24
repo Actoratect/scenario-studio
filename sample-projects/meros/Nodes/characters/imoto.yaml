@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 01MERS05IMOT0UV7JK5MNUO9EXHU
+templateId: template.character
+slug: imoto
+fields:
+  gender: female
+  tone: gentle
+  display_name: メロスの妹
+  reading: めろすのいもうと
+  dev_name: Imoto
+  birth_year: 0
+  height: 0
+  appearance: 村娘らしい素朴な衣装。婚礼の日は花嫁衣装。
+  personality: メロスの唯一の肉親。純朴で兄を心から信頼する。事情を聞いて泣いたが、兄の言葉に従い婚礼を急いだ。
+  first_person: 私

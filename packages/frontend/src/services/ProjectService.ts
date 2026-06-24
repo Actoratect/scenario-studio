@@ -38,6 +38,7 @@ import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
 import { GlobalHistoryService } from './GlobalHistoryService.js';
 import { ScriptHistoryService } from './ScriptHistoryService.js';
+import { PlotBoardService } from './PlotBoardService.js';
 import { Toast } from './Toast.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
@@ -140,6 +141,7 @@ export const ProjectService = {
   close(): void {
     const ctx = currentProject();
     resetGlobalProjectHistory();
+    PlotBoardService.reset();
     if (ctx) {
       ctx.history.destroy();
       ConflictDetector.clear(ctx.handle);
@@ -185,6 +187,9 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   // 既に open 中だった場合の history 解放
   const prev = currentProject();
   resetGlobalProjectHistory();
+  // 旧プロジェクトのプロットボード保留保存を flush + モジュール状態をクリア
+  // (debounce タイマーが新プロジェクトへ書き込むのを防ぐ)。
+  PlotBoardService.reset();
   if (prev) {
     prev.history.destroy();
     ConflictDetector.clear(prev.handle);

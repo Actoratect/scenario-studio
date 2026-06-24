@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 01MERS02SERN0NP4FH2JKQT6BWER
+templateId: template.character
+slug: serinuntius
+fields:
+  gender: male
+  tone: calm
+  display_name: セリヌンティウス
+  reading: せりぬんてぃうす
+  dev_name: Serinuntius
+  birth_year: 0
+  height: 0
+  appearance: 石工の仕事着。堂々とした体格と穏やかな目。
+  personality: メロスの竹馬の友。無口だが信頼に篤い。石工として腕が立つ。一度だけ心の揺らぎを持ったことを素直に告白できる人物。
+  first_person: 私

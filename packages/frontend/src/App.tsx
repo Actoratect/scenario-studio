@@ -1,4 +1,4 @@
-import { Show, Suspense } from 'solid-js';
+import { Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { ContextMenuRoot } from '@scenario-studio/ui-kit';
 import { ProjectPicker } from './panels/ProjectPicker';
@@ -28,11 +28,9 @@ export const FRONTEND_VERSION = '0.0.0';
 export const App: Component = () => {
   return (
     <>
-      <Suspense fallback={<div class="app-loading">Loading…</div>}>
-        <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
-          <WorkspaceShell />
-        </Show>
-      </Suspense>
+      <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
+        <WorkspaceShell />
+      </Show>
       <Toaster />
       <CommandPaletteRoot />
       <ExportDialogRoot />

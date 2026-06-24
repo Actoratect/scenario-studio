@@ -1,0 +1,70 @@
+schemaVersion: 1
+kind: scene
+id: ch04_s01_final_run
+title: 日没迫る疾走
+chapter: ch04_reunion
+order: 1
+location: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+era: era.ancient
+cast:
+  - melos
+  - philostratos
+script:
+  - kind: bgm
+    track: desperate_sprint
+
+  - kind: aside
+    text: |
+      日は、もう傾いていた。
+      メロスは走った。走った。走った。
+      野原も林も、ただ一直線に走り続けた。
+      腹が減った。のどが渇いた。足に豆ができた。
+
+  - kind: stage
+    text: 夕暮れの街道。シラクスの城壁が遠くに見え始めるが、太陽が地平に沈みかけている。
+
+  - kind: sfx
+    sound: melos_desperate_running
+
+  - kind: aside
+    text: |
+      そのとき、後ろから声がした。
+      フィロストラトスだった。師の命を救うために、ここまで走ってきたのだ。
+
+  - kind: line
+    who: philostratos
+    emotion: pleading
+    text: 'メロス様、お待ちください！ もう間に合いません。日没まで、あとわずかです。城の処刑台には、もう人が集まっています。セリヌンティウス様は、縛られたまま、ずっとお待ちです。ですが、もう、間に合わない。おやめください。逃げてください！ あなたまで死ぬことはない！'
+
+  - kind: line
+    who: melos
+    emotion: fierce
+    text: 'やめるな！　私は走る。間に合う。ありがとう、フィロストラトス。だが、行かせてくれ！'
+
+  - kind: line
+    who: philostratos
+    emotion: desperate
+    text: 'でも、日没まであと少しで…！'
+
+  - kind: line
+    who: melos
+    emotion: shouting
+    text: 'ならば走る速さを上げるだけだ！'
+
+  - kind: aside
+    text: |
+      メロスは、最後の力を振り絞った。
+      見ている者たちの目に、奇跡が映った。
+      あの傷だらけの男が、矢のように走り出したのだ。
+      城壁が近づいてくる。
+      処刑台が見える。
+      人垣が見える。
+      縄をかけられたセリヌンティウスが見える。
+
+  - kind: line
+    who: melos
+    emotion: screaming
+    text: '待て！　その人を殺してはならぬ！　メロスが帰ってきた！'
+
+  - kind: sfx
+    sound: crowd_gasp

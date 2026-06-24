@@ -32,7 +32,7 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
   const [url] = createResource(source, async (src) => {
     if (!src.thumbnail) return undefined;
     return ThumbnailService.resolveCroppedUrl(src.node);
-  });
+  }, { initialValue: undefined });
 
   const initial = (): string => {
     const display = props.node.fields['display_name'];

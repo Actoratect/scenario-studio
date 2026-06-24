@@ -1,24 +1,43 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import type {
+  NodeId,
   PlotBoard,
+  PlotBoardAnchors,
   PlotBoardEdge,
   PlotBoardEdgeId,
   PlotBoardNode,
   PlotBoardNodeId,
   PlotBoardNodeKind,
   PlotBoardPosition,
+  ScenarioNode,
 } from '@scenario-studio/core';
-import { StableTextInput, StableTextarea } from '../global/StableTextControl';
+import { NodeThumbnail } from '../global/NodeThumbnail';
+import { StableTextarea } from '../global/StableTextControl';
 
 export interface PlotBoardCanvasProps {
   board: PlotBoard;
   dimmed?: ReadonlySet<PlotBoardNodeId> | undefined;
+  referenceNodes?: readonly ScenarioNode[] | undefined;
   viewKey?: string | undefined;
   onAddNode: (kind: PlotBoardNodeKind, position: PlotBoardPosition) => void;
   onNodeChange: (id: PlotBoardNodeId, patch: Partial<Omit<PlotBoardNode, 'id'>>) => void;
+  onNodeCommit: (id: PlotBoardNodeId) => void;
   onNodeMove: (id: PlotBoardNodeId, position: PlotBoardPosition) => void;
-  onNodeMoveCommit: (id: PlotBoardNodeId, position: PlotBoardPosition) => void;
+  onNodeMoveCommit: (
+    id: PlotBoardNodeId,
+    position: PlotBoardPosition,
+    from: PlotBoardPosition,
+  ) => void;
   onNodeDelete: (id: PlotBoardNodeId) => void;
   onCreateEdge: (source: PlotBoardNodeId, target: PlotBoardNodeId) => void;
   onEdgeEdit: (id: PlotBoardEdgeId) => void;
@@ -46,6 +65,7 @@ type DragMode =
 const VIEW_PREFIX = 'scenario-studio:plot-board-view:';
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 132;
+const CARD_FULL_HEIGHT = 236;
 
 export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
@@ -58,6 +78,18 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
     for (const node of props.board.nodes) map.set(node.id, node);
     return map;
   });
+
+  const referenceNodeById = createMemo(() => {
+    const map = new Map<NodeId, ScenarioNode>();
+    for (const node of props.referenceNodes ?? []) map.set(node.id, node);
+    return map;
+  });
+
+  const sortedReferenceNodes = createMemo(() =>
+    [...(props.referenceNodes ?? [])].sort((a, b) =>
+      scenarioNodeLabel(a).localeCompare(scenarioNodeLabel(b), 'ja'),
+    ),
+  );
 
   function setView(next: ViewState): void {
     setViewSignal(next);
@@ -76,10 +108,7 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   });
 
   function cardSize(node: PlotBoardNode): { width: number; height: number } {
-    return {
-      width: node.width ?? CARD_WIDTH,
-      height: node.height ?? CARD_HEIGHT,
-    };
+    return cardSizeOf(node);
   }
 
   function nodeCenter(node: PlotBoardNode): PlotBoardPosition {
@@ -164,7 +193,7 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
       if (moved < 6) {
         props.onNodeMove(d.id, { x: d.px, y: d.py });
       } else {
-        props.onNodeMoveCommit(d.id, current);
+        props.onNodeMoveCommit(d.id, current, { x: d.px, y: d.py });
       }
       return;
     }
@@ -224,16 +253,12 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   return (
     <div class="plot-board-shell">
       <div class="plot-board-toolbar">
-        <button type="button" onClick={() => addAtCenter('thread')}>
-          ＋ スレッド
-        </button>
-        <button type="button" onClick={() => addAtCenter('beat')}>
-          ＋ ビート
-        </button>
         <button type="button" onClick={() => addAtCenter('memo')}>
           ＋ メモ
         </button>
-        <span class="plot-board-toolbar-hint">カード上部をドラッグ / Shift+ドラッグで接続</span>
+        <span class="plot-board-toolbar-hint">
+          1行目が表題 / 上部をドラッグ / Shift+ドラッグで接続
+        </span>
       </div>
       <svg
         ref={svg}
@@ -243,7 +268,7 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
         onWheel={onWheel}
         onDblClick={(e) => {
           if (e.target !== svg) return;
-          props.onAddNode('beat', clientToWorld(e.clientX, e.clientY));
+          props.onAddNode('memo', clientToWorld(e.clientX, e.clientY));
         }}
       >
         <defs>
@@ -339,65 +364,16 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
                   onMouseEnter={() => setHoverNode(node.id)}
                   onMouseLeave={() => setHoverNode(undefined)}
                 >
-                  <div
-                    class="plot-board-card"
-                    classList={{
-                      'plot-board-card--target':
-                        drag()?.kind === 'connect' && hoverNode() === node.id,
-                    }}
-                    data-kind={node.kind}
-                  >
-                    <div
-                      class="plot-board-card-header"
-                      title="ドラッグで移動 / Shift+ドラッグで接続"
-                      onMouseDown={(e) => onHeaderMouseDown(e, node)}
-                    >
-                      <span class="plot-board-card-kind">{kindLabel(node.kind)}</span>
-                      <select
-                        value={node.kind}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onChange={(e) =>
-                          props.onNodeChange(node.id, {
-                            kind: e.currentTarget.value as PlotBoardNodeKind,
-                          })
-                        }
-                        title="ノード種別"
-                      >
-                        <option value="thread">スレッド</option>
-                        <option value="beat">ビート</option>
-                        <option value="memo">メモ</option>
-                        <option value="question">問い</option>
-                        <option value="scene_ref">シーン</option>
-                      </select>
-                      <button
-                        type="button"
-                        title="削除"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('このプロットノードを削除しますか?')) {
-                            props.onNodeDelete(node.id);
-                          }
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <StableTextInput
-                      class="plot-board-card-title"
-                      value={node.title}
-                      placeholder="タイトル"
-                      onInput={(title) => props.onNodeChange(node.id, { title })}
-                      onMouseDown={(e) => e.stopPropagation()}
-                    />
-                    <StableTextarea
-                      class="plot-board-card-body"
-                      value={node.body}
-                      placeholder="メモ / 台詞案 / 伏線 / 目的"
-                      onInput={(body) => props.onNodeChange(node.id, { body })}
-                      onMouseDown={(e) => e.stopPropagation()}
-                    />
-                  </div>
+                  <PlotBoardMemoCard
+                    node={node}
+                    target={drag()?.kind === 'connect' && hoverNode() === node.id}
+                    referenceNodeById={referenceNodeById()}
+                    referenceNodes={sortedReferenceNodes()}
+                    onHeaderMouseDown={(e) => onHeaderMouseDown(e, node)}
+                    onNodeChange={(patch) => props.onNodeChange(node.id, patch)}
+                    onNodeCommit={() => props.onNodeCommit(node.id)}
+                    onNodeDelete={() => props.onNodeDelete(node.id)}
+                  />
                 </foreignObject>
               );
             }}
@@ -407,6 +383,263 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
     </div>
   );
 };
+
+interface PlotBoardMemoCardProps {
+  node: PlotBoardNode;
+  target: boolean;
+  referenceNodeById: ReadonlyMap<NodeId, ScenarioNode>;
+  referenceNodes: readonly ScenarioNode[];
+  onHeaderMouseDown: (e: MouseEvent) => void;
+  onNodeChange: (patch: Partial<Omit<PlotBoardNode, 'id'>>) => void;
+  onNodeCommit: () => void;
+  onNodeDelete: () => void;
+}
+
+const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
+  const [draftText, setDraftText] = createSignal(memoText(props.node));
+  const [editing, setEditing] = createSignal(false);
+
+  createEffect(() => {
+    if (editing()) return;
+    setDraftText(memoText(props.node));
+  });
+
+  const mode = createMemo(() => props.node.viewMode ?? 'summary');
+  const title = createMemo(() => firstLineTitle(draftText()));
+  const summaryBody = createMemo(() => bodyWithoutTitle(draftText()));
+  const selectedRefs = createMemo(() => selectedReferenceNodes(props.node, props.referenceNodeById));
+  const availableRefs = createMemo(() => availableReferenceNodes(props.node, props.referenceNodes));
+  const visibleText = createMemo(() => (mode() === 'full' ? draftText() : summaryBody()));
+
+  function commitDraft(immediate = false): void {
+    const next = memoTextPatch(draftText());
+    if (
+      next.title !== props.node.title ||
+      next.body !== props.node.body ||
+      props.node.kind !== 'memo'
+    ) {
+      props.onNodeChange(next);
+    }
+    if (immediate) props.onNodeCommit();
+  }
+
+  function updateVisibleText(value: string): void {
+    setEditing(true);
+    if (mode() === 'full') {
+      setDraftText(value);
+      return;
+    }
+    const head = firstLineTitle(draftText());
+    setDraftText(value === '' ? head : `${head}\n${value}`);
+  }
+
+  function onBlur(): void {
+    commitDraft(true);
+    setEditing(false);
+  }
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      commitDraft(true);
+    }
+  }
+
+  return (
+    <div
+      class="plot-board-card"
+      classList={{ 'plot-board-card--target': props.target }}
+      data-kind="memo"
+      data-mode={mode()}
+    >
+      <div
+        class="plot-board-card-header"
+        title="ドラッグで移動 / Shift+ドラッグで接続"
+        onMouseDown={props.onHeaderMouseDown}
+      >
+        <span class="plot-board-card-kind" title={mode() === 'summary' ? title() : 'メモ'}>
+          {mode() === 'summary' ? title() : 'メモ'}
+        </span>
+        <button
+          type="button"
+          class="plot-board-mode-toggle"
+          title={mode() === 'full' ? '簡易表示に切り替え' : '全文表示に切り替え'}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            commitDraft(false);
+            props.onNodeChange({
+              viewMode: mode() === 'full' ? 'summary' : 'full',
+            });
+          }}
+        >
+          {mode() === 'full' ? '全文' : '簡易'}
+        </button>
+        <button
+          type="button"
+          title="削除"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onNodeDelete();
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <Show when={selectedRefs().length > 0 || availableRefs().length > 0}>
+        <div class="plot-board-card-refs" onMouseDown={(e) => e.stopPropagation()}>
+          <For each={selectedRefs()}>
+            {(refNode) => (
+              <button
+                type="button"
+                class="plot-board-ref-chip"
+                title={`${scenarioNodeLabel(refNode)} の参照を外す`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onNodeChange(removeReferencePatch(props.node, refNode.id));
+                }}
+              >
+                <Suspense
+                  fallback={
+                    <span class="plot-board-ref-thumb-fallback">
+                      {scenarioNodeLabel(refNode).slice(0, 2)}
+                    </span>
+                  }
+                >
+                  <NodeThumbnail node={refNode} size={22} />
+                </Suspense>
+                <span>{scenarioNodeLabel(refNode)}</span>
+              </button>
+            )}
+          </For>
+          <select
+            value=""
+            title="キャラ・場所などを参照"
+            onChange={(e) => {
+              const id = e.currentTarget.value as NodeId;
+              e.currentTarget.value = '';
+              if (id) props.onNodeChange(addReferencePatch(props.node, id));
+            }}
+          >
+            <option value="">参照を追加</option>
+            <For each={availableRefs()}>
+              {(refNode) => (
+                <option value={refNode.id}>
+                  {templateLabel(refNode.templateId)} / {scenarioNodeLabel(refNode)}
+                </option>
+              )}
+            </For>
+          </select>
+        </div>
+      </Show>
+      <StableTextarea
+        class={`plot-board-card-body plot-board-card-body--${mode()}`}
+        value={visibleText()}
+        placeholder={
+          mode() === 'full'
+            ? '1行目が表題になります。以降にメモ / 台詞案 / 伏線 / 目的を書けます。'
+            : '本文の要点'
+        }
+        onInput={updateVisibleText}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        onMouseDown={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+};
+
+function memoText(node: PlotBoardNode): string {
+  if (node.body.trim() !== '') return node.body;
+  return node.title;
+}
+
+function memoTitle(node: PlotBoardNode): string {
+  const firstLine = memoText(node).split(/\r?\n/, 1)[0]?.trim() ?? '';
+  return firstLine || '無題メモ';
+}
+
+function memoTextPatch(text: string): Partial<Omit<PlotBoardNode, 'id'>> {
+  return {
+    kind: 'memo',
+    title: firstLineTitle(text),
+    body: text,
+  };
+}
+
+function firstLineTitle(text: string): string {
+  return text.split(/\r?\n/, 1)[0]?.trim() || '無題メモ';
+}
+
+function bodyWithoutTitle(text: string): string {
+  const lines = text.split(/\r?\n/);
+  lines.shift();
+  return lines.join('\n');
+}
+
+function selectedReferenceNodes(
+  node: PlotBoardNode,
+  byId: ReadonlyMap<NodeId, ScenarioNode>,
+): readonly ScenarioNode[] {
+  return (node.anchors?.nodes ?? []).map((id) => byId.get(id)).filter(isScenarioNode);
+}
+
+function availableReferenceNodes(
+  node: PlotBoardNode,
+  allNodes: readonly ScenarioNode[],
+): readonly ScenarioNode[] {
+  const selected = new Set(node.anchors?.nodes ?? []);
+  return allNodes.filter((n) => !selected.has(n.id));
+}
+
+function addReferencePatch(node: PlotBoardNode, id: NodeId): Partial<Omit<PlotBoardNode, 'id'>> {
+  const existing = node.anchors?.nodes ?? [];
+  if (existing.includes(id)) return {};
+  return anchorsPatch(node, [...existing, id]);
+}
+
+function removeReferencePatch(node: PlotBoardNode, id: NodeId): Partial<Omit<PlotBoardNode, 'id'>> {
+  return anchorsPatch(
+    node,
+    (node.anchors?.nodes ?? []).filter((cur) => cur !== id),
+  );
+}
+
+function anchorsPatch(
+  node: PlotBoardNode,
+  nodes: readonly NodeId[],
+): Partial<Omit<PlotBoardNode, 'id'>> {
+  const anchors: PlotBoardAnchors = { ...(node.anchors ?? {}) };
+  if (nodes.length > 0) anchors.nodes = nodes;
+  else delete anchors.nodes;
+  return Object.keys(anchors).length > 0 ? { anchors } : { anchors: undefined };
+}
+
+function isScenarioNode(node: ScenarioNode | undefined): node is ScenarioNode {
+  return node !== undefined;
+}
+
+function scenarioNodeLabel(node: ScenarioNode): string {
+  const displayName = node.fields['display_name'];
+  return typeof displayName === 'string' && displayName.trim() !== ''
+    ? displayName.trim()
+    : node.slug;
+}
+
+function templateLabel(templateId: string): string {
+  switch (templateId) {
+    case 'template.character':
+      return 'キャラ';
+    case 'template.location':
+      return '場所';
+    case 'template.item':
+      return 'アイテム';
+    case 'template.faction':
+      return '勢力';
+    default:
+      return '要素';
+  }
+}
 
 function edgeGeometry(
   edge: PlotBoardEdge,
@@ -441,26 +674,27 @@ function edgeGeometry(
   };
 }
 
-function centerOf(node: PlotBoardNode): PlotBoardPosition {
+// width/height は壊れた YAML 由来で NaN/Infinity になり得る (parseNode は finite を
+// 強制するが、防御を二重化して SVG 座標が NaN で全描画が崩れるのを防ぐ)。
+function finiteOr(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+// カードの実描画サイズ。viewMode='full' で背の高いカードになる点も含め、
+// エッジ幾何 (centerOf) とカード描画 (cardSize/nodeCenter) で同一の値を使う。
+function cardSizeOf(node: PlotBoardNode): { width: number; height: number } {
   return {
-    x: node.position.x + (node.width ?? CARD_WIDTH) / 2,
-    y: node.position.y + (node.height ?? CARD_HEIGHT) / 2,
+    width: finiteOr(node.width, CARD_WIDTH),
+    height: finiteOr(node.height, node.viewMode === 'full' ? CARD_FULL_HEIGHT : CARD_HEIGHT),
   };
 }
 
-function kindLabel(kind: PlotBoardNodeKind): string {
-  switch (kind) {
-    case 'thread':
-      return 'スレッド';
-    case 'beat':
-      return 'ビート';
-    case 'memo':
-      return 'メモ';
-    case 'question':
-      return '問い';
-    case 'scene_ref':
-      return 'シーン';
-  }
+function centerOf(node: PlotBoardNode): PlotBoardPosition {
+  const size = cardSizeOf(node);
+  return {
+    x: node.position.x + size.width / 2,
+    y: node.position.y + size.height / 2,
+  };
 }
 
 function clampScale(scale: number): number {

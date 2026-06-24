@@ -67,6 +67,7 @@ export type {
   PlotBoardNode,
   PlotBoardNodeId,
   PlotBoardNodeKind,
+  PlotBoardNodeViewMode,
   PlotBoardPosition,
 } from './PlotBoard.js';
 export {

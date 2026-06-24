@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: era
+id: era.ancient
+label: 古代シシリア
+parent: era.world

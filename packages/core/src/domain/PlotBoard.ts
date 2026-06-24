@@ -9,6 +9,7 @@ export const plotBoardNodeId = (s: string): PlotBoardNodeId => s as PlotBoardNod
 export const plotBoardEdgeId = (s: string): PlotBoardEdgeId => s as PlotBoardEdgeId;
 
 export type PlotBoardNodeKind = 'thread' | 'beat' | 'memo' | 'question' | 'scene_ref';
+export type PlotBoardNodeViewMode = 'summary' | 'full';
 
 export interface PlotBoardPosition {
   x: number;
@@ -30,6 +31,7 @@ export interface PlotBoardNode {
   position: PlotBoardPosition;
   threadIds?: readonly PlotBoardNodeId[] | undefined;
   anchors?: PlotBoardAnchors | undefined;
+  viewMode?: PlotBoardNodeViewMode | undefined;
   status?: string | undefined;
   color?: string | undefined;
   width?: number | undefined;

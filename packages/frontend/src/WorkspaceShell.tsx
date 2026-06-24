@@ -40,6 +40,7 @@ import { DirtyTracker } from './services/DirtyTracker';
 import { FontScaleService } from './services/FontScale';
 import { GlobalHistoryService } from './services/GlobalHistoryService';
 import { PanelPinService } from './services/PanelPinService';
+import { PlotBoardService } from './services/PlotBoardService';
 import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
@@ -306,10 +307,15 @@ export const WorkspaceShell: Component = () => {
     const sched = useSaveScheduler();
     const nodeCount = sched.pendingCount;
     sched.flushAll();
-    const fileResult = await DirtyTracker.flushAll();
-    const totalSaved = nodeCount + fileResult.saved;
-    if (fileResult.failed > 0) {
-      Toast.error(`保存失敗: ${fileResult.failed} 件 (${fileResult.errors.join(' / ')})`);
+    const [plotBoardResult, fileResult] = await Promise.all([
+      PlotBoardService.flushPending(),
+      DirtyTracker.flushAll(),
+    ]);
+    const totalSaved = nodeCount + fileResult.saved + plotBoardResult.saved;
+    const totalFailed = fileResult.failed + plotBoardResult.failed;
+    if (totalFailed > 0) {
+      const detail = fileResult.errors.length > 0 ? ` (${fileResult.errors.join(' / ')})` : '';
+      Toast.error(`保存失敗: ${totalFailed} 件${detail}`);
     } else if (totalSaved > 0) {
       Toast.success(`保存しました (${totalSaved} 件)`, 1500);
     } else {
@@ -531,7 +537,10 @@ export const WorkspaceShell: Component = () => {
 
   /** ブラウザ閉じ・タブリロード時の未保存ガード (PR: ux-overhaul)。 */
   function onBeforeUnload(e: BeforeUnloadEvent): void {
-    const dirty = DirtyTracker.count() + useSaveScheduler().pendingCount;
+    const dirty =
+      DirtyTracker.count() +
+      useSaveScheduler().pendingCount +
+      (PlotBoardService.hasPending() ? 1 : 0);
     if (dirty > 0) {
       e.preventDefault();
       e.returnValue = '';

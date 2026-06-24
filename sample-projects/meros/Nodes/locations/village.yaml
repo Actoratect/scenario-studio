@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 01MERS11LVLG0GH3PQ1STAU5KDNA
+templateId: template.location
+slug: village
+fields:
+  display_name: メロスの村
+  reading: めろすのむら
+  dev_name: Village
+  founded_year: 0
+  description: シラクス郊外の小さな牧村。メロスの生まれ故郷。妹と二人で暮らしていた。

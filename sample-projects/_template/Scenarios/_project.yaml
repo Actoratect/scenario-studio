@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: scenario_project
+# 章を並べたい順に slug (= 章フォルダ名) を列挙する。
+chapters:
+  - ch01_intro

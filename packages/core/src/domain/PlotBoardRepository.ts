@@ -16,6 +16,7 @@ import {
   plotBoardNodeId,
   type PlotBoardNodeKind,
   type PlotBoardNodeId,
+  type PlotBoardNodeViewMode,
   type PlotBoardPosition,
 } from './PlotBoard.js';
 
@@ -76,6 +77,7 @@ export function createPlotBoardNode(input: {
   body?: string | undefined;
   position: PlotBoardPosition;
   threadIds?: readonly PlotBoardNodeId[] | undefined;
+  viewMode?: PlotBoardNodeViewMode | undefined;
 }): PlotBoardNode {
   const node: PlotBoardNode = {
     id: plotBoardNodeId(`pnode.${ulid()}`),
@@ -84,10 +86,11 @@ export function createPlotBoardNode(input: {
     body: input.body ?? '',
     position: input.position,
   };
+  const withViewMode = input.viewMode !== undefined ? { ...node, viewMode: input.viewMode } : node;
   if (input.threadIds !== undefined && input.threadIds.length > 0) {
-    return { ...node, threadIds: [...input.threadIds] };
+    return { ...withViewMode, threadIds: [...input.threadIds] };
   }
-  return node;
+  return withViewMode;
 }
 
 export function createPlotBoardEdge(input: {
@@ -145,14 +148,22 @@ function parseNode(value: YamlValue): PlotBoardNode | undefined {
   };
   const threadIds = brandedStringArray(value['threadIds'], plotBoardNodeId);
   const anchors = parseAnchors(value['anchors']);
+  const viewMode = parseViewMode(value['viewMode']);
   const status = typeof value['status'] === 'string' ? value['status'] : undefined;
   const color = typeof value['color'] === 'string' ? value['color'] : undefined;
-  const width = typeof value['width'] === 'number' ? value['width'] : undefined;
-  const height = typeof value['height'] === 'number' ? value['height'] : undefined;
+  const width =
+    typeof value['width'] === 'number' && Number.isFinite(value['width'])
+      ? value['width']
+      : undefined;
+  const height =
+    typeof value['height'] === 'number' && Number.isFinite(value['height'])
+      ? value['height']
+      : undefined;
   return {
     ...node,
     ...(threadIds.length > 0 ? { threadIds } : {}),
     ...(anchors ? { anchors } : {}),
+    ...(viewMode !== undefined ? { viewMode } : {}),
     ...(status !== undefined ? { status } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(width !== undefined ? { width } : {}),
@@ -211,6 +222,10 @@ function parsePosition(value: YamlValue | undefined): PlotBoardPosition {
   };
 }
 
+function parseViewMode(value: YamlValue | undefined): PlotBoardNodeViewMode | undefined {
+  return value === 'summary' || value === 'full' ? value : undefined;
+}
+
 function boardToYaml(board: PlotBoard): { [key: string]: YamlValue } {
   return {
     schemaVersion: 1,
@@ -237,6 +252,7 @@ function nodeToYaml(node: PlotBoardNode): { [key: string]: YamlValue } {
     const anchors = anchorsToYaml(node.anchors);
     if (Object.keys(anchors).length > 0) out['anchors'] = anchors;
   }
+  if (node.viewMode !== undefined) out['viewMode'] = node.viewMode;
   if (node.status !== undefined && node.status !== '') out['status'] = node.status;
   if (node.color !== undefined && node.color !== '') out['color'] = node.color;
   if (node.width !== undefined) out['width'] = node.width;

@@ -1,0 +1,26 @@
+schemaVersion: 1
+kind: scene
+id: ch01_s01_opening
+title: 幕開け
+chapter: ch01_intro
+order: 1
+era: era.world
+# このシーンに登場するノードの slug。
+cast:
+  - hero
+# 脚本。kind ごとに 1 行 = 1 単位。
+#   aside: 地の文 / ナレーション
+#   stage: ト書き (状況・動き)
+#   line : セリフ (who = 話者の slug, emotion = 感情タグ)
+#   bgm / sfx: 音
+script:
+  - kind: stage
+    text: 物語の最初の場面。ここに状況を書く。
+
+  - kind: aside
+    text: ナレーションや地の文はこの kind で書く。
+
+  - kind: line
+    who: hero
+    emotion: neutral
+    text: 'これが主人公の最初のセリフだ。'

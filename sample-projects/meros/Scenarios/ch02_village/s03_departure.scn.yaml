@@ -1,0 +1,60 @@
+schemaVersion: 1
+kind: scene
+id: ch02_s03_departure
+title: 夜明け前の出発
+chapter: ch02_village
+order: 3
+location: 01MERS11LVLG0GH3PQ1STAU5KDNA
+era: era.ancient
+cast:
+  - melos
+  - imoto
+script:
+  - kind: bgm
+    track: pre_dawn_silence
+
+  - kind: aside
+    text: |
+      夜が明けた。
+      雨は、まだ降っていた。
+      メロスは朝早く起きて、ひとりで旅の支度をした。
+      花婿花嫁は、仲よく眠っていた。
+      メロスは部屋の隅に妹のすがたを見つけた。
+
+  - kind: stage
+    text: 夜明け前の小屋。メロスがひそかに出発の支度をしていると、妹が気づいて起き出してくる。
+
+  - kind: line
+    who: imoto
+    emotion: worried
+    text: '兄さん、もう行くの？'
+
+  - kind: line
+    who: melos
+    emotion: gentle
+    text: 'ああ。旅は遠い。急がなければならない。'
+
+  - kind: line
+    who: imoto
+    emotion: tearful
+    text: 'ねえ、兄さん。私、少し悲しいのよ。あなたが行ったあと、誰が私たちを守ってくれるの。'
+
+  - kind: line
+    who: melos
+    emotion: reassuring
+    text: '花婿がいる。そして、私は必ず帰ってくる。約束する。'
+
+  - kind: line
+    who: imoto
+    emotion: quiet
+    text: '…帰ってきてね。必ず。'
+
+  - kind: aside
+    text: |
+      メロスは努めて元気に振る舞い、妹の背中をたたいて、にこっと笑って外に出た。
+      雨はやんでいた。
+      東の空が白みかけている。
+      メロスは走り始めた。
+
+  - kind: sfx
+    sound: melos_running_footsteps

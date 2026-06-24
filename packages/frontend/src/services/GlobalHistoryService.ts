@@ -4,7 +4,8 @@ const HISTORY_LIMIT = 200;
 
 type HistoryEntry =
   | { readonly domain: 'project' }
-  | { readonly domain: 'script'; readonly path: string; readonly mergeKey?: string };
+  | { readonly domain: 'script'; readonly path: string; readonly mergeKey?: string }
+  | { readonly domain: 'plotBoard' };
 
 type ApplyState = 'apply' | 'blocked' | 'stale';
 
@@ -22,12 +23,20 @@ interface ScriptHistoryController {
   redo: (path: string) => boolean | Promise<boolean>;
 }
 
+interface PlotBoardHistoryController {
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undo: () => boolean | Promise<boolean>;
+  redo: () => boolean | Promise<boolean>;
+}
+
 const undoStack: HistoryEntry[] = [];
 const redoStack: HistoryEntry[] = [];
 const [revision, setRevision] = createSignal(0);
 
 let projectController: ProjectHistoryController | undefined;
 let scriptController: ScriptHistoryController | undefined;
+let plotBoardController: PlotBoardHistoryController | undefined;
 let applying = false;
 
 function touch(): void {
@@ -42,6 +51,12 @@ function applyState(entry: HistoryEntry, direction: 'undo' | 'redo'): ApplyState
   if (entry.domain === 'project') {
     if (!projectController) return 'blocked';
     return (direction === 'undo' ? projectController.canUndo() : projectController.canRedo())
+      ? 'apply'
+      : 'stale';
+  }
+  if (entry.domain === 'plotBoard') {
+    if (!plotBoardController) return 'blocked';
+    return (direction === 'undo' ? plotBoardController.canUndo() : plotBoardController.canRedo())
       ? 'apply'
       : 'stale';
   }
@@ -87,11 +102,16 @@ async function applyTop(
           direction === 'undo'
             ? await projectController!.undo()
             : await projectController!.redo();
-      } else {
+      } else if (entry.domain === 'script') {
         ok =
           direction === 'undo'
             ? await scriptController!.undo(entry.path)
             : await scriptController!.redo(entry.path);
+      } else {
+        ok =
+          direction === 'undo'
+            ? await plotBoardController!.undo()
+            : await plotBoardController!.redo();
       }
     } finally {
       applying = false;
@@ -141,6 +161,17 @@ export const GlobalHistoryService = {
     };
   },
 
+  registerPlotBoardController(controller: PlotBoardHistoryController): () => void {
+    plotBoardController = controller;
+    touch();
+    return () => {
+      if (plotBoardController === controller) {
+        plotBoardController = undefined;
+        touch();
+      }
+    };
+  },
+
   recordProject(): void {
     record({ domain: 'project' });
   },
@@ -152,6 +183,10 @@ export const GlobalHistoryService = {
 
   recordScript(path: string, mergeKey?: string): void {
     record(mergeKey ? { domain: 'script', path, mergeKey } : { domain: 'script', path });
+  },
+
+  recordPlotBoard(): void {
+    record({ domain: 'plotBoard' });
   },
 
   canUndo(): boolean {

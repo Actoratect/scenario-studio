@@ -38,6 +38,7 @@ describe('FsPlotBoardRepository', () => {
       body: '勝ったように見えるが、敵の目的は別にある。',
       position: { x: 260, y: 80 },
       threadIds: [thread.id],
+      viewMode: 'full',
     });
     const edge = createPlotBoardEdge({
       source: thread.id,
@@ -103,5 +104,29 @@ edges: []
     const board = await repo.loadMain();
     expect(board?.nodes[0]?.id).toBe(plotBoardNodeId('pnode.a'));
     expect(board?.nodes[0]?.kind).toBe('memo');
+  });
+
+  it('drops non-finite width/height so the canvas never gets NaN sizes', async () => {
+    await adapter.write(
+      handle,
+      MAIN_PLOT_BOARD_FILE,
+      `schemaVersion: 1
+id: plotboard.main
+title: Test
+nodes:
+  - id: pnode.a
+    kind: memo
+    title: A
+    body: ""
+    position: { x: 0, y: 0 }
+    width: .nan
+    height: .inf
+edges: []
+`,
+    );
+
+    const board = await repo.loadMain();
+    expect(board?.nodes[0]?.width).toBeUndefined();
+    expect(board?.nodes[0]?.height).toBeUndefined();
   });
 });

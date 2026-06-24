@@ -1,0 +1,77 @@
+schemaVersion: 1
+kind: scene
+id: ch01_s03_hostage_deal
+title: 人質の約定
+chapter: ch01_confrontation
+order: 3
+location: 01MERS10LTJO0EF2OP0RSZT4JCMZ
+era: era.ancient
+cast:
+  - melos
+  - dionysius
+  - serinuntius
+script:
+  - kind: bgm
+    track: throne_room_tense
+
+  - kind: aside
+    text: |
+      メロスは、しばらく考えた。
+      妹の事が気になった。あの子の結婚式を、見届けてやりたかった。
+
+  - kind: line
+    who: melos
+    emotion: resolved
+    text: |
+      王よ、聞いてくれ。私には、妹がいる。妹の婿入りが、近々あるのだ。
+      今は、まだ、結婚式の準備ができていない。三日間の日限を、私に与えてくれ。
+      その間に、妹に結婚式を挙げさせ、花嫁の衣装を着せてやりたい。
+      三日の後、ここへ帰ってくる。その上で、お前に殺されよう。
+
+  - kind: line
+    who: dionysius
+    emotion: sardonic
+    text: '逃げるのだろう。'
+
+  - kind: line
+    who: melos
+    emotion: firm
+    text: '逃げない。だが、信じられないなら、仕方がない。私には、竹馬の友がある。彼を、人質として此処に置いていこう。私が逃げたら、その友を殺してくれ。'
+
+  - kind: aside
+    text: 王は少し考えてから、ふっと笑って言った。
+
+  - kind: line
+    who: dionysius
+    emotion: contemptuous
+    text: 'よしよし、三日間だけ待ってやろう。日没までに帰ってこなければ、そのときは、おまえの代わりに、その男を絞め殺す。そういう約束をしたのだと、そいつに、よく言い聞かせておけ。'
+
+  - kind: aside
+    text: |
+      メロスは、セリヌンティウスを呼んだ。
+      彼はシラクスで、石工をしていた。メロスの幼い時からの友人だ。
+      その日、他の石工仲間と共に寝ていたのをたたき起こし、
+      メロスは、彼に一切を打ち明けた。
+
+  - kind: stage
+    text: セリヌンティウスが謁見の間に連れてこられる。メロスは彼と二人になり、囁くように事情を話す。
+
+  - kind: line
+    who: melos
+    emotion: earnest
+    text: 'セリヌンティウス。頼む。君を、人質として、ここへ残させてくれ。私は、必ず帰ってくる。三日目の日没前に、ここへ必ず戻るから。'
+
+  - kind: aside
+    text: セリヌンティウスは、何も言わずにうなずいた。それだけだった。
+
+  - kind: stage
+    text: セリヌンティウスは静かに目を閉じ、ゆっくりとうなずく。
+
+  - kind: aside
+    text: |
+      二人は、しっかり手を握り合った。
+      友と別れて、メロスは村に帰った。
+      セリヌンティウスは、すぐに王の兵士たちに、手をうしろへ縛られた。
+
+  - kind: sfx
+    sound: chains_clinking

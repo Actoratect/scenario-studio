@@ -1,6 +1,0 @@
-schemaVersion: 1
-kind: scene_index
-scenes:
-  - s01_challenge
-  - s02_dash
-  - s03_moon_verdict

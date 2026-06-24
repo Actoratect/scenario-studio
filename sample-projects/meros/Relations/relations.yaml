@@ -1,0 +1,50 @@
+schemaVersion: 1
+kind: relations
+relations:
+  - id: rel01
+    from: 01MERS01MELO0DC8G7YVCV1RG0XP
+    to: 01MERS02SERN0NP4FH2JKQT6BWER
+    type: friendship
+    label_from: 竹馬の友
+    label_to: 竹馬の友
+    description: メロスとセリヌンティウスは幼少から共に育った無二の親友。言葉なくとも信頼は揺るぎない。
+
+  - id: rel02
+    from: 01MERS01MELO0DC8G7YVCV1RG0XP
+    to: 01MERS05IMOT0UV7JK5MNUO9EXHU
+    type: family
+    label_from: 兄
+    label_to: 妹
+    description: メロスの唯一の肉親。両親はすでに亡く、二人で村に暮らしていた。
+
+  - id: rel03
+    from: 01MERS05IMOT0UV7JK5MNUO9EXHU
+    to: 01MERS06HANM0WX8KL6NOVP0FYIV
+    type: romance
+    label_from: 花嫁
+    label_to: 花婿
+    description: 妹と花婿の婚約関係。メロスが人質になったために婚礼を三日後に急ぐこととなった。
+
+  - id: rel04
+    from: 01MERS01MELO0DC8G7YVCV1RG0XP
+    to: 01MERS03DION0QR5GH3KLSM7CVFS
+    type: opposition
+    label_from: 義憤
+    label_to: 疑惑
+    description: 暴君を討とうと王城に乗り込んだメロスと、人間不信の王との対立。しかし最終的には王の心を動かす。
+
+  - id: rel05
+    from: 01MERS03DION0QR5GH3KLSM7CVFS
+    to: 01MERS01MELO0DC8G7YVCV1RG0XP
+    type: opposition
+    label_from: 試練を与える者
+    label_to: 試される者
+    description: 人質賭博を仕掛けた王。人間の信実を信じられず、メロスを試す。
+
+  - id: rel06
+    from: 01MERS04PHIL0ST6IJ4LMTN8DWGT
+    to: 01MERS02SERN0NP4FH2JKQT6BWER
+    type: mentor
+    label_from: 弟子
+    label_to: 師匠
+    description: フィロストラトスはセリヌンティウスの弟子。師の処刑が迫る中、メロスに帰還を諦めるよう懇願する。

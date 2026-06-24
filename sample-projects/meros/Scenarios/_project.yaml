@@ -1,0 +1,8 @@
+schemaVersion: 1
+kind: scenario_project
+title: 走れメロス
+chapters:
+  - ch01_confrontation
+  - ch02_village
+  - ch03_trials
+  - ch04_reunion

@@ -163,6 +163,11 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return PlotBoardService.currentBoard();
   });
 
+  const plotBoardReferenceNodes = createMemo(() => {
+    const ctx = ProjectService.currentProject();
+    return ctx ? [...ctx.project.nodes.values()] : [];
+  });
+
   // PR-AN: hidden テンプレに属するノードを除外し、両端を含む edge も除外。
   // Plot Flow モードのノードは templateId='plot.scene' なので、
   // キャラ/場所/アイテム/勢力 を hide しても残る (= 期待動作)。
@@ -222,6 +227,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
       }
       return out;
     },
+    { initialValue: new Map<NodeId, string>() },
   );
 
   const dimmed = createMemo<ReadonlySet<NodeId>>(() => {
@@ -259,8 +265,19 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const q = searchQuery().trim().toLowerCase();
     if (q === '') return new Set();
     const out = new Set<PlotBoardNodeId>();
+    const refs = new Map(plotBoardReferenceNodes().map((n) => [n.id, n]));
     for (const node of board.nodes) {
-      const haystack = `${node.id}\n${node.kind}\n${node.title}\n${node.body}`.toLowerCase();
+      const refText = (node.anchors?.nodes ?? [])
+        .map((id) => {
+          const ref = refs.get(id);
+          if (!ref) return id;
+          const displayName = ref.fields['display_name'];
+          return `${id}\n${ref.slug}\n${
+            typeof displayName === 'string' ? displayName : ''
+          }\n${ref.templateId}`;
+        })
+        .join('\n');
+      const haystack = `${node.id}\n${node.kind}\n${node.title}\n${node.body}\n${refText}`.toLowerCase();
       if (!haystack.includes(q)) out.add(node.id);
     }
     return out;
@@ -549,11 +566,15 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               <PlotBoardCanvas
                 board={board()}
                 dimmed={plotBoardDimmed()}
+                referenceNodes={plotBoardReferenceNodes()}
                 viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${board().id}`}
                 onAddNode={(kind, position) => PlotBoardService.addNode(kind, position)}
                 onNodeChange={(id, patch) => PlotBoardService.updateNode(id, patch)}
+                onNodeCommit={(id) => PlotBoardService.commitNode(id)}
                 onNodeMove={(id, position) => PlotBoardService.moveNode(id, position)}
-                onNodeMoveCommit={(id, position) => PlotBoardService.commitNodeMove(id, position)}
+                onNodeMoveCommit={(id, position, from) =>
+                  PlotBoardService.commitNodeMove(id, position, from)
+                }
                 onNodeDelete={(id) => PlotBoardService.removeNode(id)}
                 onCreateEdge={(source, target) => PlotBoardService.addEdge(source, target)}
                 onEdgeEdit={editPlotBoardEdge}

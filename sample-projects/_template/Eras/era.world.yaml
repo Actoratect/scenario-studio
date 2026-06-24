@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: era
+# 既定の「物語世界」時代。時代差分 (Variant) を使わない場合もこれ 1 つは置いておく。
+id: era.world
+label: 物語世界

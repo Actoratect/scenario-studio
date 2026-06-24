@@ -1,0 +1,51 @@
+schemaVersion: 1
+kind: scene
+id: ch03_s03_exhaustion
+title: 炎天下の昏倒と悪魔の囁き
+chapter: ch03_trials
+order: 3
+location: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+era: era.ancient
+cast:
+  - melos
+script:
+  - kind: bgm
+    track: blazing_sun_dread
+
+  - kind: aside
+    text: |
+      昼近くなると、太陽の光が焼きつくように熱く照りつけた。
+      メロスは走ることができなくなっていた。足が上がらない。
+      地面が揺れているように見えた。
+
+  - kind: stage
+    text: 山道。傷と疲労でメロスの足取りがもつれ、ついに道端に倒れ込む。
+
+  - kind: line
+    who: melos
+    emotion: anguished
+    text: 'ちくしょう。もう少しだ。もう少しで…。'
+
+  - kind: aside
+    text: |
+      メロスはそのまま地面に倒れた。
+      眼の前が真っ暗になった。意識が遠のいていく。
+      そのとき、メロスの心の中に、ふいに魔物が囁きかけた。
+
+  - kind: stage
+    text: 意識が朦朧とする中、内なる悪魔の声が聞こえてくる。
+
+  - kind: aside
+    text: 「疲れた。もう、どうにでもなれ。私は、よく走った。これで充分ではないか。セリヌンティウスだって、きっと私の事情を知ったら許してくれるだろう。いや、それよりも、逃げてしまえ。誰も追いかけては来ない。王は、私がきっと逃げると思っていたのだ。逃げることは、恥ではない。あの王と、どっちが恥をかくかで、この際、王のほうが気の毒ではないか。」
+
+  - kind: line
+    who: melos
+    emotion: collapsed
+    text: 'いや…いや…それは…ちがう…。'
+
+  - kind: aside
+    text: |
+      しかしメロスの心は、ずるずると崩れていった。
+      ——私は、信頼に値しない。
+      ——走れメロス、という言葉が、耳に聞こえた気がした。だが、もう体が動かない。
+      メロスは、そのまま眠りに落ちた。

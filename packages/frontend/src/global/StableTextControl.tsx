@@ -13,6 +13,7 @@ interface StableTextInputProps {
   onInput?: ((value: string) => void) | undefined;
   onBlur?: (() => void) | undefined;
   onContextMenu?: ((e: MouseEvent) => void) | undefined;
+  onKeyDown?: ((e: KeyboardEvent) => void) | undefined;
   onMouseDown?: ((e: MouseEvent) => void) | undefined;
 }
 
@@ -28,6 +29,7 @@ interface StableTextareaProps {
   onInput?: ((value: string) => void) | undefined;
   onBlur?: (() => void) | undefined;
   onContextMenu?: ((e: MouseEvent) => void) | undefined;
+  onKeyDown?: ((e: KeyboardEvent) => void) | undefined;
   onMouseDown?: ((e: MouseEvent) => void) | undefined;
 }
 
@@ -67,6 +69,7 @@ export const StableTextInput: Component<StableTextInputProps> = (props) => {
       }}
       onBlur={() => props.onBlur?.()}
       onContextMenu={(e) => props.onContextMenu?.(e)}
+      onKeyDown={(e) => props.onKeyDown?.(e)}
       onMouseDown={(e) => props.onMouseDown?.(e)}
     />
   );
@@ -108,6 +111,7 @@ export const StableTextarea: Component<StableTextareaProps> = (props) => {
       }}
       onBlur={() => props.onBlur?.()}
       onContextMenu={(e) => props.onContextMenu?.(e)}
+      onKeyDown={(e) => props.onKeyDown?.(e)}
       onMouseDown={(e) => props.onMouseDown?.(e)}
     />
   );

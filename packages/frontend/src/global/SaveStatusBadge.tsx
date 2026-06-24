@@ -1,6 +1,5 @@
 import { Show } from 'solid-js';
 import type { Component } from 'solid-js';
-import { StatusPill } from '@scenario-studio/ui-kit';
 import { SaveStatus } from '../services/SaveStatus';
 
 // Workspace header に置く 自動保存ステータス バッジ (PR-D)。
@@ -25,20 +24,24 @@ const TEXT = {
 
 export const SaveStatusBadge: Component = () => {
   const state = (): keyof typeof ICON => SaveStatus.snapshot().state;
-  const pillState = (): 'idle' | 'busy' | 'ok' | 'error' => {
-    const s = state();
-    if (s === 'pending' || s === 'saving') return 'busy';
-    if (s === 'saved') return 'ok';
-    if (s === 'error') return 'error';
-    return 'idle';
-  };
   return (
-    <StatusPill state={pillState()}>
-      <span aria-hidden="true">{ICON[state()]}</span>
-      <span>{TEXT[state()]}</span>
+    <Show when={state() !== 'idle'}>
+      <div
+        class="ss-save-async-toast"
+        data-state={state()}
+        role={state() === 'error' ? 'alert' : 'status'}
+        aria-live={state() === 'error' ? 'assertive' : 'polite'}
+      >
+        <div class="ss-save-async-row">
+          <span class="ss-save-async-kicker">非同期</span>
+          <span aria-hidden="true">{ICON[state()]}</span>
+          <span>{TEXT[state()]}</span>
+        </div>
+        <div class="ss-save-async-bar" />
       <Show when={state() === 'error' && SaveStatus.snapshot().lastError}>
-        {(msg) => <span class="ss-save-status-error-detail"> ({msg()})</span>}
+          {(msg) => <span class="ss-save-status-error-detail">{msg()}</span>}
       </Show>
-    </StatusPill>
+      </div>
+    </Show>
   );
 };

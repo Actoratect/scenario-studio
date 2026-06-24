@@ -1,0 +1,70 @@
+schemaVersion: 1
+kind: scene
+id: ch04_s03_kings_pardon
+title: 王の改心
+chapter: ch04_reunion
+order: 3
+location: 01MERS10LTJO0EF2OP0RSZT4JCMZ
+era: era.ancient
+cast:
+  - melos
+  - serinuntius
+  - dionysius
+script:
+  - kind: bgm
+    track: redemption
+
+  - kind: aside
+    text: |
+      暴君ディオニスは、群衆の中にいた。
+      今まで誰も見たことのない、静かな表情をしていた。
+
+  - kind: stage
+    text: 処刑台広場。王が玉座を離れ、群衆の中に立っている。
+
+  - kind: line
+    who: dionysius
+    emotion: subdued
+    text: |
+      メロス、おまえらの望みはかなったぞ。
+      おまえらは、わしの心に勝ったのだ。
+      信実とは、虚妄ではなかった。
+
+  - kind: aside
+    text: 王は、少し目を細め、遠くを見るような目で続けた。
+
+  - kind: line
+    who: dionysius
+    emotion: humble
+    text: 'どうか、わしも仲間に入れてくれぬか。おまえらみたいな正しい友を、わしは一人も持っていなかった。'
+
+  - kind: aside
+    text: |
+      その言葉を聞いたとき、
+      群衆の中から一人の少女が、さっと走り出た。
+      真っ赤なマントを持って、メロスの前に跪いた。
+
+  - kind: stage
+    text: 少女がメロスの足元に跪き、両手で赤いマントを差し出す。
+
+  - kind: aside
+    text: |
+      メロスは、照れながらそのマントを受け取り、裸の肩にまとった。
+      勇者は、ひどく赤面した。
+
+  - kind: line
+    who: melos
+    emotion: embarrassed
+    text: 'ありがとう。'
+
+  - kind: aside
+    text: |
+      歓声が上がった。
+      万歳、と誰かが叫んだ。
+      万歳、万歳、と波のように声が広がった。
+
+  - kind: sfx
+    sound: crowd_cheering_loud
+
+  - kind: bgm
+    track: triumph_ending

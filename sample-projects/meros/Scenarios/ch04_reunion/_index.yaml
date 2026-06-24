@@ -1,0 +1,9 @@
+schemaVersion: 1
+kind: chapter
+id: ch04_reunion
+title: 第四章　再会
+order: 4
+scenes:
+  - s01_final_run
+  - s02_reunion
+  - s03_kings_pardon

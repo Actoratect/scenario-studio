@@ -21,23 +21,23 @@ function ensureScheduler(): SaveScheduler {
       if (!ctx) return;
       const node = ctx.project.nodes.get(nodeId);
       if (!node) return;
-      SaveStatus.markSaving();
+      const token = SaveStatus.beginSave();
       try {
         // PR-AH: 上書き前に外部書き換えがないかチェック
         const path = ctx.nodeRepository.pathFor(node);
         const ok = await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, path);
         if (!ok) {
-          SaveStatus.markPending();
+          SaveStatus.skipSave(token);
           Toast.info(`保存スキップ: ${path} (外部変更を温存)`, 4000);
           return;
         }
         const content = ctx.nodeRepository.serializeForSave(node);
         await ctx.adapter.write(ctx.handle, path, content);
         ConflictDetector.recordSnapshot(ctx.handle, path, content);
-        SaveStatus.markSaved();
+        SaveStatus.endSave(token);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        SaveStatus.markError(msg);
+        SaveStatus.failSave(token, msg);
         Toast.error(`保存失敗: ${msg}`);
         throw e;
       }

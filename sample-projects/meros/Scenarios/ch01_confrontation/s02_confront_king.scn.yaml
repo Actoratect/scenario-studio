@@ -1,0 +1,85 @@
+schemaVersion: 1
+kind: scene
+id: ch01_s02_confront_king
+title: 王との問答
+chapter: ch01_confrontation
+order: 2
+location: 01MERS10LTJO0EF2OP0RSZT4JCMZ
+era: era.ancient
+cast:
+  - melos
+  - dionysius
+script:
+  - kind: bgm
+    track: throne_room_tense
+
+  - kind: aside
+    text: |
+      勇士は、王の前に引き出された。
+      剣をつかんで走ろうとしたメロスは、群がる衛兵に取り押さえられ、短剣を没収された。
+
+  - kind: stage
+    text: 謁見の間。ディオニス王が玉座に座っている。衛兵に両腕をつかまれたメロスが引き立てられてくる。
+
+  - kind: line
+    who: dionysius
+    emotion: cold
+    text: 'おまえは、王を殺そうとしたのか。'
+
+  - kind: line
+    who: melos
+    emotion: defiant
+    text: '当たり前だ。お前を殺そうとした。お前のような王は、ひとりも生きていてはいけない。'
+
+  - kind: aside
+    text: 王は、暗い声でゆっくり言った。
+
+  - kind: line
+    who: dionysius
+    emotion: cold
+    text: 'おまえは、何を望む。'
+
+  - kind: line
+    who: melos
+    emotion: passionate
+    text: '何も。ただ、人の心の正しさを信じて疑わぬことだ。'
+
+  - kind: line
+    who: dionysius
+    emotion: sardonic
+    text: '笑わせるな。おまえは、人間の心を信じているというのか。'
+
+  - kind: line
+    who: melos
+    emotion: firm
+    text: '信じている。友人を一人、持っている。'
+
+  - kind: aside
+    text: 王は不快そうに顔をしかめ、しばらく沈黙した。そして静かな口調で続けた。
+
+  - kind: line
+    who: dionysius
+    emotion: cynical
+    text: |
+      聞け、メロス。おまえの心は、わかっている。
+      おまえは、正しいことが好きなのだ。だが、人間というものは、もともと信頼できないものだ。
+      人間の心は、うつろいやすく、あてにならない。
+      わしは、それを知っている。それゆえ、人を信ぜず、ひとりで生きてきた。
+
+  - kind: line
+    who: melos
+    emotion: scornful
+    text: '言うな！　それは、お前の考えが間違っているのだ。人を信ずることを知らないのは、お前の臆病なのだ！'
+
+  - kind: line
+    who: dionysius
+    emotion: dangerous
+    text: '黙れ。おまえも死刑にしてやろうか。'
+
+  - kind: line
+    who: melos
+    emotion: defiant
+    text: '結構だ。どうせ死ぬなら、おまえの胸に短剣を突き刺して死ぬつもりだった。思いどおりにやれ。'
+
+  - kind: aside
+    text: 王は眉一つ動かさなかった。

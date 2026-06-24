@@ -1,0 +1,13 @@
+schemaVersion: 1
+kind: node
+id: 01MERS08FACG0AB0MN8PQXR2HAKX
+templateId: template.faction
+slug: royal_guards
+fields:
+  is_active: true
+  display_name: 王の衛兵
+  reading: おうのえいへい
+  dev_name: RoyalGuards
+  founded_year: 0
+  description: ディオニス王に仕える近衛兵。王命により処刑を執行する。
+  leader: 01MERS03DION0QR5GH3KLSM7CVFS

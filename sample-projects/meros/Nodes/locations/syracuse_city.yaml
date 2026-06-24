@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 01MERS09LCTS0CD1NO9QRYS3IBLY
+templateId: template.location
+slug: syracuse_city
+fields:
+  display_name: シラクスの市街
+  reading: しらくすのしがい
+  dev_name: SyracuseCity
+  founded_year: 0
+  description: 地中海に面した古代都市。ディオニス王の恐怖政治により市民は怯えて暮らし、市の日も人通りがない。
