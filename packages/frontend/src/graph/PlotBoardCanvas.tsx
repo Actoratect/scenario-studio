@@ -380,6 +380,13 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
           </For>
         </g>
       </svg>
+      <Show when={props.board.nodes.length === 0}>
+        <div class="plot-board-empty" aria-hidden="true">
+          <p class="plot-board-empty-title">まだカードがありません</p>
+          <p>背景をダブルクリック、または「＋ メモ」でカードを追加できます。</p>
+          <p class="plot-board-empty-hint">カードの上部をドラッグで移動 / Shift+ドラッグで接続</p>
+        </div>
+      </Show>
     </div>
   );
 };
@@ -409,6 +416,7 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
   const summaryBody = createMemo(() => bodyWithoutTitle(draftText()));
   const selectedRefs = createMemo(() => selectedReferenceNodes(props.node, props.referenceNodeById));
   const availableRefs = createMemo(() => availableReferenceNodes(props.node, props.referenceNodes));
+  const availableRefGroups = createMemo(() => groupReferenceNodesByTemplate(availableRefs()));
   const visibleText = createMemo(() => (mode() === 'full' ? draftText() : summaryBody()));
 
   function commitDraft(immediate = false): void {
@@ -522,11 +530,13 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
             }}
           >
             <option value="">参照を追加</option>
-            <For each={availableRefs()}>
-              {(refNode) => (
-                <option value={refNode.id}>
-                  {templateLabel(refNode.templateId)} / {scenarioNodeLabel(refNode)}
-                </option>
+            <For each={availableRefGroups()}>
+              {(group) => (
+                <optgroup label={group.label}>
+                  <For each={group.nodes}>
+                    {(refNode) => <option value={refNode.id}>{scenarioNodeLabel(refNode)}</option>}
+                  </For>
+                </optgroup>
               )}
             </For>
           </select>
@@ -552,11 +562,6 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
 function memoText(node: PlotBoardNode): string {
   if (node.body.trim() !== '') return node.body;
   return node.title;
-}
-
-function memoTitle(node: PlotBoardNode): string {
-  const firstLine = memoText(node).split(/\r?\n/, 1)[0]?.trim() ?? '';
-  return firstLine || '無題メモ';
 }
 
 function memoTextPatch(text: string): Partial<Omit<PlotBoardNode, 'id'>> {
@@ -624,6 +629,19 @@ function scenarioNodeLabel(node: ScenarioNode): string {
   return typeof displayName === 'string' && displayName.trim() !== ''
     ? displayName.trim()
     : node.slug;
+}
+
+function groupReferenceNodesByTemplate(
+  nodes: readonly ScenarioNode[],
+): { label: string; nodes: readonly ScenarioNode[] }[] {
+  const groups = new Map<string, ScenarioNode[]>();
+  for (const node of nodes) {
+    const label = templateLabel(node.templateId);
+    const bucket = groups.get(label);
+    if (bucket) bucket.push(node);
+    else groups.set(label, [node]);
+  }
+  return [...groups.entries()].map(([label, groupNodes]) => ({ label, nodes: groupNodes }));
 }
 
 function templateLabel(templateId: string): string {

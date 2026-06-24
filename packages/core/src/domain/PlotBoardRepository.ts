@@ -190,10 +190,13 @@ function parseEdge(
     id: plotBoardEdgeId(value['id']),
     source,
     target,
-    type: typeof value['type'] === 'string' && value['type'].trim() !== '' ? value['type'] : 'next',
+    type:
+      typeof value['type'] === 'string' && value['type'].trim() !== ''
+        ? value['type'].trim()
+        : 'next',
   };
   if (typeof value['label'] === 'string' && value['label'].trim() !== '') {
-    return { ...edge, label: value['label'] };
+    return { ...edge, label: value['label'].trim() };
   }
   return edge;
 }

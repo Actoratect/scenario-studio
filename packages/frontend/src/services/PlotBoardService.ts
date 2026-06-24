@@ -187,7 +187,7 @@ export const PlotBoardService = {
     if (!ctx) return;
     const board = currentBoardFrom(ctx);
     const node = createPlotBoardNode({
-      kind: 'memo',
+      kind,
       title: defaultTitle(kind),
       body: defaultTitle(kind),
       position,
@@ -279,6 +279,7 @@ export const PlotBoardService = {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     const board = currentBoardFrom(ctx);
+    if (!board.nodes.some((node) => node.id === nodeId)) return;
     updateBoard(
       {
         ...board,
@@ -287,6 +288,8 @@ export const PlotBoardService = {
       },
       'immediate',
     );
+    // カードは確認なしで消えるので、戻せることを明示する (エッジ削除との非対称緩和)。
+    Toast.info('カードを削除しました (Ctrl+Z で元に戻せます)', 3000);
   },
 
   addEdge(source: PlotBoardNodeId, target: PlotBoardNodeId): void {

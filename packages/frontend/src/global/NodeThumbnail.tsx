@@ -20,19 +20,23 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
   // canvas pre-render 済の正方形サムネ URL を解決。
   // rect 未設定 / 全画面 = 元画像 URL のまま (object-fit:cover で center-crop)。
   // source は createResource の falsy 不発火を避けるため常に object 返却。
-  // ノードを source 自体に含めて fetcher 内では props.node に触らない (Solid reactivity 警告回避)。
+  // source の同一性はサムネに効く id/thumbnail/rect のみで決め、display_name 等の
+  // 無関係なフィールド更新で resolveCroppedUrl が無駄に再実行されるのを防ぐ。
   const source = createMemo(() => ({
     id: props.node.id,
     thumbnail: props.node.thumbnail ?? '',
     rectKey: props.node.thumbnailRect
       ? `${props.node.thumbnailRect.x}::${props.node.thumbnailRect.y}::${props.node.thumbnailRect.size}`
       : '',
-    node: props.node,
   }));
-  const [url] = createResource(source, async (src) => {
-    if (!src.thumbnail) return undefined;
-    return ThumbnailService.resolveCroppedUrl(src.node);
-  }, { initialValue: undefined });
+  const [url] = createResource(
+    source,
+    async (src) => {
+      if (!src.thumbnail) return undefined;
+      return ThumbnailService.resolveCroppedUrl(props.node);
+    },
+    { initialValue: undefined },
+  );
 
   const initial = (): string => {
     const display = props.node.fields['display_name'];
