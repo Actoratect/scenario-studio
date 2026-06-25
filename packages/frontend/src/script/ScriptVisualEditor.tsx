@@ -24,7 +24,7 @@ import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
 import { ScriptImageService } from '../services/ScriptImageService';
-import { deriveGlossary, scanGlossary } from '../services/GlossaryHighlight';
+import { deriveGlossary } from '../services/GlossaryHighlight';
 import { KNOWN_EMOTIONS, emotionLabel } from './emotions';
 
 // 脚本のブロック視覚エディタ (PR-AA)。
@@ -401,9 +401,11 @@ const StableTextarea: Component<{
   // 内容の改行に合わせて高さを自動調整する。
   // 旧版は rows 固定 + ユーザーリサイズ可で、Index が DOM を位置で再利用するため
   // 手動リサイズした高さが別シナリオに切り替えても残っていた (バグ報告)。
+  // リセットは 'auto' だと rows 属性が下限になり 1 行の内容でも余分な空行が出るため、
+  // '0px' にして scrollHeight が純粋な内容高さを返すようにする。
   function autoResize(): void {
     if (!ref) return;
-    ref.style.height = 'auto';
+    ref.style.height = '0px';
     // border-box でクリップしないよう border 分 (offsetHeight - clientHeight) を足す。
     const border = ref.offsetHeight - ref.clientHeight;
     ref.style.height = `${ref.scrollHeight + border}px`;
@@ -542,7 +544,7 @@ const CharacterLine: Component<{
       </div>
       <StableTextarea
         class="ss-script-line-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
         onInput={(text) => props.onChange({ ...props.block, text })}
@@ -560,7 +562,6 @@ const CharacterLine: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -577,7 +578,7 @@ const AsideBlock: Component<{
     <>
       <StableTextarea
         class="ss-script-aside-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder="心の声 / 独白を入力…"
         onInput={(text) => props.onChange({ ...props.block, text })}
@@ -595,7 +596,6 @@ const AsideBlock: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -612,7 +612,7 @@ const StageBlock: Component<{
     <>
       <StableTextarea
         class="ss-script-stage-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder="状況描写 / ステージを入力…"
         onInput={(text) => props.onChange({ ...props.block, text })}
@@ -630,7 +630,6 @@ const StageBlock: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -877,40 +876,6 @@ const UnknownBlockView: Component<{ block: ScriptBlock & { kind: 'unknown' } }> 
   return <pre class="ss-script-unknown">{JSON.stringify(props.block.raw, null, 2)}</pre>;
 };
 
-/**
- * PR-AF: テキスト中の Glossary 用語 / 禁止表記を検出して chip 行に表示。
- * 該当無しなら何も描画しない。
- */
-const GlossaryChips: Component<{ text: string }> = (props) => {
-  const result = createMemo(() => {
-    const ctx = ProjectService.currentProject();
-    const glossary = ctx ? deriveGlossary(ctx.project) : [];
-    return scanGlossary(props.text, glossary);
-  });
-  return (
-    <Show when={result().okItems.length > 0 || result().violations.length > 0}>
-      <div class="ss-script-glossary-chips">
-        <For each={result().okItems}>
-          {(item) => (
-            <span
-              class="ss-script-glossary-chip ss-script-glossary-chip--ok"
-              title={`${item.sourceLabel ?? '用語'}として登録済`}
-            >
-              ✓ {item.sourceLabel ?? '用語'}: {item.term}
-            </span>
-          )}
-        </For>
-        <For each={result().violations}>
-          {(v) => (
-            <span
-              class="ss-script-glossary-chip ss-script-glossary-chip--warn"
-              title={`禁止表記: 「${v.match}」→ 正式「${v.term}」を推奨`}
-            >
-              ⚠ {v.sourceLabel ?? '用語'}: {v.match} → {v.term}
-            </span>
-          )}
-        </For>
-      </div>
-    </Show>
-  );
-};
+// PR-AF の Glossary chip 行 (緑の楕円) は、脚本の文章量を優先して撤去した。
+// 用語検出ロジック自体 (GlossaryHighlight の deriveGlossary / scanGlossary) は
+// Lint・プロジェクト健全性など他所で引き続き利用される。
