@@ -32,31 +32,27 @@ export class FsRelationsRepository {
       // source/target は from/to も別名として受け付ける (外部変換データ互換)。
       const source = pickString(r['source']) ?? pickString(r['from']);
       const target = pickString(r['target']) ?? pickString(r['to']);
+      // text が本体。旧スキーマ (type / label / description / label_from) からもフォールバックで拾う。
+      const text =
+        pickNonEmpty(r['text']) ??
+        pickNonEmpty(r['type']) ??
+        pickNonEmpty(r['label']) ??
+        pickNonEmpty(r['description']) ??
+        pickNonEmpty(r['labelFrom']) ??
+        pickNonEmpty(r['label_from']);
       if (
         typeof r['id'] !== 'string' ||
         source === undefined ||
         target === undefined ||
-        typeof r['type'] !== 'string' ||
-        r['type'].trim() === ''
+        text === undefined
       ) {
         continue;
       }
-      const rel: Relation = {
+      out.push({
         id: relationId(r['id']),
         source: nodeId(source),
         target: nodeId(target),
-        type: r['type'],
-      };
-      const label = pickNonEmpty(r['label']);
-      const labelFrom = pickNonEmpty(r['labelFrom']) ?? pickNonEmpty(r['label_from']);
-      const labelTo = pickNonEmpty(r['labelTo']) ?? pickNonEmpty(r['label_to']);
-      const description = pickNonEmpty(r['description']);
-      out.push({
-        ...rel,
-        ...(label !== undefined ? { label } : {}),
-        ...(labelFrom !== undefined ? { labelFrom } : {}),
-        ...(labelTo !== undefined ? { labelTo } : {}),
-        ...(description !== undefined ? { description } : {}),
+        text,
       });
     }
     return out;
@@ -66,19 +62,12 @@ export class FsRelationsRepository {
     const out: { [k: string]: YamlValue } = {
       schemaVersion: 1,
       kind: 'relations',
-      relations: relations.map((r) => {
-        const obj: { [k: string]: YamlValue } = {
-          id: r.id,
-          source: r.source,
-          target: r.target,
-          type: r.type,
-        };
-        if (r.label !== undefined && r.label !== '') obj['label'] = r.label;
-        if (r.labelFrom !== undefined && r.labelFrom !== '') obj['label_from'] = r.labelFrom;
-        if (r.labelTo !== undefined && r.labelTo !== '') obj['label_to'] = r.labelTo;
-        if (r.description !== undefined && r.description !== '') obj['description'] = r.description;
-        return obj;
-      }),
+      relations: relations.map((r) => ({
+        id: r.id,
+        source: r.source,
+        target: r.target,
+        text: r.text,
+      })),
     };
     await this.adapter.write(this.handle, RELATIONS_FILE, stringifyYaml(sanitizeYamlTree(out)));
   }

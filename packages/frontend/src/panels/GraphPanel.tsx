@@ -17,7 +17,6 @@ import {
   type PlotBoardNodeId,
   type PlotFlowAnalysis,
   type RelationId,
-  type RelationType,
 } from '@scenario-studio/core';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
@@ -30,7 +29,6 @@ import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
 import { PlotBoardCanvas } from '../graph/PlotBoardCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
-import { RelationDetailEditor } from '../graph/RelationDetailEditor';
 import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
 import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
@@ -67,12 +65,8 @@ interface PendingPicker {
 
 interface EditingPicker {
   relationId: RelationId;
-  type: string;
-  labelFrom?: string | undefined;
-  labelTo?: string | undefined;
-  description?: string | undefined;
-  sourceName: string;
-  targetName: string;
+  text: string;
+  caption: string;
 }
 
 interface EdgeEditState {
@@ -336,15 +330,11 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
 
   function startEdit(edge: LensEdge): void {
     if (lensMode() === 'plot-flow') return;
-    if (edge.kind !== 'explicit' || !edge.relationId || !edge.relationType) return;
+    if (edge.kind !== 'explicit' || !edge.relationId) return;
     setEditing({
       relationId: edge.relationId,
-      type: edge.relationType,
-      labelFrom: edge.labelFrom,
-      labelTo: edge.labelTo,
-      description: edge.description,
-      sourceName: nodeLabel(edge.source),
-      targetName: nodeLabel(edge.target),
+      text: edge.label,
+      caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
     });
   }
 
@@ -609,40 +599,27 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           const p = pending();
           if (!p) return;
           void (async () => {
-            await RelationsService.add({
-              source: p.source,
-              target: p.target,
-              type: input.type,
-            });
-            if (input.reverseType) {
+            await RelationsService.add({ source: p.source, target: p.target, text: input.text });
+            if (input.reverseText) {
               await RelationsService.add({
                 source: p.target,
                 target: p.source,
-                type: input.reverseType,
+                text: input.reverseText,
               });
             }
           })();
         }}
       />
-      <RelationDetailEditor
+      <RelationTypePicker
         open={!!editing()}
-        sourceName={editing()?.sourceName ?? ''}
-        targetName={editing()?.targetName ?? ''}
-        initial={
-          editing()
-            ? {
-                type: editing()!.type,
-                labelFrom: editing()!.labelFrom,
-                labelTo: editing()!.labelTo,
-                description: editing()!.description,
-              }
-            : undefined
-        }
+        canDelete={true}
+        caption={editing()?.caption}
+        initial={editing() ? { text: editing()!.text } : undefined}
         onClose={() => setEditing(undefined)}
-        onSubmit={(details) => {
+        onSubmit={(input) => {
           const e = editing();
           if (!e) return;
-          void RelationsService.setDetails(e.relationId, details);
+          void RelationsService.update(e.relationId, { text: input.text });
         }}
         onDelete={() => {
           const e = editing();

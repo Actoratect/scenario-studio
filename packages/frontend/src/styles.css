@@ -5691,36 +5691,6 @@ button {
 /* ============================================================
  * PR-AF: Glossary chip 行 (Script visual editor 内)
  * ============================================================ */
-.ss-script-glossary-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.ss-script-glossary-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  font-size: 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-family: 'SF Mono', Consolas, monospace;
-  white-space: nowrap;
-}
-
-.ss-script-glossary-chip--ok {
-  background: var(--ss-bg-success);
-  color: var(--ss-accent-green);
-  border-color: var(--ss-accent-green);
-}
-
-.ss-script-glossary-chip--warn {
-  background: var(--ss-bg-warning);
-  color: var(--ss-accent-vermillion);
-  border-color: var(--ss-accent-vermillion);
-}
-
 /* PR-AF: Stats 章別 セリフ密度バー (緑系で文字数バーと区別) */
 .panel-stats-bar-fill--density {
   background: var(--ss-accent-green);

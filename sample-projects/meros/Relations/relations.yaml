@@ -1,50 +1,46 @@
 schemaVersion: 1
 kind: relations
+# 1 関係 = source→target 方向の自由テキスト 1 本 (グラフでは矢印 1 本)。
+# 双方向の関係は、逆向き (target→source) の関係をもう 1 本作って表す。
 relations:
+  # メロス ⇔ セリヌンティウス (双方向 = 2 本)
   - id: rel01
-    from: 01MERS01MELO0DC8G7YVCV1RG0XP
-    to: 01MERS02SERN0NP4FH2JKQT6BWER
-    type: friendship
-    label_from: 竹馬の友
-    label_to: 竹馬の友
-    description: メロスとセリヌンティウスは幼少から共に育った無二の親友。言葉なくとも信頼は揺るぎない。
+    source: 01MERS01MELO0DC8G7YVCV1RG0XP
+    target: 01MERS02SERN0NP4FH2JKQT6BWER
+    text: 竹馬の友（無二の親友）
+  - id: rel07
+    source: 01MERS02SERN0NP4FH2JKQT6BWER
+    target: 01MERS01MELO0DC8G7YVCV1RG0XP
+    text: 竹馬の友（言葉なくとも信頼は揺るがない）
 
+  # メロス → 妹 (片方向)
   - id: rel02
-    from: 01MERS01MELO0DC8G7YVCV1RG0XP
-    to: 01MERS05IMOT0UV7JK5MNUO9EXHU
-    type: family
-    label_from: 兄
-    label_to: 妹
-    description: メロスの唯一の肉親。両親はすでに亡く、二人で村に暮らしていた。
+    source: 01MERS01MELO0DC8G7YVCV1RG0XP
+    target: 01MERS05IMOT0UV7JK5MNUO9EXHU
+    text: 兄妹（唯一の肉親。両親はすでに亡く二人で暮らす）
 
+  # 妹 ⇔ 花婿 (双方向 = 2 本)
   - id: rel03
-    from: 01MERS05IMOT0UV7JK5MNUO9EXHU
-    to: 01MERS06HANM0WX8KL6NOVP0FYIV
-    type: romance
-    label_from: 花嫁
-    label_to: 花婿
-    description: 妹と花婿の婚約関係。メロスが人質になったために婚礼を三日後に急ぐこととなった。
+    source: 01MERS05IMOT0UV7JK5MNUO9EXHU
+    target: 01MERS06HANM0WX8KL6NOVP0FYIV
+    text: 花嫁（婚礼を三日後に急ぐ）
+  - id: rel08
+    source: 01MERS06HANM0WX8KL6NOVP0FYIV
+    target: 01MERS05IMOT0UV7JK5MNUO9EXHU
+    text: 花婿
 
+  # メロス → 王 / 王 → メロス (それぞれ片方向)
   - id: rel04
-    from: 01MERS01MELO0DC8G7YVCV1RG0XP
-    to: 01MERS03DION0QR5GH3KLSM7CVFS
-    type: opposition
-    label_from: 義憤
-    label_to: 疑惑
-    description: 暴君を討とうと王城に乗り込んだメロスと、人間不信の王との対立。しかし最終的には王の心を動かす。
-
+    source: 01MERS01MELO0DC8G7YVCV1RG0XP
+    target: 01MERS03DION0QR5GH3KLSM7CVFS
+    text: 義憤（暴君を討とうと王城へ。やがて王の心を動かす）
   - id: rel05
-    from: 01MERS03DION0QR5GH3KLSM7CVFS
-    to: 01MERS01MELO0DC8G7YVCV1RG0XP
-    type: opposition
-    label_from: 試練を与える者
-    label_to: 試される者
-    description: 人質賭博を仕掛けた王。人間の信実を信じられず、メロスを試す。
+    source: 01MERS03DION0QR5GH3KLSM7CVFS
+    target: 01MERS01MELO0DC8G7YVCV1RG0XP
+    text: 試練を課す（人質賭博。人間の信実を試す）
 
+  # フィロストラトス → セリヌンティウス (片方向)
   - id: rel06
-    from: 01MERS04PHIL0ST6IJ4LMTN8DWGT
-    to: 01MERS02SERN0NP4FH2JKQT6BWER
-    type: mentor
-    label_from: 弟子
-    label_to: 師匠
-    description: フィロストラトスはセリヌンティウスの弟子。師の処刑が迫る中、メロスに帰還を諦めるよう懇願する。
+    source: 01MERS04PHIL0ST6IJ4LMTN8DWGT
+    target: 01MERS02SERN0NP4FH2JKQT6BWER
+    text: 弟子（師の処刑が迫る中メロスに帰還断念を懇願）
