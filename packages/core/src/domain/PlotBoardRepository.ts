@@ -23,13 +23,7 @@ import {
 const PLOT_BOARDS_ROOT = 'PlotBoards';
 export const MAIN_PLOT_BOARD_FILE = `${PLOT_BOARDS_ROOT}/main.board.yaml`;
 
-const NODE_KINDS = new Set<PlotBoardNodeKind>([
-  'thread',
-  'beat',
-  'memo',
-  'question',
-  'scene_ref',
-]);
+const NODE_KINDS = new Set<PlotBoardNodeKind>(['thread', 'beat', 'memo', 'question', 'scene_ref']);
 
 export class FsPlotBoardRepository {
   constructor(
@@ -61,7 +55,11 @@ export class FsPlotBoardRepository {
   }
 
   async save(path: string, board: PlotBoard): Promise<void> {
-    await this.adapter.write(this.handle, path, stringifyYaml(sanitizeYamlTree(boardToYaml(board))));
+    await this.adapter.write(
+      this.handle,
+      path,
+      stringifyYaml(sanitizeYamlTree(boardToYaml(board))),
+    );
   }
 
   private async loadFile(path: string): Promise<PlotBoard> {
@@ -135,9 +133,10 @@ function parseNode(value: YamlValue): PlotBoardNode | undefined {
   if (!isMapping(value)) return undefined;
   if (typeof value['id'] !== 'string') return undefined;
   const kindRaw = value['kind'];
-  const kind = typeof kindRaw === 'string' && NODE_KINDS.has(kindRaw as PlotBoardNodeKind)
-    ? (kindRaw as PlotBoardNodeKind)
-    : 'memo';
+  const kind =
+    typeof kindRaw === 'string' && NODE_KINDS.has(kindRaw as PlotBoardNodeKind)
+      ? (kindRaw as PlotBoardNodeKind)
+      : 'memo';
   const position = parsePosition(value['position']);
   const node: PlotBoardNode = {
     id: plotBoardNodeId(value['id']),

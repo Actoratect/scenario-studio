@@ -156,7 +156,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       const devName = node.fields['dev_name'];
       const display = node.fields['display_name'];
       chars.push({
-        identifier: typeof devName === 'string' && devName.trim() !== '' ? devName.trim() : node.slug,
+        identifier:
+          typeof devName === 'string' && devName.trim() !== '' ? devName.trim() : node.slug,
         display: typeof display === 'string' && display.trim() !== '' ? display.trim() : node.slug,
       });
     }
@@ -391,6 +392,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   /** 現在表示中の scene の title / slug をプロンプトで変更し、ファイルを rename。 */
+  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameCurrentScene(): Promise<void> {
     const cur = scene();
     const ctx = ProjectService.currentProject();

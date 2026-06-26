@@ -285,7 +285,8 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           }\n${ref.templateId}`;
         })
         .join('\n');
-      const haystack = `${node.id}\n${node.kind}\n${node.title}\n${node.body}\n${refText}`.toLowerCase();
+      const haystack =
+        `${node.id}\n${node.kind}\n${node.title}\n${node.body}\n${refText}`.toLowerCase();
       if (!haystack.includes(q)) out.add(node.id);
     }
     return out;
@@ -540,32 +541,35 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         </Show>
       </header>
       <div class="panel-graph-canvas">
-        <Show when={lensMode() === 'plot-board'} fallback={
-          <Show
-            when={lens() && lens()!.nodes.length > 0}
-            fallback={
-              <div class="panel-graph-empty">
-                <p>ノードがありません。Outline で追加してください。</p>
-              </div>
-            }
-          >
-            <LensCanvas
-              payload={lens()!}
-              positions={positions()}
-              thumbnailUrls={thumbnailUrls() ?? new Map()}
-              onSelect={(id) => SelectionContext.selectNode(id)}
-              onActivate={activate}
-              onPositionChange={(id, p) => GraphPositions.setPosition(id, p, { persist: false })}
-              onPositionCommit={(id, p) => GraphPositions.commitPosition(id, p)}
-              onCreateRelation={startCreate}
-              onEdgeClick={startEdit}
-              selected={SelectionContext.selectedNodeId()}
-              dimmed={dimmed()}
-              nodeRadius={nodeSize()}
-              viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${lensMode()}`}
-            />
-          </Show>
-        }>
+        <Show
+          when={lensMode() === 'plot-board'}
+          fallback={
+            <Show
+              when={lens() && lens()!.nodes.length > 0}
+              fallback={
+                <div class="panel-graph-empty">
+                  <p>ノードがありません。Outline で追加してください。</p>
+                </div>
+              }
+            >
+              <LensCanvas
+                payload={lens()!}
+                positions={positions()}
+                thumbnailUrls={thumbnailUrls() ?? new Map()}
+                onSelect={(id) => SelectionContext.selectNode(id)}
+                onActivate={activate}
+                onPositionChange={(id, p) => GraphPositions.setPosition(id, p, { persist: false })}
+                onPositionCommit={(id, p) => GraphPositions.commitPosition(id, p)}
+                onCreateRelation={startCreate}
+                onEdgeClick={startEdit}
+                selected={SelectionContext.selectedNodeId()}
+                dimmed={dimmed()}
+                nodeRadius={nodeSize()}
+                viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${lensMode()}`}
+              />
+            </Show>
+          }
+        >
           <Show when={plotBoard()}>
             {(board) => (
               <PlotBoardCanvas

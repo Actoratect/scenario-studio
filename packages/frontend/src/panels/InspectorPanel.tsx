@@ -332,7 +332,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       await ctx.nodeRepository.delete(n.id);
       const nextMap = new Map(ctx.project.nodes);
       nextMap.delete(n.id);
-      const nextRelations = ctx.project.relations.filter((r) => r.source !== n.id && r.target !== n.id);
+      const nextRelations = ctx.project.relations.filter(
+        (r) => r.source !== n.id && r.target !== n.id,
+      );
       await ctx.relationsRepository.save(nextRelations);
       Object.assign(ctx.project, { nodes: nextMap });
       Object.assign(ctx.project, { relations: nextRelations });
@@ -517,7 +519,7 @@ const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
     // SceneAppearanceIndex の signal を読むことで再評価
     void SceneAppearanceIndex.byIdentifier();
     const list = SceneAppearanceIndex.appearancesFor(...identifiers());
-    const map = new Map<string, { title: string; scenes: typeof list[number][] }>();
+    const map = new Map<string, { title: string; scenes: (typeof list)[number][] }>();
     for (const a of list) {
       const cur = map.get(a.chapterSlug);
       if (cur) cur.scenes.push(a);

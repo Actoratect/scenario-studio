@@ -243,7 +243,8 @@ export const PortraitCropper: Component<PortraitCropperProps> = (props) => {
         </Show>
         <Show when={editing()}>
           <span class="ss-portrait-hint">
-            枠 drag で位置、右下ハンドルでサイズ変更。「✓ 調整完了」で確定 → ヘッダ「💾 保存」で永続化。
+            枠 drag で位置、右下ハンドルでサイズ変更。「✓ 調整完了」で確定 → ヘッダ「💾
+            保存」で永続化。
           </span>
         </Show>
       </div>

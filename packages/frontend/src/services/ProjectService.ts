@@ -205,7 +205,9 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     undo: () => history.undo(),
     redo: () => history.redo(),
   });
-  const unregisterProjectHistoryObserver = history.observe(() => GlobalHistoryService.recordProject());
+  const unregisterProjectHistoryObserver = history.observe(() =>
+    GlobalHistoryService.recordProject(),
+  );
   disposeGlobalProjectHistory = () => {
     unregisterProjectHistoryObserver();
     unregisterProjectController();

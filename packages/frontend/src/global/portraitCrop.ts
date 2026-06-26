@@ -21,10 +21,7 @@ export function maxSquareSize(aspectWH: number): number {
  * 画像 dims 判明時 (node 切替 / image load) に必ず通すことで、未初期化値や
  * 縦長画像での座標破綻を防ぐ。
  */
-export function clampRectToImage(
-  raw: ThumbnailRect,
-  img: { w: number; h: number },
-): ThumbnailRect {
+export function clampRectToImage(raw: ThumbnailRect, img: { w: number; h: number }): ThumbnailRect {
   const aspectWH = img.w / img.h;
   const maxFitSize = maxSquareSize(aspectWH);
   const isUninit = raw.size >= 0.999 && raw.x <= 0.001 && raw.y <= 0.001;

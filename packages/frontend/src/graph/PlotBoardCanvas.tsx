@@ -337,7 +337,8 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
           <Show when={drag()?.kind === 'connect'}>
             {(_) => {
               const d = createMemo(
-                () => drag() as { kind: 'connect'; source: PlotBoardNodeId; toX: number; toY: number },
+                () =>
+                  drag() as { kind: 'connect'; source: PlotBoardNodeId; toX: number; toY: number },
               );
               const source = createMemo(() => nodeById().get(d().source));
               return (
@@ -419,7 +420,9 @@ const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
 
   const mode = createMemo(() => props.node.viewMode ?? 'summary');
   const summaryBody = createMemo(() => bodyWithoutTitle(draftText()));
-  const selectedRefs = createMemo(() => selectedReferenceNodes(props.node, props.referenceNodeById));
+  const selectedRefs = createMemo(() =>
+    selectedReferenceNodes(props.node, props.referenceNodeById),
+  );
   const availableRefs = createMemo(() => availableReferenceNodes(props.node, props.referenceNodes));
   const availableRefGroups = createMemo(() => groupReferenceNodesByTemplate(availableRefs()));
   const visibleText = createMemo(() => (mode() === 'full' ? draftText() : summaryBody()));

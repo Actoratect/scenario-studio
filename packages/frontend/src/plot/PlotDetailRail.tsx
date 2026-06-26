@@ -89,7 +89,9 @@ const sceneCastTextStaging = new Map<string, string>();
 const chapterPlotStaging = new Map<string, ChapterPlotData>();
 
 function extractScenePlot(parsed: ParsedScene): ScenePlotData {
-  const plot = isMapping(parsed.meta['plot']) ? (parsed.meta['plot'] as { [k: string]: YamlValue }) : {};
+  const plot = isMapping(parsed.meta['plot'])
+    ? (parsed.meta['plot'] as { [k: string]: YamlValue })
+    : {};
   return {
     title: typeof plot['title'] === 'string' ? plot['title'] : '',
     beat: typeof plot['beat'] === 'string' ? plot['beat'] : '',
@@ -246,7 +248,11 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
         const newTitle =
           typeof latestPlot['title'] === 'string' ? (latestPlot['title'] as string) : undefined;
         if (newTitle !== undefined) {
-          updateSceneTitleInProject(selectedSnapshot.chapterSlug, selectedSnapshot.sceneSlug, newTitle);
+          updateSceneTitleInProject(
+            selectedSnapshot.chapterSlug,
+            selectedSnapshot.sceneSlug,
+            newTitle,
+          );
         }
       },
     });
@@ -345,7 +351,12 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
                       <>
                         <section class="ss-script-rail-section">
                           <h4 class="ss-script-rail-h">対象シーン</h4>
-                          <p class="ss-plot-rail-target">{sceneLabel(sel().chapterSlug, (sel() as Extract<PlotDetailSelection, { kind: 'scene' }>).sceneSlug)}</p>
+                          <p class="ss-plot-rail-target">
+                            {sceneLabel(
+                              sel().chapterSlug,
+                              (sel() as Extract<PlotDetailSelection, { kind: 'scene' }>).sceneSlug,
+                            )}
+                          </p>
                         </section>
                         <section class="ss-script-rail-section">
                           <h4 class="ss-script-rail-h">シーンタイトル</h4>

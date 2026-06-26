@@ -132,10 +132,7 @@ function canUseHistory(stack: readonly PlotBoard[]): boolean {
   return stack.length > 0;
 }
 
-async function restoreHistoryBoard(
-  source: PlotBoard[],
-  target: PlotBoard[],
-): Promise<boolean> {
+async function restoreHistoryBoard(source: PlotBoard[], target: PlotBoard[]): Promise<boolean> {
   const ctx = ProjectService.currentProject();
   if (!ctx) return false;
   ensureHistoryProject(ctx);
@@ -316,7 +313,8 @@ export const PlotBoardService = {
     const edges = board.edges.map((edge) => {
       if (edge.id !== edgeId) return edge;
       changed = true;
-      const type = patch.type !== undefined && patch.type.trim() !== '' ? patch.type.trim() : edge.type;
+      const type =
+        patch.type !== undefined && patch.type.trim() !== '' ? patch.type.trim() : edge.type;
       const label = patch.label !== undefined ? patch.label.trim() : edge.label;
       return {
         ...edge,
@@ -360,7 +358,9 @@ function cloneBoard(board: PlotBoard): PlotBoard {
       ...(node.anchors !== undefined
         ? {
             anchors: {
-              ...(node.anchors.chapters !== undefined ? { chapters: [...node.anchors.chapters] } : {}),
+              ...(node.anchors.chapters !== undefined
+                ? { chapters: [...node.anchors.chapters] }
+                : {}),
               ...(node.anchors.scenes !== undefined ? { scenes: [...node.anchors.scenes] } : {}),
               ...(node.anchors.nodes !== undefined ? { nodes: [...node.anchors.nodes] } : {}),
               ...(node.anchors.scriptBlocks !== undefined

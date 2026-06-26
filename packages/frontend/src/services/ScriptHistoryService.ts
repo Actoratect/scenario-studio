@@ -8,10 +8,12 @@ const DEFAULT_MERGE_WINDOW_MS = 800;
 interface HistoryStacks {
   undo: ParsedScene[];
   redo: ParsedScene[];
-  lastPush: {
-    mergeKey: string;
-    time: number;
-  } | undefined;
+  lastPush:
+    | {
+        mergeKey: string;
+        time: number;
+      }
+    | undefined;
 }
 
 interface ScriptHistoryController {

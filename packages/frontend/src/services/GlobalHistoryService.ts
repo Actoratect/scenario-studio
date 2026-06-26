@@ -70,9 +70,11 @@ function applyState(entry: HistoryEntry, direction: 'undo' | 'redo'): ApplyState
       : 'stale';
   }
   if (!scriptController) return 'blocked';
-  return (direction === 'undo'
-    ? scriptController.canUndo(entry.path)
-    : scriptController.canRedo(entry.path))
+  return (
+    direction === 'undo'
+      ? scriptController.canUndo(entry.path)
+      : scriptController.canRedo(entry.path)
+  )
     ? 'apply'
     : 'stale';
 }
@@ -108,9 +110,7 @@ async function applyTop(
     try {
       if (entry.domain === 'project') {
         ok =
-          direction === 'undo'
-            ? await projectController!.undo()
-            : await projectController!.redo();
+          direction === 'undo' ? await projectController!.undo() : await projectController!.redo();
       } else if (entry.domain === 'script') {
         ok =
           direction === 'undo'

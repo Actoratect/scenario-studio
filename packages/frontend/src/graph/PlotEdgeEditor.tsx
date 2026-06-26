@@ -32,7 +32,12 @@ export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
 
   return (
     <Show when={props.open}>
-      <div class="ss-modal-backdrop" onClick={() => props.onClose()} role="dialog" aria-modal="true">
+      <div
+        class="ss-modal-backdrop"
+        onClick={() => props.onClose()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div class="ss-modal" onClick={(e) => e.stopPropagation()}>
           <h3>線を編集</h3>
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>

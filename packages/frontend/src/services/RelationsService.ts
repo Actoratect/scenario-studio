@@ -18,7 +18,11 @@ async function persist(next: readonly Relation[]): Promise<void> {
 
 export const RelationsService = {
   /** source→target の関係を 1 本追加。text が空なら何もしない。 */
-  async add(input: { source: NodeId; target: NodeId; text: string }): Promise<Relation | undefined> {
+  async add(input: {
+    source: NodeId;
+    target: NodeId;
+    text: string;
+  }): Promise<Relation | undefined> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return undefined;
     const text = input.text.trim();

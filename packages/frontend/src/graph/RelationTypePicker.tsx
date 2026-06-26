@@ -39,7 +39,12 @@ export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
 
   return (
     <Show when={props.open}>
-      <div class="ss-modal-backdrop" onClick={() => props.onClose()} role="dialog" aria-modal="true">
+      <div
+        class="ss-modal-backdrop"
+        onClick={() => props.onClose()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div class="ss-modal" onClick={(e) => e.stopPropagation()}>
           <h3>関係を{props.canDelete ? '編集' : '追加'}</h3>
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>

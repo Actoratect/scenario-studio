@@ -39,9 +39,7 @@ const NEW_NODE_TEMPLATES: ReadonlyArray<{ template: TemplateDefinition; label: s
 export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [busy, setBusy] = createSignal(false);
   const [newChapterTitle, setNewChapterTitle] = createSignal('新しい章');
-  const [newNodeTemplateId, setNewNodeTemplateId] = createSignal<TemplateId>(
-    CHARACTER_TEMPLATE.id,
-  );
+  const [newNodeTemplateId, setNewNodeTemplateId] = createSignal<TemplateId>(CHARACTER_TEMPLATE.id);
   const [newNodeName, setNewNodeName] = createSignal('');
   const [newNodeError, setNewNodeError] = createSignal<string | undefined>(undefined);
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set());
@@ -208,6 +206,8 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameChapter(chapterSlug: string, currentTitle: string): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -232,6 +232,8 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
+  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameScene(
     chapterSlug: string,
     sceneSlug: string,
@@ -471,152 +473,154 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
         <Show when={!isCollapsed('scenarios')}>
           <ul>
             <For each={ProjectService.currentProject()?.project.scenario.chapters ?? []}>
-            {(chapter, chIdx) => (
-              <li
-                class="panel-outline-chapter"
-                draggable={true}
-                onDragStart={(e) => {
-                  e.dataTransfer?.setData('application/x-ss-chapter', String(chIdx()));
-                  e.dataTransfer!.effectAllowed = 'move';
-                }}
-                onDragOver={(e) => {
-                  // 章 drag (並べ替え) または scene drag (他章への移動) を受け付ける
-                  if (
-                    e.dataTransfer?.types.includes('application/x-ss-chapter') ||
-                    e.dataTransfer?.types.includes('application/x-ss-scene')
-                  ) {
-                    e.preventDefault();
-                    e.currentTarget.classList.add('panel-outline-chapter--drop');
-                  }
-                }}
-                onDragLeave={(e) => e.currentTarget.classList.remove('panel-outline-chapter--drop')}
-                onDrop={(e) => {
-                  e.currentTarget.classList.remove('panel-outline-chapter--drop');
-                  // 章順の並べ替え
-                  const fromChapterIdx = e.dataTransfer?.getData('application/x-ss-chapter');
-                  if (fromChapterIdx !== undefined && fromChapterIdx !== '') {
-                    e.preventDefault();
-                    void reorderChapters(Number(fromChapterIdx), chIdx());
-                    return;
-                  }
-                  // シーンの他章への移動 (drop on chapter li, not scene li)
-                  const sceneRaw = e.dataTransfer?.getData('application/x-ss-scene');
-                  if (sceneRaw) {
-                    const [srcChap, srcIdxStr] = sceneRaw.split('::');
-                    if (srcChap && srcChap !== chapter.slug && srcIdxStr !== undefined) {
+              {(chapter, chIdx) => (
+                <li
+                  class="panel-outline-chapter"
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer?.setData('application/x-ss-chapter', String(chIdx()));
+                    e.dataTransfer!.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    // 章 drag (並べ替え) または scene drag (他章への移動) を受け付ける
+                    if (
+                      e.dataTransfer?.types.includes('application/x-ss-chapter') ||
+                      e.dataTransfer?.types.includes('application/x-ss-scene')
+                    ) {
                       e.preventDefault();
-                      // 末尾に追加
-                      void moveSceneToChapter(
-                        srcChap,
-                        Number(srcIdxStr),
-                        chapter.slug,
-                        chapter.scenes.length,
-                      );
+                      e.currentTarget.classList.add('panel-outline-chapter--drop');
                     }
+                  }}
+                  onDragLeave={(e) =>
+                    e.currentTarget.classList.remove('panel-outline-chapter--drop')
                   }
-                }}
-              >
-                <span class="panel-outline-chapter-title">
-                  <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
-                    ⋮⋮
+                  onDrop={(e) => {
+                    e.currentTarget.classList.remove('panel-outline-chapter--drop');
+                    // 章順の並べ替え
+                    const fromChapterIdx = e.dataTransfer?.getData('application/x-ss-chapter');
+                    if (fromChapterIdx !== undefined && fromChapterIdx !== '') {
+                      e.preventDefault();
+                      void reorderChapters(Number(fromChapterIdx), chIdx());
+                      return;
+                    }
+                    // シーンの他章への移動 (drop on chapter li, not scene li)
+                    const sceneRaw = e.dataTransfer?.getData('application/x-ss-scene');
+                    if (sceneRaw) {
+                      const [srcChap, srcIdxStr] = sceneRaw.split('::');
+                      if (srcChap && srcChap !== chapter.slug && srcIdxStr !== undefined) {
+                        e.preventDefault();
+                        // 末尾に追加
+                        void moveSceneToChapter(
+                          srcChap,
+                          Number(srcIdxStr),
+                          chapter.slug,
+                          chapter.scenes.length,
+                        );
+                      }
+                    }
+                  }}
+                >
+                  <span class="panel-outline-chapter-title">
+                    <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
+                      ⋮⋮
+                    </span>
+                    <button
+                      class="panel-outline-chapter-title-button"
+                      disabled={busy()}
+                      onClick={() => openChapterPlot(chapter.slug, chapter.title)}
+                      title="プロットタブでチャプタープロットを開く"
+                    >
+                      📖 {chapter.title}
+                    </button>
+                    <button
+                      class="panel-outline-add-scene"
+                      disabled={busy()}
+                      onClick={() => void addScene(chapter.slug)}
+                      title="この章にシーンを追加"
+                    >
+                      + シーン
+                    </button>
                   </span>
-                  <button
-                    class="panel-outline-chapter-title-button"
-                    disabled={busy()}
-                    onClick={() => openChapterPlot(chapter.slug, chapter.title)}
-                    title="プロットタブでチャプタープロットを開く"
-                  >
-                    📖 {chapter.title}
-                  </button>
-                  <button
-                    class="panel-outline-add-scene"
-                    disabled={busy()}
-                    onClick={() => void addScene(chapter.slug)}
-                    title="この章にシーンを追加"
-                  >
-                    + シーン
-                  </button>
-                </span>
-                <Show when={chapter.summary}>
-                  {(summary) => <p class="panel-outline-chapter-summary">{summary()}</p>}
-                </Show>
-                <Show when={chapter.scenes.length > 0}>
-                  <ul class="panel-outline-scenes">
-                    <For each={chapter.scenes}>
-                      {(scene, sIdx) => (
-                        <li
-                          class="panel-outline-scene"
-                          draggable={true}
-                          onDragStart={(e) => {
-                            e.dataTransfer?.setData(
-                              'application/x-ss-scene',
-                              `${chapter.slug}::${sIdx()}`,
-                            );
-                            e.dataTransfer!.effectAllowed = 'move';
-                          }}
-                          onDragOver={(e) => {
-                            if (e.dataTransfer?.types.includes('application/x-ss-scene')) {
-                              e.preventDefault();
-                              e.stopPropagation(); // chapter li drop を抑止
-                              e.currentTarget.classList.add('panel-outline-scene--drop');
-                            }
-                          }}
-                          onDragLeave={(e) =>
-                            e.currentTarget.classList.remove('panel-outline-scene--drop')
-                          }
-                          onDrop={(e) => {
-                            e.currentTarget.classList.remove('panel-outline-scene--drop');
-                            const raw = e.dataTransfer?.getData('application/x-ss-scene');
-                            if (!raw) return;
-                            const [srcChap, srcIdxStr] = raw.split('::');
-                            if (!srcChap || srcIdxStr === undefined) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (srcChap === chapter.slug) {
-                              void reorderScenes(chapter.slug, Number(srcIdxStr), sIdx());
-                            } else {
-                              void moveSceneToChapter(
-                                srcChap,
-                                Number(srcIdxStr),
-                                chapter.slug,
-                                sIdx(),
+                  <Show when={chapter.summary}>
+                    {(summary) => <p class="panel-outline-chapter-summary">{summary()}</p>}
+                  </Show>
+                  <Show when={chapter.scenes.length > 0}>
+                    <ul class="panel-outline-scenes">
+                      <For each={chapter.scenes}>
+                        {(scene, sIdx) => (
+                          <li
+                            class="panel-outline-scene"
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.dataTransfer?.setData(
+                                'application/x-ss-scene',
+                                `${chapter.slug}::${sIdx()}`,
                               );
+                              e.dataTransfer!.effectAllowed = 'move';
+                            }}
+                            onDragOver={(e) => {
+                              if (e.dataTransfer?.types.includes('application/x-ss-scene')) {
+                                e.preventDefault();
+                                e.stopPropagation(); // chapter li drop を抑止
+                                e.currentTarget.classList.add('panel-outline-scene--drop');
+                              }
+                            }}
+                            onDragLeave={(e) =>
+                              e.currentTarget.classList.remove('panel-outline-scene--drop')
                             }
-                          }}
-                        >
-                          <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
-                            ⋮
-                          </span>
-                          <button
-                            class="panel-outline-scene-jump"
-                            onClick={() => openScenePlot(chapter.slug, scene.slug, scene.title)}
-                            title="プロットタブでシーンプロットを開く"
+                            onDrop={(e) => {
+                              e.currentTarget.classList.remove('panel-outline-scene--drop');
+                              const raw = e.dataTransfer?.getData('application/x-ss-scene');
+                              if (!raw) return;
+                              const [srcChap, srcIdxStr] = raw.split('::');
+                              if (!srcChap || srcIdxStr === undefined) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (srcChap === chapter.slug) {
+                                void reorderScenes(chapter.slug, Number(srcIdxStr), sIdx());
+                              } else {
+                                void moveSceneToChapter(
+                                  srcChap,
+                                  Number(srcIdxStr),
+                                  chapter.slug,
+                                  sIdx(),
+                                );
+                              }
+                            }}
                           >
-                            🎬 {scene.title}
-                          </button>
-                          <button
-                            class="panel-outline-open-script"
-                            disabled={busy()}
-                            onClick={() => openSceneScript(chapter.slug, scene.slug, scene.title)}
-                            title="脚本タブでこのシーンを開く"
-                          >
-                            脚本
-                          </button>
-                          <button
-                            class="panel-outline-delete-scene"
-                            disabled={busy()}
-                            onClick={() => void deleteScene(chapter.slug, scene.slug)}
-                            title="このシーンを削除"
-                          >
-                            ×
-                          </button>
-                        </li>
-                      )}
-                    </For>
-                  </ul>
-                </Show>
-              </li>
-            )}
+                            <span class="panel-outline-drag-handle" title="ドラッグで並べ替え">
+                              ⋮
+                            </span>
+                            <button
+                              class="panel-outline-scene-jump"
+                              onClick={() => openScenePlot(chapter.slug, scene.slug, scene.title)}
+                              title="プロットタブでシーンプロットを開く"
+                            >
+                              🎬 {scene.title}
+                            </button>
+                            <button
+                              class="panel-outline-open-script"
+                              disabled={busy()}
+                              onClick={() => openSceneScript(chapter.slug, scene.slug, scene.title)}
+                              title="脚本タブでこのシーンを開く"
+                            >
+                              脚本
+                            </button>
+                            <button
+                              class="panel-outline-delete-scene"
+                              disabled={busy()}
+                              onClick={() => void deleteScene(chapter.slug, scene.slug)}
+                              title="このシーンを削除"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
+                </li>
+              )}
             </For>
           </ul>
           <div class="panel-outline-add-chapter">
@@ -717,73 +721,73 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                 <Show when={!isCollapsed(key())}>
                   <ul class="panel-outline-nodes">
                     <For each={items()}>
-                    {(node) => {
-                      const display =
-                        typeof node.fields['display_name'] === 'string'
-                          ? (node.fields['display_name'] as string)
-                          : node.slug;
-                      return (
-                        <li>
-                          <button
-                            class="panel-outline-node"
-                            title={`${display} (${node.slug})`}
-                            classList={{
-                              'panel-outline-node--selected':
-                                SelectionContext.selectedNodeId() === node.id,
-                              'panel-outline-node--multi': multiSelected().has(node.id),
-                            }}
-                            onClick={(e) => {
-                              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                      {(node) => {
+                        const display =
+                          typeof node.fields['display_name'] === 'string'
+                            ? (node.fields['display_name'] as string)
+                            : node.slug;
+                        return (
+                          <li>
+                            <button
+                              class="panel-outline-node"
+                              title={`${display} (${node.slug})`}
+                              classList={{
+                                'panel-outline-node--selected':
+                                  SelectionContext.selectedNodeId() === node.id,
+                                'panel-outline-node--multi': multiSelected().has(node.id),
+                              }}
+                              onClick={(e) => {
+                                if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                                  e.preventDefault();
+                                  toggleMulti(node.id, true);
+                                  return;
+                                }
+                                // scroll-to-top 退化防止: 選択直後にパネルが reflow して
+                                // 親 container が先頭に戻る現象を見ているので、
+                                // scrollTop を保存→次フレームで復元する。
+                                const scroller = e.currentTarget.closest(
+                                  '.panel-outline-list',
+                                ) as HTMLElement | null;
+                                const savedScroll = scroller?.scrollTop ?? 0;
+                                if (multiSelected().size > 0) clearMulti();
+                                SelectionContext.selectNode(node.id);
+                                if (scroller) {
+                                  requestAnimationFrame(() => {
+                                    if (scroller.scrollTop !== savedScroll) {
+                                      scroller.scrollTop = savedScroll;
+                                    }
+                                  });
+                                }
+                              }}
+                              onDragOver={(e) => {
+                                if (e.dataTransfer?.types.includes('Files')) {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'copy';
+                                  e.currentTarget.classList.add('panel-outline-node--drop');
+                                }
+                              }}
+                              onDragLeave={(e) =>
+                                e.currentTarget.classList.remove('panel-outline-node--drop')
+                              }
+                              onDrop={(e) => {
+                                e.currentTarget.classList.remove('panel-outline-node--drop');
+                                const files = e.dataTransfer?.files;
+                                if (!files || files.length === 0) return;
+                                const file = files[0];
+                                if (!file || !file.type.startsWith('image/')) return;
                                 e.preventDefault();
-                                toggleMulti(node.id, true);
-                                return;
-                              }
-                              // scroll-to-top 退化防止: 選択直後にパネルが reflow して
-                              // 親 container が先頭に戻る現象を見ているので、
-                              // scrollTop を保存→次フレームで復元する。
-                              const scroller = e.currentTarget.closest(
-                                '.panel-outline-list',
-                              ) as HTMLElement | null;
-                              const savedScroll = scroller?.scrollTop ?? 0;
-                              if (multiSelected().size > 0) clearMulti();
-                              SelectionContext.selectNode(node.id);
-                              if (scroller) {
-                                requestAnimationFrame(() => {
-                                  if (scroller.scrollTop !== savedScroll) {
-                                    scroller.scrollTop = savedScroll;
-                                  }
-                                });
-                              }
-                            }}
-                            onDragOver={(e) => {
-                              if (e.dataTransfer?.types.includes('Files')) {
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = 'copy';
-                                e.currentTarget.classList.add('panel-outline-node--drop');
-                              }
-                            }}
-                            onDragLeave={(e) =>
-                              e.currentTarget.classList.remove('panel-outline-node--drop')
-                            }
-                            onDrop={(e) => {
-                              e.currentTarget.classList.remove('panel-outline-node--drop');
-                              const files = e.dataTransfer?.files;
-                              if (!files || files.length === 0) return;
-                              const file = files[0];
-                              if (!file || !file.type.startsWith('image/')) return;
-                              e.preventDefault();
-                              void ThumbnailService.uploadForNode(node, file, file.name);
-                            }}
-                          >
-                            <NodeThumbnail node={node} size={24} />
-                            <span class="panel-outline-node-label">{display}</span>
-                            <Show when={display !== node.slug}>
-                              <span class="panel-outline-node-sub">{node.slug}</span>
-                            </Show>
-                          </button>
-                        </li>
-                      );
-                    }}
+                                void ThumbnailService.uploadForNode(node, file, file.name);
+                              }}
+                            >
+                              <NodeThumbnail node={node} size={24} />
+                              <span class="panel-outline-node-label">{display}</span>
+                              <Show when={display !== node.slug}>
+                                <span class="panel-outline-node-sub">{node.slug}</span>
+                              </Show>
+                            </button>
+                          </li>
+                        );
+                      }}
                     </For>
                   </ul>
                 </Show>
@@ -791,7 +795,12 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
             );
           }}
         </For>
-        <Show when={!isCollapsed('nodes') && (ProjectService.currentProject()?.project.nodes.size ?? 0) === 0}>
+        <Show
+          when={
+            !isCollapsed('nodes') &&
+            (ProjectService.currentProject()?.project.nodes.size ?? 0) === 0
+          }
+        >
           <p class="panel-outline-empty">
             まだノードがありません。上のボタンから追加してください。
           </p>

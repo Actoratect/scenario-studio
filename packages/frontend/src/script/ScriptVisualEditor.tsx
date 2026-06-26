@@ -449,7 +449,9 @@ const StableTextarea: Component<{
 const CharacterLine: Component<{
   block: ScriptBlock & { kind: 'line' | 'action' };
   characters: readonly { id: string; slug: string; devName: string; display: string }[];
-  findChar: (id: string) => { id: string; slug: string; devName: string; display: string } | undefined;
+  findChar: (
+    id: string,
+  ) => { id: string; slug: string; devName: string; display: string } | undefined;
   onChange: (next: ScriptBlock) => void;
   parsed: ParsedScene;
   blockIndex: number;
@@ -826,13 +828,7 @@ const ImageBlockView: Component<{
               </div>
             }
           >
-            {(url) => (
-              <img
-                class="ss-script-image-img"
-                src={url()}
-                alt=""
-              />
-            )}
+            {(url) => <img class="ss-script-image-img" src={url()} alt="" />}
           </Show>
         </Show>
       </div>
