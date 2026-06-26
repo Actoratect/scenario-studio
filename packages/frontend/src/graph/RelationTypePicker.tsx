@@ -1,27 +1,41 @@
-import { createSignal, For, Show } from 'solid-js';
+import { createEffect, createSignal, Show } from 'solid-js';
 import type { Component } from 'solid-js';
-import { RELATION_TYPES, type RelationType } from '@scenario-studio/core';
+import { StableTextarea } from '../global/StableTextControl';
 
-// Modal: 関係 type を選ぶ (作成 / 変更兼用) + ラベル編集 + 削除。
-// PR-E。
+// Modal: ノード間関係の編集 (作成 / 変更兼用)。
+// 1 関係 = source→target 方向の自由テキスト 1 本。
+// 作成時のみ逆方向 (target→source) のテキストも入力でき、入れると逆向きの関係をもう 1 本作る。
+// 空欄の向きには矢印を出さない (= その向きの関係を作らない)。
 // 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md §2
 
 export interface RelationPickerProps {
   open: boolean;
-  /** 表示中の現値 (新規作成なら undefined)。 */
-  initial?: { type: RelationType; label?: string } | undefined;
-  /** タイトル/サブテキスト用 (例: "A → B" のラベル)。 */
+  /** 編集時の現在テキスト (新規作成なら undefined)。 */
+  initial?: { text: string } | undefined;
+  /** "A → B" 形式の端点ラベル。 */
   caption?: string | undefined;
-  /** 削除ボタンの表示可否。新規作成時は false。 */
+  /** 削除ボタンの表示可否。新規作成時は false (= 逆方向欄を表示)。 */
   canDelete: boolean;
   onClose: () => void;
-  onSubmit: (input: { type: RelationType; label: string }) => void;
+  onSubmit: (input: { text: string; reverseText?: string }) => void;
   onDelete?: () => void;
 }
 
 export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
-  const [type, setType] = createSignal<RelationType>(props.initial?.type ?? 'friend');
-  const [label, setLabel] = createSignal<string>(props.initial?.label ?? '');
+  const [text, setText] = createSignal<string>(props.initial?.text ?? '');
+  const [reverseText, setReverseText] = createSignal<string>('');
+
+  createEffect(() => {
+    if (props.open) {
+      setText(props.initial?.text ?? '');
+      setReverseText('');
+    }
+  });
+
+  const endpoints = () => {
+    const parts = props.caption?.split(' → ');
+    return { source: parts?.[0] ?? 'A', target: parts?.[1] ?? 'B' };
+  };
 
   return (
     <Show when={props.open}>
@@ -36,47 +50,37 @@ export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>
 
           <div class="ss-modal-section">
-            <strong>関係の種類</strong>
-            <div class="ss-relation-type-grid">
-              <For each={RELATION_TYPES}>
-                {(rt) => (
-                  <button
-                    type="button"
-                    class="ss-relation-type-button"
-                    classList={{ 'ss-relation-type-button--active': type() === rt.id }}
-                    data-variant={type() === rt.id ? 'primary' : undefined}
-                    onClick={() => setType(rt.id)}
-                  >
-                    <span class="ss-relation-type-label">{rt.label}</span>
-                    <span class="ss-relation-type-meta">
-                      {rt.symmetric ? '対称' : `inv: ${rt.inverse}`}
-                    </span>
-                  </button>
-                )}
-              </For>
-            </div>
-            <label class="ss-relation-type-custom">
-              <span>自由入力 (上記以外の独自タイプ)</span>
-              <input
-                type="text"
-                value={type()}
-                onInput={(e) => setType(e.currentTarget.value)}
-                placeholder="例: 師弟、ライバル、同僚、契約関係…"
+            <label>
+              <strong>
+                {endpoints().source} → {endpoints().target}
+              </strong>
+              <StableTextarea
+                class="ss-relation-free-text"
+                value={text()}
+                onInput={setText}
+                placeholder="例: 幼馴染。互いに遠慮なく言い合えるが、過去の約束が二人の距離を複雑にしている。"
+                rows={4}
+                autofocus
               />
             </label>
           </div>
 
-          <div class="ss-modal-section">
-            <label>
-              <strong>カスタムラベル (任意)</strong>
-              <input
-                type="text"
-                value={label()}
-                onInput={(e) => setLabel(e.currentTarget.value)}
-                placeholder="例: 幼馴染、宿敵、養父…"
-              />
-            </label>
-          </div>
+          <Show when={!props.canDelete}>
+            <div class="ss-modal-section">
+              <label>
+                <strong>
+                  {endpoints().target} → {endpoints().source}（任意・逆向き）
+                </strong>
+                <StableTextarea
+                  class="ss-relation-free-text"
+                  value={reverseText()}
+                  onInput={setReverseText}
+                  placeholder="逆方向の関係性も入れたいならどうぞ。空欄ならこの向きの矢印は作りません。"
+                  rows={4}
+                />
+              </label>
+            </div>
+          </Show>
 
           <div class="ss-modal-actions">
             <Show when={props.canDelete && props.onDelete}>
@@ -98,8 +102,13 @@ export const RelationTypePicker: Component<RelationPickerProps> = (props) => {
             <button
               type="button"
               data-variant="primary"
+              disabled={text().trim() === ''}
               onClick={() => {
-                props.onSubmit({ type: type(), label: label().trim() });
+                const reverse = reverseText().trim();
+                props.onSubmit({
+                  text: text().trim(),
+                  ...(reverse !== '' ? { reverseText: reverse } : {}),
+                });
                 props.onClose();
               }}
             >

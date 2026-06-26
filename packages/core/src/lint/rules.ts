@@ -291,7 +291,9 @@ const SCRIPT_UNKNOWN_WHO: LintRule = {
       if (node.templateId !== CHARACTER_TEMPLATE.id) continue;
       validIds.add(node.slug);
       const dev = node.fields['dev_name'];
-      if (typeof dev === 'string' && dev !== '') validIds.add(dev);
+      if (typeof dev === 'string' && dev.trim() !== '') validIds.add(dev.trim());
+      const display = node.fields['display_name'];
+      if (typeof display === 'string' && display.trim() !== '') validIds.add(display.trim());
     }
     const issues: LintIssue[] = [];
     // 同 scene 内で同 who: が複数ヒットしてもノイズなので 1 件に集約

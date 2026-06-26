@@ -20,7 +20,7 @@ export const OnboardingBanner: Component = () => {
           <span class="ss-onboarding-num">1</span>
           <strong>ノードを追加</strong>
           <span class="ss-onboarding-detail">
-            Outline タブの「+ Character」「+ Location」などからキャラ / 場所を作成
+            アウトラインタブの「+ キャラ」「+ 場所」などからキャラ / 場所を作成
           </span>
         </div>
         <div class="ss-onboarding-arrow">→</div>
@@ -28,7 +28,7 @@ export const OnboardingBanner: Component = () => {
           <span class="ss-onboarding-num">2</span>
           <strong>章とシーンを追加</strong>
           <span class="ss-onboarding-detail">
-            Outline タブの「+ Chapter」 / 章タイトル横の「+ Scene」
+            アウトラインタブの「+ チャプター」 / チャプタータイトル横の「+ シーン」
           </span>
         </div>
         <div class="ss-onboarding-arrow">→</div>

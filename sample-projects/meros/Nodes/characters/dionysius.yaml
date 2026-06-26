@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 01MERS03DION0QR5GH3KLSM7CVFS
+templateId: template.character
+slug: dionysius
+fields:
+  gender: male
+  tone: cold
+  display_name: ディオニス王
+  reading: でぃおにすおう
+  dev_name: Dionysius
+  birth_year: 0
+  height: 0
+  appearance: 王冠と豪華な衣。しかし瞳の奥に深い孤独がある。
+  personality: 極度の人間不信から恐怖政治を敷く暴君。妻を、妹婿を、臣下を次々と疑い処刑してきた。しかし心の底では信実を求め、孤独に震えていた。
+  first_person: 私
+  faction: 01MERS08FACG0AB0MN8PQXR2HAKX

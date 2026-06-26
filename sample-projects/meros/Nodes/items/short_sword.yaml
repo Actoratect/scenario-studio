@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 01MERS13SWRD0KL5RS3UVCW7MFPC
+templateId: template.item
+slug: short_sword
+fields:
+  display_name: メロスの短剣
+  reading: めろすのたんけん
+  dev_name: ShortSword
+  category: weapon
+  rarity: common
+  description: メロスが市場に来る際に携えていた短剣。暴君を討とうとした武器。城の衛兵に発見され没収される。

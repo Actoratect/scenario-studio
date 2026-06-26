@@ -1,0 +1,17 @@
+schemaVersion: 1
+kind: node
+id: 01MERS01MELO0DC8G7YVCV1RG0XP
+templateId: template.character
+slug: melos
+fields:
+  gender: male
+  tone: passionate
+  display_name: メロス
+  reading: めろす
+  dev_name: Melos
+  birth_year: 0
+  height: 0
+  appearance: 粗末な羊飼いの服。日に焼けた肌。帰路では傷と泥と汗にまみれている。
+  personality: 正義感が強く怒りっぽいが根は純朴。妹思い。疑うということを知らなかった。
+  first_person: 私
+  faction: 01MERS07FACC0YZ9LM7OPWQ1GZJW

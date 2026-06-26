@@ -1,0 +1,53 @@
+schemaVersion: 1
+kind: scene
+id: ch03_s01_flood
+title: 濁流の橋
+chapter: ch03_trials
+order: 1
+location: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+era: era.ancient
+cast:
+  - melos
+script:
+  - kind: bgm
+    track: raging_river
+
+  - kind: aside
+    text: |
+      メロスは、昨夜の激しい雨で濁り増水した川に出くわした。
+      橋は流れに消えていた。
+      途方に暮れながら、あたりを見回した。
+
+  - kind: stage
+    text: 山中の渡し場。橋は跡形もなく流されており、茶色く濁った激流が轟音を立てている。
+
+  - kind: line
+    who: melos
+    emotion: desperate
+    text: '橋が…ない。どうする。どうすればいい。'
+
+  - kind: aside
+    text: |
+      流れは、ふくれて激しくなっている。あちこちに渦を巻いている。
+      メロスは、ためらわずに流れの中に飛び込んだ。
+      と同時に、轟然、身体が水中に沈んだ。
+      メロスは浮き上がって、必死に泳いだ。
+      岩に打ちつけられながら、はね返されながら、
+      ときに全身を流れに任せ、ときに力を振り絞り、
+      三十分近くかかって、ようやく対岸に這い上がった。
+
+  - kind: sfx
+    sound: splash_and_river_roar
+
+  - kind: line
+    who: melos
+    emotion: exhausted
+    text: '渡った。まだ行ける。走れ！'
+
+  - kind: sfx
+    sound: melos_running_footsteps
+
+  - kind: aside
+    text: |
+      全身びしょぬれで、メロスは走り続けた。
+      これで、ひとつ。

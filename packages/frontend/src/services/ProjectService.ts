@@ -9,6 +9,7 @@ import {
   type FileSystemAdapter,
   type FsEraRepository,
   type FsGlossaryRepository,
+  type FsPlotBoardRepository,
   type FsRelationsRepository,
   type FsScenarioRepository,
   type LoadProjectResult,
@@ -24,7 +25,6 @@ import {
   supportsFileSystemAccess,
   type PickedProject,
 } from '@scenario-studio/adapter-browser';
-import { FF7_SAMPLE } from 'virtual:ff7-sample';
 import {
   rememberProject,
   forgetProject,
@@ -32,9 +32,13 @@ import {
   pinProject,
 } from './recent-projects.js';
 import type { RecentProject } from './recent-projects.js';
+import { GraphComments } from '../graph/graph-comments.js';
 import { GraphPositions } from '../graph/graph-positions.js';
 import { ThumbnailService } from './ThumbnailService.js';
 import { ConflictDetector } from './ConflictDetector.js';
+import { GlobalHistoryService } from './GlobalHistoryService.js';
+import { ScriptHistoryService } from './ScriptHistoryService.js';
+import { PlotBoardService } from './PlotBoardService.js';
 import { Toast } from './Toast.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
@@ -52,6 +56,7 @@ export interface OpenProjectContext {
   scenarioRepository: FsScenarioRepository;
   glossaryRepository: FsGlossaryRepository;
   relationsRepository: FsRelationsRepository;
+  plotBoardRepository: FsPlotBoardRepository;
   templates: TemplateRegistry;
   history: ProjectHistory;
   /** Browser FS Access 経由なら raw handle を持つ。OPFS 等は undefined。 */
@@ -61,6 +66,14 @@ export interface OpenProjectContext {
 const [currentProject, setCurrentProject] = createSignal<OpenProjectContext | undefined>(undefined);
 const [recentProjects, setRecentProjects] = createSignal<readonly RecentProject[]>([]);
 const [lastError, setLastError] = createSignal<Error | undefined>(undefined);
+let disposeGlobalProjectHistory: (() => void) | undefined;
+
+function resetGlobalProjectHistory(): void {
+  disposeGlobalProjectHistory?.();
+  disposeGlobalProjectHistory = undefined;
+  GlobalHistoryService.clear();
+  ScriptHistoryService.clear();
+}
 
 export const ProjectService = {
   currentProject,
@@ -91,32 +104,6 @@ export const ProjectService = {
     const picked = await pickProjectDirectory({ name });
     const result = await initializeProject(picked.adapter, picked.handle, { name });
     return openPicked(picked, result);
-  },
-
-  /**
-   * PR-AE: FF7 サンプルプロジェクトをユーザの選んだ空フォルダに展開して開く。
-   * Vite plugin (ff7SamplePlugin) が `virtual:ff7-sample` で渡してくる
-   * ファイルツリーを adapter.write* で書き出してから loadProject() する。
-   */
-  async openFf7Sample(): Promise<OpenProjectContext> {
-    setLastError(undefined);
-    const picked = await pickProjectDirectory({ name: 'FF7 (sample)' });
-
-    const entries = Object.entries(FF7_SAMPLE.files);
-    if (entries.length === 0) {
-      throw new Error(
-        'FF7 サンプルが bundle されていません (vite ビルドの sample-projects/ff7 を確認)',
-      );
-    }
-    for (const [path, entry] of entries) {
-      if (entry.kind === 'text') {
-        await picked.adapter.write(picked.handle, path, entry.text);
-      } else {
-        const bin = base64ToBytes(entry.base64);
-        await picked.adapter.writeBytes(picked.handle, path, bin);
-      }
-    }
-    return await openPicked(picked, await loadProject(picked.adapter, picked.handle));
   },
 
   /**
@@ -153,6 +140,8 @@ export const ProjectService = {
 
   close(): void {
     const ctx = currentProject();
+    resetGlobalProjectHistory();
+    PlotBoardService.reset();
     if (ctx) {
       ctx.history.destroy();
       ConflictDetector.clear(ctx.handle);
@@ -160,6 +149,7 @@ export const ProjectService = {
     setCurrentProject(undefined);
     setLastError(undefined);
     GraphPositions.clear();
+    GraphComments.clear();
     ThumbnailService.clearAll();
   },
 
@@ -179,18 +169,27 @@ export const ProjectService = {
     // currentProject signal を再 set して subscriber に変更を伝える
     setCurrentProject({ ...ctx });
   },
-};
 
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
+  /**
+   * `ctx.project` 配下を Object.assign で in-place 更新したあとに呼ぶ。
+   * Solid signal は ctx の参照変化を見るため、{ ...ctx } を set し直すことで
+   * ProjectModel に依存する全 memo (Inspector / Outline / Graph / Glossary 等) を
+   * 再評価させる。
+   */
+  touch(): void {
+    const ctx = currentProject();
+    if (!ctx) return;
+    setCurrentProject({ ...ctx });
+  },
+};
 
 function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<OpenProjectContext> {
   // 既に open 中だった場合の history 解放
   const prev = currentProject();
+  resetGlobalProjectHistory();
+  // 旧プロジェクトのプロットボード保留保存を flush + モジュール状態をクリア
+  // (debounce タイマーが新プロジェクトへ書き込むのを防ぐ)。
+  PlotBoardService.reset();
   if (prev) {
     prev.history.destroy();
     ConflictDetector.clear(prev.handle);
@@ -200,6 +199,19 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
   for (const node of loaded.project.nodes.values()) {
     history.register(node);
   }
+  const unregisterProjectController = GlobalHistoryService.registerProjectController({
+    canUndo: () => history.pendingUndo > 0,
+    canRedo: () => history.pendingRedo > 0,
+    undo: () => history.undo(),
+    redo: () => history.redo(),
+  });
+  const unregisterProjectHistoryObserver = history.observe(() =>
+    GlobalHistoryService.recordProject(),
+  );
+  disposeGlobalProjectHistory = () => {
+    unregisterProjectHistoryObserver();
+    unregisterProjectController();
+  };
 
   const ctx: OpenProjectContext = {
     adapter: picked.adapter,
@@ -210,12 +222,14 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     scenarioRepository: loaded.scenarioRepository,
     glossaryRepository: loaded.glossaryRepository,
     relationsRepository: loaded.relationsRepository,
+    plotBoardRepository: loaded.plotBoardRepository,
     templates: loaded.templates,
     history,
     rawDirectoryHandle: picked.rawDirectoryHandle,
   };
   setCurrentProject(ctx);
-  GraphPositions.switchProject(picked.handle.id);
+  GraphPositions.switchProject(picked.adapter, picked.handle);
+  GraphComments.switchProject(picked.adapter, picked.handle);
   // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
   // (load 時点の内容 = 我々が知っている内容)
   void primeConflictBaseline(ctx);
@@ -233,13 +247,16 @@ function openPicked(picked: PickedProject, loaded: LoadProjectResult): Promise<O
     );
     console.warn('[ProjectService] chapter load errors:', loadErrors);
   }
-  return rememberProject({
+  void rememberProject({
     id: picked.handle.id,
     name: loaded.project.settings.name,
     directoryHandle: picked.rawDirectoryHandle,
   })
     .then(() => ProjectService.refreshRecent())
-    .then(() => ctx);
+    .catch((e) => {
+      console.warn('[ProjectService] recent project update failed', e);
+    });
+  return Promise.resolve(ctx);
 }
 
 async function primeConflictBaseline(ctx: OpenProjectContext): Promise<void> {

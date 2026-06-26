@@ -3,6 +3,7 @@ import { ProjectService } from './ProjectService.js';
 import { SaveStatus } from './SaveStatus.js';
 import { Toast } from './Toast.js';
 import { ConflictDetector } from './ConflictDetector.js';
+import { DirtyTracker } from './DirtyTracker.js';
 import type { NodeId } from '@scenario-studio/core';
 
 // 「現在開いているプロジェクト」に紐づく SaveScheduler の singleton。
@@ -15,35 +16,34 @@ let scheduler: SaveScheduler | undefined;
 function ensureScheduler(): SaveScheduler {
   if (scheduler) return scheduler;
   const inner = new SaveScheduler({
-    debounceMs: 500,
     flush: async (nodeId: NodeId) => {
       const ctx = ProjectService.currentProject();
       if (!ctx) return;
       const node = ctx.project.nodes.get(nodeId);
       if (!node) return;
-      SaveStatus.markSaving();
+      const token = SaveStatus.beginSave();
       try {
         // PR-AH: 上書き前に外部書き換えがないかチェック
         const path = ctx.nodeRepository.pathFor(node);
         const ok = await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, path);
         if (!ok) {
-          SaveStatus.markPending();
+          SaveStatus.skipSave(token);
           Toast.info(`保存スキップ: ${path} (外部変更を温存)`, 4000);
           return;
         }
         const content = ctx.nodeRepository.serializeForSave(node);
         await ctx.adapter.write(ctx.handle, path, content);
         ConflictDetector.recordSnapshot(ctx.handle, path, content);
-        SaveStatus.markSaved();
+        SaveStatus.endSave(token);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        SaveStatus.markError(msg);
+        SaveStatus.failSave(token, msg);
         Toast.error(`保存失敗: ${msg}`);
         throw e;
       }
     },
   });
-  // schedule() を proxy して SaveStatus.markPending を発火
+  // schedule() を proxy して SaveStatus.markPending を発火 (dirty 検知用)
   const original = inner.schedule.bind(inner);
   inner.schedule = (id: NodeId) => {
     SaveStatus.markPending();
@@ -61,12 +61,15 @@ export function useSaveScheduler(): SaveScheduler {
 }
 
 /**
- * project close 時に呼ぶ。pending を flush してから destroy。
+ * project close 時に呼ぶ。pending は捨てる (= 保存していない変更は失われる)。
+ * PR (ux-overhaul) 後は明示保存運用なので、ヘッダ側で「未保存があります」確認ダイアログを
+ * 出してから close するのが正しい運用。
  */
 export function disposeSaveScheduler(): void {
-  if (!scheduler) return;
-  scheduler.flushAll();
-  scheduler.destroy();
-  scheduler = undefined;
+  if (scheduler) {
+    scheduler.destroy();
+    scheduler = undefined;
+  }
+  DirtyTracker.reset();
   SaveStatus.reset();
 }

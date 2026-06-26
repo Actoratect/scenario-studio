@@ -99,7 +99,7 @@ describe('computeRelationshipLens', () => {
     expect(fields).toEqual(['faction', 'leader']);
   });
 
-  it('merges explicit Relation entities with type label (PR-E)', () => {
+  it('merges explicit Relation entities (text as edge label)', () => {
     const tmpl = new TemplateRegistry();
     const a = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
@@ -116,16 +116,17 @@ describe('computeRelationshipLens', () => {
         id: 'rel.x' as never,
         source: a.id,
         target: b.id,
-        type: 'friend',
+        text: '幼馴染',
       },
     ]);
     expect(lens.edges.length).toBe(1);
     expect(lens.edges[0]!.kind).toBe('explicit');
-    expect(lens.edges[0]!.label).toBe('友人'); // RELATION_TYPES.friend.label
-    expect(lens.edges[0]!.relationType).toBe('friend');
+    expect(lens.edges[0]!.label).toBe('幼馴染');
+    expect(lens.edges[0]!.source).toBe(a.id);
+    expect(lens.edges[0]!.target).toBe(b.id);
   });
 
-  it('explicit Relation custom label overrides type label', () => {
+  it('emits a separate edge per direction (bidirectional = two relations)', () => {
     const tmpl = new TemplateRegistry();
     const a = createNode(tmpl, {
       templateId: CHARACTER_TEMPLATE.id,
@@ -138,14 +139,10 @@ describe('computeRelationshipLens', () => {
       fields: { display_name: 'B' },
     });
     const lens = computeRelationshipLens(nodeMap([a, b]), tmpl, [
-      {
-        id: 'rel.x' as never,
-        source: a.id,
-        target: b.id,
-        type: 'friend',
-        label: '幼馴染',
-      },
+      { id: 'rel.x' as never, source: a.id, target: b.id, text: '兄' },
+      { id: 'rel.y' as never, source: b.id, target: a.id, text: '妹' },
     ]);
-    expect(lens.edges[0]!.label).toBe('幼馴染');
+    expect(lens.edges.length).toBe(2);
+    expect(lens.edges.map((e) => e.label).sort()).toEqual(['兄', '妹']);
   });
 });

@@ -1,0 +1,15 @@
+schemaVersion: 1
+kind: node
+# id は安定した一意キー (任意文字列で可。エディタで作ると ULID が振られる)。
+id: 01TMPL0HERO000000000000000
+templateId: template.character
+# slug = ファイル名。脚本の who: からはこの slug で参照する。
+slug: hero
+fields:
+  display_name: 主人公
+  reading: しゅじんこう
+  dev_name: Hero
+  gender: ''
+  tone: ''
+  first_person: 私
+  personality: ここに性格・行動原理を書く。

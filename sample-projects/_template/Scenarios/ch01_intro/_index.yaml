@@ -1,0 +1,8 @@
+schemaVersion: 1
+kind: chapter
+id: ch01_intro
+title: 第一章　はじまり
+order: 1
+# シーン順は同フォルダの _scene_index.yaml で管理する。
+scenes:
+  - s01_opening

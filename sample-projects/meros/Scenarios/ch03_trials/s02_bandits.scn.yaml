@@ -1,0 +1,54 @@
+schemaVersion: 1
+kind: scene
+id: ch03_s02_bandits
+title: 山賊との格闘
+chapter: ch03_trials
+order: 2
+location: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+era: era.ancient
+cast:
+  - melos
+script:
+  - kind: bgm
+    track: danger_ambush
+
+  - kind: aside
+    text: |
+      山路に差し掛かったとき、三人の男が木陰から躍り出た。
+      山賊だった。
+      メロスは、自分でも驚くほど落ち着いていた。
+
+  - kind: stage
+    text: 山中の道。三人の男が棍棒を構えてメロスの行く手を塞ぐ。
+
+  - kind: line
+    who: melos
+    emotion: fierce
+    text: '退け！　私は急ぐのだ。邪魔をするな！'
+
+  - kind: aside
+    text: |
+      山賊のひとりが棍棒を振り上げた。
+      メロスは咄嗟にそれをかわして、男の腹に体当たりした。
+      残りの二人が飛びかかってきた。
+      三人を相手に素手で格闘した。
+      短剣は城に没収されていた。
+      殴られ、蹴られ、地面に転がされ、
+      それでもメロスは立ち上がり、一人ずつ倒していった。
+
+  - kind: sfx
+    sound: combat_struggle
+
+  - kind: aside
+    text: |
+      ようやく三人を倒したとき、メロスの顔は傷だらけになっていた。
+      唇から血が出ていた。
+      それでもメロスは歩き続けた。今は歩くのが精一杯だった。
+
+  - kind: line
+    who: melos
+    emotion: determined
+    text: 'まだ、行ける。友が待っている。'
+
+  - kind: sfx
+    sound: labored_breathing

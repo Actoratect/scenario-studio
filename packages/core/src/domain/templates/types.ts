@@ -102,10 +102,14 @@ export interface TemplateDefinition {
 }
 
 /**
- * 全テンプレ共通の「3 つの名前」ヘルパ。
+ * 全テンプレ共通フィールド。Glossary 廃止 (PR: ux-overhaul) に伴い、
+ * 用語的属性 (aliases / forbidden_aliases / description) を各ノードに統合。
  *  - display_name: 画面 / 出力に出る人間用の名前 (必須)
  *  - reading: 読み仮名 (任意)
- *  - dev_name: 開発名 / 内部コード呼称 (任意)。slug とは別、ScriptPanel での参照に使う英字呼称
+ *  - dev_name: 開発名 / 内部コード呼称 (任意)。脚本 (who: ...) で参照する英字呼称
+ *  - aliases: 別表記 (改行 or 読点区切り)。検索や glossary highlight に使う
+ *  - forbidden_aliases: 禁止表記。本文中に出ると警告
+ *  - description: 用語としての説明 (任意)
  */
 export const NAME_FIELDS: readonly FieldSchema[] = [
   {
@@ -129,5 +133,26 @@ export const NAME_FIELDS: readonly FieldSchema[] = [
     type: 'string',
     description: '英字内部呼称。脚本 (who: ...) で参照する短い識別子',
     group: '名前',
+  },
+  {
+    id: 'aliases',
+    label: '別表記',
+    type: 'multiline_string',
+    description: '読点 / 改行区切りで別の呼び方 (検索や用語ハイライトに利用)',
+    group: '用語',
+  },
+  {
+    id: 'forbidden_aliases',
+    label: '禁止表記',
+    type: 'multiline_string',
+    description: '本文中に出ると警告される表記 (例: 旧称 / 誤記)',
+    group: '用語',
+  },
+  {
+    id: 'description',
+    label: '用語の説明',
+    type: 'multiline_string',
+    description: '読者には見せない設定メモ・用語解説',
+    group: '用語',
   },
 ];

@@ -1,0 +1,9 @@
+schemaVersion: 1
+kind: chapter
+id: ch01_confrontation
+title: 第一章　邂逅
+order: 1
+scenes:
+  - s01_enter_syracuse
+  - s02_confront_king
+  - s03_hostage_deal

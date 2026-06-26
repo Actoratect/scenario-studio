@@ -36,6 +36,7 @@
   --ss-accent-vermillion: #d55e00; /* error / danger */
   --ss-accent-yellow: #f0e442; /* highlight */
   --ss-accent-purple: #cc79a7;
+  --ss-accent-teal: #007f7a;
 
   /* severity background — accent をそのまま使うとコントラストが厳しいので
      pastel 化したサーフェスを別途用意 */
@@ -46,6 +47,31 @@
 
   /* focus ring (キーボード操作のフォーカス表示) */
   --ss-focus-ring: 0 0 0 2px var(--ss-accent-blue);
+
+  /* PR (ux-overhaul): フォントサイズ可変化。
+   * 画面ヘッダの「A-/A+/A大」ボタンから data-font-size 属性を root に立て、
+   * このスケール変数 (1.0 を中心に 0.85〜1.30) で全体を伸縮。 */
+  --ss-font-scale: 1;
+  --ss-font-9: calc(9px * var(--ss-font-scale));
+  --ss-font-10: calc(10px * var(--ss-font-scale));
+  --ss-font-11: calc(11px * var(--ss-font-scale));
+  --ss-font-12: calc(12px * var(--ss-font-scale));
+  --ss-font-13: calc(13px * var(--ss-font-scale));
+  --ss-font-14: calc(14px * var(--ss-font-scale));
+  --ss-font-18: calc(18px * var(--ss-font-scale));
+}
+
+html[data-font-size='small'] {
+  --ss-font-scale: 0.85;
+}
+html[data-font-size='medium'] {
+  --ss-font-scale: 1;
+}
+html[data-font-size='large'] {
+  --ss-font-scale: 1.15;
+}
+html[data-font-size='xlarge'] {
+  --ss-font-scale: 1.3;
 }
 
 html,
@@ -66,6 +92,7 @@ body,
     'Hiragino Kaku Gothic ProN',
     'Yu Gothic UI',
     sans-serif;
+  font-size: var(--ss-font-13);
 }
 
 /* OS dark mode の <input>/<textarea> のグレー化を抑止する保険 */
@@ -140,6 +167,124 @@ button {
   --dv-paneview-active-outline-color: var(--ss-accent-blue);
 }
 
+.workspace .dv-groupview {
+  box-shadow: inset 0 0 0 1px var(--ss-border-soft);
+}
+
+.workspace .dv-tabs-and-actions-container {
+  border-bottom: 1px solid var(--ss-border-soft);
+}
+
+.workspace .dv-default-tab-action {
+  display: none !important;
+}
+
+.workspace-panel-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-right: 4px;
+  z-index: 20;
+}
+
+.workspace-panel-menu-button {
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  color: var(--ss-text-muted);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.workspace-panel-pin-button {
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  color: var(--ss-text-muted);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.workspace-panel-pin-button:hover,
+.workspace-panel-pin-button--active {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.workspace-panel-menu-button:hover {
+  background: var(--ss-bg-soft);
+  color: var(--ss-text);
+  border-color: var(--ss-border);
+}
+
+.workspace-panel-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 4px;
+  width: 220px;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  box-shadow: 0 12px 30px rgba(20, 24, 31, 0.18);
+}
+
+.workspace-panel-menu button {
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--ss-text);
+  border: 0;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workspace-panel-menu button:hover:not(:disabled) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+}
+
+.workspace-panel-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workspace-panel-menu-danger {
+  color: var(--ss-accent-vermillion) !important;
+}
+
+.workspace-panel-menu-danger:hover:not(:disabled) {
+  background: var(--ss-bg-error) !important;
+}
+
+.workspace-panel-menu-separator {
+  height: 1px;
+  margin: 5px 0;
+  background: var(--ss-border-soft);
+}
+
 /* ===== Spinner / Loading (M8 hotfix-A) ===== */
 
 .ss-spinner {
@@ -165,14 +310,36 @@ button {
   }
 }
 
-/* 操作中だけかぶせる薄い半透明 overlay。reading impossible にはしない。 */
+@keyframes ss-async-bar {
+  0% {
+    transform: translateX(-35%);
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(35%);
+    opacity: 0.3;
+  }
+}
+
+/* Keep local loading feedback small and non-blocking. */
 .ss-loading-overlay {
   position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.65);
-  display: flex;
+  bottom: 10px;
+  right: 8px;
+  min-width: 180px;
+  max-width: min(280px, calc(100% - 16px));
+  padding: 7px 10px 10px;
+  background: color-mix(in srgb, var(--ss-bg) 94%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   font-size: 12px;
   color: var(--ss-text-muted);
@@ -208,6 +375,87 @@ button {
   background: var(--ss-bg-error);
   color: var(--ss-accent-vermillion);
   border-color: var(--ss-accent-vermillion);
+}
+
+.ss-save-async-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 900;
+  min-width: 190px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 8px 12px 13px;
+  color: var(--ss-text-muted);
+  background: color-mix(in srgb, var(--ss-bg) 94%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 8px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.ss-save-async-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.ss-save-async-kicker {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  border: 1px solid var(--ss-accent-sky);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ss-save-async-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ss-border-soft);
+}
+
+.ss-save-async-bar::before {
+  content: '';
+  display: block;
+  width: 55%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ss-accent-blue);
+  animation: ss-async-bar 1.1s ease-in-out infinite;
+}
+
+.ss-save-async-toast[data-state='saved'] .ss-save-async-kicker {
+  color: var(--ss-accent-green);
+  background: var(--ss-bg-success);
+  border-color: var(--ss-accent-green);
+}
+
+.ss-save-async-toast[data-state='saved'] .ss-save-async-bar::before {
+  width: 100%;
+  animation: none;
+  background: var(--ss-accent-green);
+}
+
+.ss-save-async-toast[data-state='error'] .ss-save-async-kicker {
+  color: var(--ss-accent-vermillion);
+  background: var(--ss-bg-error);
+  border-color: var(--ss-accent-vermillion);
+}
+
+.ss-save-async-toast[data-state='error'] .ss-save-async-bar::before {
+  width: 100%;
+  animation: none;
+  background: var(--ss-accent-vermillion);
 }
 
 .ss-save-status-error-detail {
@@ -385,6 +633,17 @@ button {
 
 .ss-modal-section input[type='text']:focus {
   border-color: var(--ss-accent-blue);
+}
+
+/* 関係編集 modal: 双方向ラベルを 2 カラムで並べる。 */
+.ss-relation-label-row {
+  display: flex;
+  gap: 10px;
+}
+
+.ss-relation-label-row label {
+  flex: 1;
+  min-width: 0;
 }
 
 .ss-modal-actions {
@@ -769,14 +1028,84 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 3px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--ss-font-12);
   cursor: pointer;
   margin-right: 6px;
 }
 
-.workspace-export:hover {
+.workspace-export:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.55);
+}
+
+.workspace-export:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.workspace-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  margin-right: 4px;
+}
+
+.workspace-history-btn {
+  min-width: 64px;
+  padding-inline: 8px;
+}
+
+/* PR (ux-overhaul): 保存ボタン。dirty があれば赤く光る */
+.workspace-save {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 3px 12px;
+  font-size: var(--ss-font-12);
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 6px;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.workspace-save:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.workspace-save--dirty {
+  background: var(--ss-accent-vermillion);
+  border-color: #ff8a4f;
+  color: #fff;
+  animation: ss-save-pulse 1.6s ease-in-out infinite;
+}
+
+.workspace-save--dirty:hover {
+  background: #e96d28;
+}
+
+.workspace-save-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  font-size: var(--ss-font-10);
+}
+
+@keyframes ss-save-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(213, 94, 0, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(213, 94, 0, 0);
+  }
 }
 
 /* AI panel inline-completion toggle */
@@ -1035,7 +1364,99 @@ button {
 .ss-script-visual-add-btn[data-color='vermillion'] {
   border-left-color: var(--ss-accent-vermillion);
 }
+.ss-script-visual-add-btn[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+}
 .ss-script-visual-add-btn[data-color='faint'] {
+  border-left-color: var(--ss-text-faint);
+}
+
+/* ----- 挿入バー (ブロック間の hover insert) — 「＋」 のみ、最低限の主張 ----- */
+.ss-script-insert-bar {
+  position: relative;
+  height: 4px;
+  margin: -1px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ss-script-insert-bar-trigger {
+  width: 18px;
+  height: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: transparent;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    width 0.15s,
+    height 0.15s;
+}
+
+.ss-script-insert-bar:hover .ss-script-insert-bar-trigger,
+.ss-script-insert-bar--open .ss-script-insert-bar-trigger {
+  background: var(--ss-accent-sky);
+  color: var(--ss-bg);
+  width: 22px;
+  height: 14px;
+  font-weight: 700;
+}
+
+.ss-script-insert-bar-menu {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.ss-script-insert-bar-item {
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-left-width: 3px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ss-script-insert-bar-item:hover {
+  background: var(--ss-bg-info);
+}
+
+.ss-script-insert-bar-item[data-color='sky'] {
+  border-left-color: var(--ss-accent-sky);
+}
+.ss-script-insert-bar-item[data-color='green'] {
+  border-left-color: var(--ss-accent-green);
+}
+.ss-script-insert-bar-item[data-color='purple'] {
+  border-left-color: var(--ss-accent-purple);
+}
+.ss-script-insert-bar-item[data-color='orange'] {
+  border-left-color: var(--ss-accent-orange);
+}
+.ss-script-insert-bar-item[data-color='vermillion'] {
+  border-left-color: var(--ss-accent-vermillion);
+}
+.ss-script-insert-bar-item[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+}
+.ss-script-insert-bar-item[data-color='faint'] {
   border-left-color: var(--ss-text-faint);
 }
 
@@ -1070,6 +1491,10 @@ button {
   border-left-color: var(--ss-accent-vermillion);
   background: #fef4ef;
 }
+.ss-script-card[data-color='teal'] {
+  border-left-color: var(--ss-accent-teal);
+  background: #f1fbfa;
+}
 .ss-script-card[data-color='faint'] {
   border-left-color: var(--ss-text-faint);
   background: var(--ss-bg-soft);
@@ -1084,6 +1509,12 @@ button {
 
 .ss-script-card-icon {
   font-size: 18px;
+}
+
+.ss-script-card[data-color='teal'] .ss-script-card-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ss-accent-teal);
 }
 
 .ss-script-card-num {
@@ -1172,7 +1603,8 @@ button {
 
 .ss-script-line-text,
 .ss-script-aside-text,
-.ss-script-stage-text {
+.ss-script-stage-text,
+.ss-script-comment-text {
   width: 100%;
   padding: 6px 8px;
   font-size: 13px;
@@ -1180,7 +1612,9 @@ button {
   line-height: 1.5;
   border: 1px solid var(--ss-border);
   border-radius: 3px;
-  resize: vertical;
+  /* 高さは内容に応じて JS で自動調整するため、手動リサイズ無効 + 溢れ非表示。 */
+  resize: none;
+  overflow: hidden;
   background: var(--ss-bg);
   color: var(--ss-text);
   box-sizing: border-box;
@@ -1193,6 +1627,12 @@ button {
 .ss-script-stage-text {
   background: var(--ss-bg-subtle);
   font-weight: 500;
+}
+
+.ss-script-comment-text {
+  background: var(--ss-bg-subtle);
+  color: var(--ss-text-muted);
+  border-style: dashed;
 }
 
 .ss-script-cue-input {
@@ -1315,6 +1755,101 @@ button {
   border-color: var(--ss-accent-blue);
 }
 
+.ss-script-image-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ss-script-image-file {
+  display: none;
+}
+
+.ss-script-image-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 180px;
+  padding: 10px;
+  background: #f8fbfb;
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ss-script-image-frame--empty {
+  border-style: dashed;
+  background: var(--ss-bg-subtle);
+}
+
+.ss-script-image-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 720px);
+  max-height: min(420px, 52vh);
+  object-fit: contain;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.ss-script-image-empty,
+.ss-script-image-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 150px;
+  color: var(--ss-text-muted);
+  text-align: center;
+}
+
+.ss-script-image-empty {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ss-script-image-empty:hover {
+  color: var(--ss-accent-teal);
+}
+
+.ss-script-image-missing code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+}
+
+.ss-script-image-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.ss-script-image-toolbar button {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ss-text);
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ss-script-image-toolbar button:hover {
+  color: var(--ss-accent-teal);
+  border-color: var(--ss-accent-teal);
+}
+
 .ss-script-unknown {
   margin: 0;
   padding: 8px;
@@ -1384,7 +1919,7 @@ button {
 
 .panel-script-meta {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--ss-font-12);
   background: var(--ss-bg-soft);
   border-bottom: 1px solid var(--ss-border-soft);
   color: var(--ss-text-muted);
@@ -1402,7 +1937,7 @@ button {
 
 .panel-script-host .cm-scroller {
   font-family: 'Menlo', 'Cascadia Code', 'Consolas', 'BIZ UDGothic', monospace;
-  font-size: 13px;
+  font-size: var(--ss-font-13);
   line-height: 1.55;
 }
 
@@ -1461,6 +1996,7 @@ button {
 .panel-script-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1476,10 +2012,96 @@ button {
   color: #888;
 }
 
+.panel-script-pin-tag {
+  padding: 2px 6px;
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  border: 1px solid var(--ss-accent-blue);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
 .panel-script-panel-id {
   margin-left: auto;
   font-size: 10px;
   color: #aaa;
+}
+
+.panel-script-rename {
+  padding: 2px 8px;
+  font-size: var(--ss-font-11);
+  min-width: 44px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panel-script-rename:hover:not(:disabled) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.panel-script-rename:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.panel-script-scene-meta,
+.panel-script-meta,
+.panel-script-scene-select,
+.panel-script-mode-toggle button,
+.ss-script-visual-add-label,
+.ss-script-visual-add-btn,
+.ss-script-insert-bar-item,
+.ss-script-line-who,
+.ss-script-cue-input,
+.ss-script-choice-bullet,
+.ss-script-choice-text,
+.ss-script-choice-then,
+.ss-script-choice-delete,
+.ss-script-choice-add,
+.ss-script-unknown,
+.ss-script-rail-issue,
+.ss-script-rail-ai-preview,
+.ss-script-rail-ai-preview pre {
+  font-size: var(--ss-font-11);
+}
+
+.panel-script-scene-title {
+  font-size: var(--ss-font-14);
+}
+
+.panel-script-scene-cast,
+.panel-script-saving,
+.ss-script-line-emotion,
+.ss-script-bgm-fade,
+.ss-script-bgm-fade input,
+.ss-script-rail-hint {
+  font-size: var(--ss-font-10);
+}
+
+.panel-script-scene-cast-chip,
+.ss-script-line-action-tag,
+.ss-script-card-num,
+.ss-script-rail-chip,
+.ss-script-rail-issue-rule {
+  font-size: var(--ss-font-9);
+}
+
+.ss-script-card-icon {
+  font-size: var(--ss-font-18);
+}
+
+.panel-script-host .cm-scroller,
+.ss-script-line-text,
+.ss-script-aside-text,
+.ss-script-stage-text,
+.ss-script-comment-text,
+.ss-script-choice-prompt {
+  font-size: var(--ss-font-13);
 }
 
 /* PoC-B 大規模グラフベンチ panel */
@@ -1545,13 +2167,7 @@ button {
   text-align: center;
 }
 
-/* App-level loading + workspace shell */
-.app-loading {
-  padding: 32px;
-  font-size: 14px;
-  color: #555;
-}
-
+/* Workspace shell */
 .workspace {
   display: flex;
   flex-direction: column;
@@ -1561,7 +2177,9 @@ button {
 .workspace-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 6px 12px;
   background: #1f2937;
   color: #fff;
@@ -1573,6 +2191,7 @@ button {
 }
 
 .workspace-close {
+  margin-left: auto;
   background: transparent;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1991,6 +2610,29 @@ button {
   font-weight: 600;
 }
 
+.panel-outline-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.panel-outline-group-toggle:hover {
+  color: var(--ss-text);
+  background: var(--ss-bg-soft);
+}
+
+.panel-outline-group-toggle span {
+  width: 14px;
+  text-align: center;
+  color: var(--ss-text-faint);
+}
+
 .panel-outline-list ul {
   list-style: none;
   padding: 0;
@@ -2013,8 +2655,21 @@ button {
 }
 
 .panel-outline-node--selected {
-  background: #d6e4ff;
-  border-color: #8aaeff;
+  /* 選択ノードを目立たせる: 太い左ボーダー + 強アクセント背景 + 濃いめの枠線 */
+  background: var(--ss-bg-info, #d6e4ff);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+  border-left-width: 3px;
+  font-weight: 600;
+  /* スクロール container 内で「選択時に見えなくなる」ことを防ぐマージン */
+  scroll-margin: 8px;
+}
+
+.panel-outline-node-slug {
+  margin-left: auto;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  flex-shrink: 0;
 }
 
 .panel-outline-empty {
@@ -2061,7 +2716,16 @@ button {
 
 .ssf-textarea {
   resize: vertical;
-  min-height: 64px;
+  min-height: 32px;
+}
+
+/* Auto-grow textarea (改行に応じて高さが伸びる)。
+   JS (autoResize()) が scrollHeight を反映するため field-sizing は使わない
+   (inline style と競合してむしろ動かないため)。 */
+.ssf-textarea--autosize {
+  resize: none;
+  overflow-y: hidden;
+  min-height: 32px;
 }
 
 .ssf-numeric {
@@ -2444,6 +3108,49 @@ button {
 .panel-outline-node-label {
   flex: 1;
   text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* PR (ux-overhaul): Nodes 一覧をテーブル状の auto-fit grid にする。
+ * パネル幅に応じて 1〜N 列に自動調整。各セルは横長の小さなカード。 */
+.panel-outline-list .panel-outline-nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.panel-outline-list .panel-outline-nodes > li {
+  list-style: none;
+}
+
+.panel-outline-list .panel-outline-nodes .panel-outline-node {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+}
+
+.panel-outline-list .panel-outline-nodes .panel-outline-node-label {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-outline-list .panel-outline-nodes .panel-outline-node-sub {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  flex-shrink: 0;
 }
 
 /* ===== Stats panel (PR-V) ===== */
@@ -3045,8 +3752,18 @@ button {
 }
 
 .panel-outline-chapter-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   font-weight: 500;
+}
+
+.panel-outline-chapter-summary {
+  margin: 3px 0 6px 24px;
+  color: var(--ss-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .panel-outline-chapter-slug {
@@ -3083,6 +3800,41 @@ button {
   padding: 2px 10px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.panel-outline-add-node-form {
+  align-items: center;
+  margin: 4px 0 8px;
+}
+
+.panel-outline-add-node-form select,
+.panel-outline-add-node-form input {
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  background: var(--ss-bg);
+}
+
+.panel-outline-add-node-form input {
+  flex: 1;
+}
+
+.panel-outline-form-error {
+  margin: 0 0 8px;
+  padding: 4px 6px;
+  color: var(--ss-accent-vermillion);
+  background: var(--ss-bg-error);
+  border: 1px solid var(--ss-accent-vermillion);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.panel-outline-subgroup small {
+  margin-left: auto;
+  color: var(--ss-text-faint);
+  font-size: 10px;
 }
 
 /* Synopsis panel */
@@ -3290,6 +4042,25 @@ button {
   color: var(--ss-text-faint);
 }
 
+.panel-graph-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+  white-space: nowrap;
+}
+
+.panel-graph-size-control input[type='range'] {
+  width: 96px;
+}
+
+.panel-graph-size-control span {
+  min-width: 2ch;
+  font-family: 'SF Mono', Consolas, monospace;
+  color: var(--ss-text-faint);
+}
+
 .panel-graph-era-toggle {
   display: inline-flex;
   align-items: center;
@@ -3344,6 +4115,11 @@ button {
   color: var(--ss-text);
   border: 1px solid var(--ss-border);
   border-radius: 3px;
+}
+
+.panel-graph-search--wide {
+  max-width: 520px;
+  margin-left: 0;
 }
 
 .panel-graph-search:focus-visible {
@@ -3556,6 +4332,40 @@ button {
   font-size: 12px;
 }
 
+/* PR-0508 b: colgroup での列幅指定が効くよう table-layout を fixed に。
+   各セルは overflow-hidden + textareaで内容に合わせて折返し可能 (input は 1 行)。 */
+.panel-glossary-table {
+  table-layout: fixed;
+}
+.panel-glossary-table td,
+.panel-glossary-table th {
+  overflow: hidden;
+  word-break: break-word;
+}
+.panel-glossary-table th {
+  position: relative;
+  user-select: none;
+}
+
+/* 列境界 drag リサイザ — th の右辺に 6 px 帯。hover で見えて drag で col-resize。 */
+.panel-glossary-col-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.panel-glossary-col-resize:hover {
+  background: var(--ss-accent-blue, #1a5cd6);
+  opacity: 0.4;
+}
+.panel-glossary-col-resize:active {
+  background: var(--ss-accent-blue, #1a5cd6);
+  opacity: 0.7;
+}
+
 .panel-glossary th {
   text-align: left;
   border-bottom: 1px solid #e0e0e3;
@@ -3565,12 +4375,84 @@ button {
 }
 
 .panel-glossary td {
-  padding: 4px 6px;
+  padding: 2px 4px;
   border-bottom: 1px solid #f0f0f3;
 }
 
 .panel-glossary-forbidden {
   color: #a33;
+}
+
+/* インライン編集用セル input。テーブルセルに収まるように */
+.panel-glossary-cell-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.panel-glossary-cell-input:hover {
+  background: var(--ss-bg-soft, #f8f8fa);
+  border-color: var(--ss-border-soft, #e0e0e3);
+}
+
+.panel-glossary-cell-input:focus {
+  background: var(--ss-bg, #ffffff);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+  outline: none;
+}
+
+/* 行間の「＋」ボタン (Excel 風 row insert)。
+   通常は薄く / 1px 帯で表示し、hover でハッキリ見える。 */
+.panel-glossary-insert-row td {
+  padding: 0;
+  border: none;
+  height: 4px;
+  position: relative;
+  background: transparent;
+}
+.panel-glossary-insert-row:hover td {
+  background: var(--ss-bg-info, #eff5ff);
+}
+.panel-glossary-insert-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  background: var(--ss-bg, #ffffff);
+  color: var(--ss-text-faint, #999);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease-out,
+    color 0.12s ease-out;
+}
+.panel-glossary-insert-row:hover .panel-glossary-insert-btn {
+  opacity: 1;
+  color: var(--ss-accent-blue, #1a5cd6);
+  border-color: var(--ss-accent-blue, #1a5cd6);
+}
+.panel-glossary-insert-btn:hover {
+  background: var(--ss-bg-info, #eff5ff);
+}
+
+/* テーブルセルのテキスト/インプットを中身に応じて伸ばすために、
+   tr / td には固定 height を付けず、 input 側で自然サイズに任せる。
+   row-resize は user-resize: vertical 相当を input/textarea で個別対応。 */
+.panel-glossary table tr {
+  height: auto;
 }
 
 .panel-glossary-form {
@@ -3663,7 +4545,8 @@ button {
 }
 
 .panel-outline-scene:hover .panel-outline-delete-scene,
-.panel-outline-scene:hover .panel-outline-rename-scene {
+.panel-outline-scene:hover .panel-outline-rename-scene,
+.panel-outline-scene:hover .panel-outline-open-script {
   opacity: 1;
 }
 
@@ -3691,6 +4574,25 @@ button {
   background: var(--ss-bg-info);
   color: var(--ss-accent-blue);
   border-color: var(--ss-accent-blue);
+}
+
+.panel-outline-open-script {
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ss-text-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.panel-outline-open-script:hover {
+  background: var(--ss-bg-success);
+  color: var(--ss-accent-green);
+  border-color: var(--ss-accent-green);
 }
 
 .panel-outline-scene-slug {
@@ -4070,6 +4972,17 @@ button {
   /* マスク表現: 枠の外を暗く ↑ box-shadow で全画面を暗くしているのと等価 */
 }
 
+/* PR (ux-overhaul-2): 編集モード OFF — 完全に非表示。
+ * 利用者の要望「サムネ範囲の枠は不要」に追随。 */
+.ss-portrait-crop--readonly {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+  display: none;
+}
+
 .ss-portrait-crop--dragging {
   border-color: var(--ss-accent-orange);
   cursor: grabbing;
@@ -4077,14 +4990,18 @@ button {
 
 .ss-portrait-crop-handle {
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 12px;
-  height: 12px;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
   background: var(--ss-accent-blue);
   border: 2px solid var(--ss-bg);
   border-radius: 2px;
   cursor: nwse-resize;
+  /* z-index で move-handler (= 親 div の onMouseDown) の上に置き、確実に
+     resize イベントを受ける。frame の overflow:hidden に切られないよう
+     box 内に納まる位置 (right:0, bottom:0)。 */
+  z-index: 3;
 }
 
 .ss-portrait-crop--dragging .ss-portrait-crop-handle {
@@ -4114,6 +5031,641 @@ button {
     color 0.12s;
 }
 
+/* PR (ux-overhaul): グラフ上のメモ (グループ注釈) */
+.lens-comment {
+  pointer-events: auto;
+}
+.lens-comment-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  pointer-events: auto;
+}
+.lens-comment-text {
+  flex: 1;
+  width: calc(100% - 6px);
+  height: calc(100% - 16px);
+  padding: 4px 6px;
+  margin: 3px 3px 0 3px;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--ss-text);
+  border: 0;
+  resize: none;
+  box-sizing: border-box;
+}
+.lens-comment-text:focus {
+  outline: 1px solid var(--ss-accent-blue);
+  outline-offset: -1px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.lens-comment-delete {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--ss-text-muted);
+}
+.lens-comment-delete:hover {
+  background: var(--ss-accent-vermillion);
+  color: #fff;
+}
+
+.panel-graph-add-comment {
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.panel-graph-add-comment:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+
+/* Graph Plot Board */
+.plot-board-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* カード 0 件のときの空状態案内。ダブルクリック等の操作を妨げないよう
+   pointer-events:none で背面に敷く。 */
+.plot-board-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 24px;
+  text-align: center;
+  pointer-events: none;
+  color: var(--ss-text-muted);
+}
+
+.plot-board-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ss-text);
+}
+
+.plot-board-empty-hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.plot-board-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--ss-bg) 92%, transparent);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.plot-board-toolbar button {
+  padding: 4px 9px;
+  font-size: 12px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot-board-toolbar button:hover {
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-toolbar-hint {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+  white-space: nowrap;
+}
+
+.plot-board-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.plot-board-canvas--dragging {
+  cursor: grabbing;
+}
+
+.plot-board-edge line {
+  stroke: #4b5563;
+  stroke-width: 1.8;
+}
+
+.plot-board-edge-label {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.plot-board-edge-label:hover {
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-rubber {
+  stroke: var(--ss-accent-blue);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.plot-board-card-fo--dimmed {
+  opacity: 0.28;
+}
+
+.plot-board-card {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-left-width: 5px;
+  border-radius: 7px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.11);
+}
+
+.plot-board-card[data-kind='thread'] {
+  border-left-color: #0072b2;
+}
+
+.plot-board-card[data-kind='beat'] {
+  border-left-color: #009e73;
+}
+
+.plot-board-card[data-kind='memo'] {
+  border-left-color: #e69f00;
+}
+
+.plot-board-card[data-kind='question'] {
+  border-left-color: #cc79a7;
+}
+
+.plot-board-card[data-kind='scene_ref'] {
+  border-left-color: #5a6068;
+}
+
+.plot-board-card--target {
+  outline: 3px solid var(--ss-accent-blue);
+  outline-offset: -3px;
+}
+
+.plot-board-card-header {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  box-sizing: border-box;
+  background: var(--ss-bg-soft);
+  border-bottom: 1px solid var(--ss-border-soft);
+  cursor: grab;
+  user-select: none;
+}
+
+.plot-board-card-header:active {
+  cursor: grabbing;
+}
+
+.plot-board-card-kind {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ss-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* summary モードの題名インライン編集。ヘッダに溶け込ませ、focus 時のみ枠を出す。 */
+.plot-board-card-kind-edit {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ss-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.plot-board-card-kind-edit:hover {
+  border-color: var(--ss-border-soft);
+}
+
+.plot-board-card-kind-edit:focus {
+  outline: none;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-card-header button {
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot-board-card-header button:hover:not(.plot-board-mode-toggle) {
+  color: #fff;
+  background: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
+.plot-board-card-header .plot-board-mode-toggle {
+  width: auto;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-sky);
+}
+
+.plot-board-card-header .plot-board-mode-toggle:hover {
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border-color: var(--ss-accent-blue);
+}
+
+.plot-board-card-refs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--ss-border-soft);
+  overflow: hidden;
+}
+
+.plot-board-ref-chip {
+  min-width: 0;
+  max-width: 118px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 2px;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.plot-board-ref-chip:hover {
+  color: var(--ss-accent-vermillion);
+  border-color: var(--ss-accent-vermillion);
+}
+
+.plot-board-ref-chip span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.plot-board-ref-thumb-fallback {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--ss-text-on-emph);
+  background: var(--ss-accent-blue);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.plot-board-card-refs select {
+  min-width: 86px;
+  height: 24px;
+  margin-left: auto;
+  color: var(--ss-text-muted);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.plot-board-card-body {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  resize: none;
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: inherit;
+  color: var(--ss-text);
+  background: transparent;
+  border: 0;
+}
+
+.plot-board-card-body:focus {
+  outline: 2px solid var(--ss-accent-blue);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--ss-bg-info) 35%, transparent);
+}
+
+.plot-board-card-body--summary {
+  min-height: 44px;
+}
+
+.plot-board-card[data-mode='summary'] .plot-board-card-body {
+  max-height: 70px;
+  /* 本文がクリップされても編集時にスクロールで全文を見られるようにし、
+     見えない行を誤って消すのを防ぐ。 */
+  overflow-y: auto;
+}
+
+.plot-board-card[data-mode='full'] .plot-board-card-body {
+  min-height: 128px;
+}
+
+/* relation type picker: 自由入力 input + 候補 details */
+.ss-relation-type-presets {
+  margin-top: 8px;
+}
+.ss-relation-type-presets summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+  user-select: none;
+}
+.ss-relation-type-presets summary:hover {
+  color: var(--ss-accent-blue);
+}
+
+/* PR (ux-overhaul): プロットタブの右 rail (PlotDetailRail) レイアウト */
+.panel-timeline--with-rail {
+  display: flex;
+  flex-direction: column;
+}
+.panel-timeline-with-rail {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.panel-timeline-with-rail .panel-timeline-track {
+  flex: 1;
+  min-width: 0;
+}
+.ss-plot-rail {
+  flex-shrink: 0;
+  border-left: 1px solid var(--ss-border-soft);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+/* 左端の drag-resize handle */
+.ss-plot-rail-resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 10;
+}
+.ss-plot-rail-resize:hover {
+  background: var(--ss-accent-blue);
+  opacity: 0.4;
+}
+.ss-plot-rail-target {
+  margin: 0 0 2px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.ss-plot-rail-path {
+  margin: 0;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-family: 'SF Mono', Consolas, monospace;
+  word-break: break-all;
+}
+.ss-plot-rail-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+.ss-plot-rail-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--ss-bg);
+  color: var(--ss-text);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.ss-plot-rail-reload {
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ss-plot-rail-reload:hover {
+  background: var(--ss-bg-info);
+}
+.panel-timeline-card-open {
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.panel-timeline-card-open:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+.panel-timeline-card--selected {
+  background: var(--ss-bg-info) !important;
+  border-color: var(--ss-accent-blue) !important;
+  box-shadow: 0 0 0 2px var(--ss-accent-blue) inset;
+}
+
+.panel-timeline-column--selected {
+  border-color: var(--ss-accent-blue) !important;
+  box-shadow: 0 0 0 2px rgba(0, 114, 178, 0.12);
+}
+
+/* PR (ux-overhaul): Inspector「登場した章」セクション */
+.panel-inspector-appearances {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 4px;
+}
+.panel-inspector-appearances-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ss-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-inspector-appearances-loading {
+  font-weight: 400;
+  color: var(--ss-text-faint);
+  font-size: 11px;
+}
+.panel-inspector-appearances-refresh {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--ss-border-soft);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--ss-text-muted);
+}
+.panel-inspector-appearances-refresh:hover {
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+}
+.panel-inspector-appearances-empty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+  font-style: italic;
+}
+.panel-inspector-appearances-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.panel-inspector-appearances-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.panel-inspector-appearances-chapter-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ss-text-muted);
+}
+.panel-inspector-appearances-count {
+  color: var(--ss-text-faint);
+  font-weight: 400;
+}
+.panel-inspector-appearances-scenes {
+  list-style: none;
+  padding: 0 0 0 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.panel-inspector-appearances-scene {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--ss-text);
+  cursor: pointer;
+}
+.panel-inspector-appearances-scene:hover {
+  background: var(--ss-bg-info);
+  border-color: var(--ss-accent-blue);
+}
+.panel-inspector-appearances-line-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ss-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-portrait-action--active {
+  background: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+  color: var(--ss-bg);
+}
+.ss-portrait-action--active:hover {
+  background: var(--ss-accent-blue);
+  color: var(--ss-bg);
+}
+
 .ss-portrait-action:hover {
   background: var(--ss-bg-info);
   border-color: var(--ss-accent-blue);
@@ -4139,36 +5691,6 @@ button {
 /* ============================================================
  * PR-AF: Glossary chip 行 (Script visual editor 内)
  * ============================================================ */
-.ss-script-glossary-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.ss-script-glossary-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  font-size: 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-family: 'SF Mono', Consolas, monospace;
-  white-space: nowrap;
-}
-
-.ss-script-glossary-chip--ok {
-  background: var(--ss-bg-success);
-  color: var(--ss-accent-green);
-  border-color: var(--ss-accent-green);
-}
-
-.ss-script-glossary-chip--warn {
-  background: var(--ss-bg-warning);
-  color: var(--ss-accent-vermillion);
-  border-color: var(--ss-accent-vermillion);
-}
-
 /* PR-AF: Stats 章別 セリフ密度バー (緑系で文字数バーと区別) */
 .panel-stats-bar-fill--density {
   background: var(--ss-accent-green);
@@ -5255,6 +6777,26 @@ button {
   color: var(--ss-text-faint);
 }
 
+.ss-relation-free-text {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.ss-relation-free-text:focus-visible {
+  outline: 2px solid var(--ss-accent-blue);
+  outline-offset: 1px;
+}
+
 /* PR-AW: Unity Readiness overlay */
 .ss-readiness-summary {
   list-style: none;
@@ -5734,4 +7276,15 @@ button {
   background: var(--ss-bg-info);
   color: var(--ss-accent-blue);
   border-color: var(--ss-accent-blue);
+}
+
+/* アクセシビリティ: 動きに敏感なユーザー向けに継続アニメ (spinner / 保存バー /
+   pulse 等) を無効化する。hover 等の短いトランジションは維持する。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

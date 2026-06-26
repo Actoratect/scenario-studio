@@ -16,6 +16,7 @@ async function persistNode(node: ScenarioNode): Promise<void> {
   const next = new Map(ctx.project.nodes);
   next.set(node.id, node);
   Object.assign(ctx.project, { nodes: next });
+  ProjectService.touch();
 }
 
 function findOrCreateVariant(node: ScenarioNode, eraId: EraId): NodeVariant {

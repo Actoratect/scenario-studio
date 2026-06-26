@@ -29,6 +29,8 @@ interface ScriptItem {
   name?: string;
   cue?: string;
   prompt?: string;
+  src?: string;
+  caption?: string;
 }
 
 export function exportScene(format: ExportFormat, opts: ExportSceneOptions): string {
@@ -76,6 +78,12 @@ function renderText(
       case 'choice':
         lines.push(`[選択肢] ${item.prompt ?? ''}`);
         break;
+      case 'image':
+        lines.push(`[画像: ${item.src ?? ''}]${item.caption ? ` ${item.caption}` : ''}`);
+        break;
+      case 'comment':
+        lines.push(`[コメント] ${item.text ?? ''}`);
+        break;
       default:
         lines.push(`[${item.kind}] ${item.text ?? ''}`);
     }
@@ -121,6 +129,15 @@ function renderMarkdown(
         break;
       case 'choice':
         lines.push(`**[選択肢]** ${item.prompt ?? ''}`);
+        lines.push('');
+        break;
+      case 'image':
+        lines.push(`![${item.caption ?? 'image'}](${item.src ?? ''})`);
+        if (item.caption) lines.push(`*${item.caption}*`);
+        lines.push('');
+        break;
+      case 'comment':
+        lines.push(`> 📝 ${item.text ?? ''}`);
         lines.push('');
         break;
       default:
@@ -172,6 +189,8 @@ function extractScript(v: { [k: string]: YamlValue }): readonly ScriptItem[] {
     if (typeof item['name'] === 'string') obj.name = item['name'];
     if (typeof item['cue'] === 'string') obj.cue = item['cue'];
     if (typeof item['prompt'] === 'string') obj.prompt = item['prompt'];
+    if (typeof item['src'] === 'string') obj.src = item['src'];
+    if (typeof item['caption'] === 'string') obj.caption = item['caption'];
     out.push(obj);
   }
   return out;

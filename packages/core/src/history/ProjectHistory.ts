@@ -2,6 +2,10 @@ import { NodeFieldStore } from './NodeFieldStore.js';
 import type { NodeId } from '../domain/era.js';
 import type { ScenarioNode } from '../domain/node.js';
 
+export interface ProjectHistoryEditEvent {
+  readonly nodeId: NodeId;
+}
+
 // ProjectModel 全体のローカル履歴。per-node NodeFieldStore を保有し、
 // global undo / redo (LIFO) は「最後に編集されたノード」の store に委譲する。
 //
@@ -18,6 +22,7 @@ import type { ScenarioNode } from '../domain/node.js';
 
 export class ProjectHistory {
   private readonly stores = new Map<NodeId, NodeFieldStore>();
+  private readonly listeners = new Set<(event: ProjectHistoryEditEvent) => void>();
   /** 直近に編集された node ID の LIFO。 undo() で参照。 */
   private readonly undoStack: NodeId[] = [];
   /** undo() で消化したものを退避し、redo() で巻き戻す LIFO。 */
@@ -37,6 +42,7 @@ export class ProjectHistory {
       if (event.origin !== NodeFieldStore.REMOTE_ORIGIN) {
         this.undoStack.push(node.id);
         this.redoStack.length = 0; // 新しい編集が来たら redo は破棄
+        this.emit({ nodeId: node.id });
       }
     });
     return store;
@@ -63,8 +69,18 @@ export class ProjectHistory {
   destroy(): void {
     for (const s of this.stores.values()) s.destroy();
     this.stores.clear();
+    this.listeners.clear();
     this.undoStack.length = 0;
     this.redoStack.length = 0;
+  }
+
+  observe(listener: (event: ProjectHistoryEditEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(event: ProjectHistoryEditEvent): void {
+    for (const listener of this.listeners) listener(event);
   }
 
   /**

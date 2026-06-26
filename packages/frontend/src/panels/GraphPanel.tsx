@@ -13,9 +13,10 @@ import {
   type LensEdge,
   type LensPayload,
   type NodeId,
+  type PlotBoardEdgeId,
+  type PlotBoardNodeId,
   type PlotFlowAnalysis,
   type RelationId,
-  type RelationType,
 } from '@scenario-studio/core';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
@@ -26,8 +27,12 @@ import { RelationsService } from '../services/RelationsService';
 import { SceneSelection } from '../services/SceneSelection';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { LensCanvas } from '../graph/LensCanvas';
+import { PlotBoardCanvas } from '../graph/PlotBoardCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
+import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
+import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
+import { PlotBoardService } from '../services/PlotBoardService';
 import { createResource } from 'solid-js';
 
 // Relationship Lens 本実装 (M5) + PR-C/E 編集機能。
@@ -41,8 +46,9 @@ import { createResource } from 'solid-js';
 // 詳細: ../../../../Documentation/ScenarioEditor/04_graph-editor.md,
 //       ../../../../Documentation/ScenarioEditor/22_ux_feature_review.md §C
 
-type LensMode = 'relationship' | 'plot-flow';
+type LensMode = 'relationship' | 'plot-flow' | 'plot-board';
 const LENS_MODE_KEY = 'scenario-studio:graph-lens-mode';
+const NODE_SIZE_KEY = 'scenario-studio:graph-node-size';
 
 const TEMPLATE_TOGGLES: ReadonlyArray<{ id: string; label: string; emoji: string }> = [
   { id: CHARACTER_TEMPLATE.id, label: 'キャラ', emoji: '👤' },
@@ -59,14 +65,22 @@ interface PendingPicker {
 
 interface EditingPicker {
   relationId: RelationId;
-  current: { type: RelationType; label?: string };
+  text: string;
+  caption: string;
+}
+
+interface EdgeEditState {
+  edgeId: PlotBoardEdgeId;
+  type: string;
+  label?: string | undefined;
   caption: string;
 }
 
 function loadLensMode(): LensMode {
   if (typeof localStorage === 'undefined') return 'relationship';
   const v = localStorage.getItem(LENS_MODE_KEY);
-  return v === 'plot-flow' ? 'plot-flow' : 'relationship';
+  if (v === 'plot-flow' || v === 'plot-board') return v;
+  return 'relationship';
 }
 
 function saveLensMode(m: LensMode): void {
@@ -78,11 +92,28 @@ function saveLensMode(m: LensMode): void {
   }
 }
 
+function loadNodeSize(): number {
+  if (typeof localStorage === 'undefined') return 22;
+  const v = Number(localStorage.getItem(NODE_SIZE_KEY));
+  return Number.isFinite(v) ? Math.max(14, Math.min(44, v)) : 22;
+}
+
+function saveNodeSize(size: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(NODE_SIZE_KEY, String(size));
+  } catch {
+    /* quota */
+  }
+}
+
 export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
+  const [edgeEdit, setEdgeEdit] = createSignal<EdgeEditState | undefined>(undefined);
   const [lensMode, setLensMode] = createSignal<LensMode>(loadLensMode());
+  const [nodeSize, setNodeSize] = createSignal(loadNodeSize());
 
   function setLensModeAndPersist(m: LensMode): void {
     setLensMode(m);
@@ -94,6 +125,8 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     new Set<string>(),
   );
   const [searchQuery, setSearchQuery] = createSignal('');
+  // PR (ux-overhaul-3): 関係 (edge) 表示 toggle
+  const [edgesVisible, setEdgesVisible] = createSignal(true);
 
   function toggleTemplate(templateId: string): void {
     const cur = hiddenTemplates();
@@ -101,6 +134,12 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     if (next.has(templateId)) next.delete(templateId);
     else next.add(templateId);
     setHiddenTemplates(next);
+  }
+
+  function setNodeSizeAndPersist(size: number): void {
+    const clamped = Math.max(14, Math.min(44, size));
+    setNodeSize(clamped);
+    saveNodeSize(clamped);
   }
 
   /** Plot Flow 用の解析 (unreachable / unresolved transitions も含む) */
@@ -123,7 +162,18 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     if (lensMode() === 'plot-flow') {
       return plotFlowAnalysis()?.payload;
     }
+    if (lensMode() === 'plot-board') return undefined;
     return computeRelationshipLens(ctx.project.nodes, ctx.templates, ctx.project.relations);
+  });
+
+  const plotBoard = createMemo(() => {
+    if (lensMode() !== 'plot-board') return undefined;
+    return PlotBoardService.currentBoard();
+  });
+
+  const plotBoardReferenceNodes = createMemo(() => {
+    const ctx = ProjectService.currentProject();
+    return ctx ? [...ctx.project.nodes.values()] : [];
   });
 
   // PR-AN: hidden テンプレに属するノードを除外し、両端を含む edge も除外。
@@ -133,17 +183,19 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const raw = rawLens();
     if (!raw) return undefined;
     const hidden = hiddenTemplates();
-    if (hidden.size === 0) return raw;
+    const showEdges = edgesVisible();
+    if (hidden.size === 0 && showEdges) return raw;
     const visibleNodes = raw.nodes.filter((n) => !hidden.has(n.templateId));
     const visibleIds = new Set<NodeId>(visibleNodes.map((n) => n.id));
-    const visibleEdges = raw.edges.filter(
+    let visibleEdges = raw.edges.filter(
       (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
     );
+    if (!showEdges) visibleEdges = [];
     return { nodes: visibleNodes, edges: visibleEdges };
   });
 
   const fallbackPositions = createMemo(() => {
-    const l = lens();
+    const l = rawLens();
     if (!l) return new Map<NodeId, { x: number; y: number }>();
     return deterministicCircularLayout(l, {
       centerX: 600,
@@ -162,21 +214,28 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     return merged;
   });
 
-  // 各ノードのサムネイル URL を解決 (PR-Q)。lens 変化時に再計算。
-  // 注意: createResource の source が falsy だと fetcher が呼ばれないため、
-  // lens() を直接 source にすると初期 undefined → 解決しないまま残るバグがある。
-  // 常に object を返し、fetcher 内で nodes 不在を分岐する。
+  // 各ノードの「正方形 crop 済」サムネ URL を解決 (PR-Q)。
+  // lens / project.nodes 変化時に再計算。グラフは circle clip するので canvas で
+  // pre-render した square をそのまま貼るとアスペクト比が破綻しない。
+  // createResource の source は常に object を返し、fetcher 内で空分岐する
+  // (falsy 時 fetcher 不発火を回避)。
   const [thumbnailUrls] = createResource(
     () => ({ nodes: lens()?.nodes ?? [] }),
     async (src) => {
       const out = new Map<NodeId, string>();
+      const ctx = ProjectService.currentProject();
+      if (!ctx) return out;
       for (const n of src.nodes) {
         if (!n.thumbnail) continue;
-        const url = await ThumbnailService.resolveUrl(n.thumbnail);
+        // graph の LensNode には thumbnailRect が無いので ProjectModel から元 node を引く
+        const fullNode = ctx.project.nodes.get(n.id);
+        if (!fullNode) continue;
+        const url = await ThumbnailService.resolveCroppedUrl(fullNode);
         if (url) out.set(n.id, url);
       }
       return out;
     },
+    { initialValue: new Map<NodeId, string>() },
   );
 
   const dimmed = createMemo<ReadonlySet<NodeId>>(() => {
@@ -204,6 +263,31 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           out.add(n.id);
         }
       }
+    }
+    return out;
+  });
+
+  const plotBoardDimmed = createMemo<ReadonlySet<PlotBoardNodeId>>(() => {
+    const board = plotBoard();
+    if (!board) return new Set();
+    const q = searchQuery().trim().toLowerCase();
+    if (q === '') return new Set();
+    const out = new Set<PlotBoardNodeId>();
+    const refs = new Map(plotBoardReferenceNodes().map((n) => [n.id, n]));
+    for (const node of board.nodes) {
+      const refText = (node.anchors?.nodes ?? [])
+        .map((id) => {
+          const ref = refs.get(id);
+          if (!ref) return id;
+          const displayName = ref.fields['display_name'];
+          return `${id}\n${ref.slug}\n${
+            typeof displayName === 'string' ? displayName : ''
+          }\n${ref.templateId}`;
+        })
+        .join('\n');
+      const haystack =
+        `${node.id}\n${node.kind}\n${node.title}\n${node.body}\n${refText}`.toLowerCase();
+      if (!haystack.includes(q)) out.add(node.id);
     }
     return out;
   });
@@ -247,11 +331,25 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
 
   function startEdit(edge: LensEdge): void {
     if (lensMode() === 'plot-flow') return;
-    if (edge.kind !== 'explicit' || !edge.relationId || !edge.relationType) return;
+    if (edge.kind !== 'explicit' || !edge.relationId) return;
     setEditing({
       relationId: edge.relationId,
-      current: { type: edge.relationType, label: edge.label },
+      text: edge.label,
       caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
+    });
+  }
+
+  function editPlotBoardEdge(edgeId: PlotBoardEdgeId): void {
+    const board = plotBoard();
+    const edge = board?.edges.find((e) => e.id === edgeId);
+    if (!edge) return;
+    const titleOf = (id: PlotBoardNodeId): string =>
+      board?.nodes.find((n) => n.id === id)?.title?.split(/\r?\n/, 1)[0] || '無題';
+    setEdgeEdit({
+      edgeId,
+      type: edge.type,
+      label: edge.label,
+      caption: `${titleOf(edge.source)} → ${titleOf(edge.target)}`,
     });
   }
 
@@ -276,13 +374,42 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             >
               🗺 Plot Flow
             </button>
+            <button
+              type="button"
+              classList={{ active: lensMode() === 'plot-board' }}
+              onClick={() => setLensModeAndPersist('plot-board')}
+              title="並行プロットと脚本メモをカードで編集"
+            >
+              🧩 プロットボード
+            </button>
           </span>
-          <Show when={lens()}>
+          <Show when={lensMode() !== 'plot-board' && lens()}>
             {(l) => (
               <span class="panel-graph-stats">
                 {l().nodes.length} nodes · {l().edges.length} edges
               </span>
             )}
+          </Show>
+          <Show when={lensMode() === 'plot-board' && plotBoard()}>
+            {(board) => (
+              <span class="panel-graph-stats">
+                {board().nodes.length} cards · {board().edges.length} links
+              </span>
+            )}
+          </Show>
+          <Show when={lensMode() !== 'plot-board'}>
+            <label class="panel-graph-size-control" title="グラフノードの表示サイズ">
+              サイズ
+              <input
+                type="range"
+                min="14"
+                max="44"
+                step="1"
+                value={nodeSize()}
+                onInput={(e) => setNodeSizeAndPersist(Number(e.currentTarget.value))}
+              />
+              <span>{nodeSize()}</span>
+            </label>
           </Show>
           <Show when={lensMode() === 'plot-flow' && plotFlowAnalysis()}>
             {(a) => (
@@ -300,16 +427,27 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
               ⓘ Shift+drag で関係作成
             </span>
-            <label class="panel-graph-era-toggle" title="現 Era で生存していないノードを薄く表示">
+            <label class="panel-graph-era-toggle" title="関係 (edge) 線の表示 / 非表示">
+              <input
+                type="checkbox"
+                checked={edgesVisible()}
+                onChange={(e) => setEdgesVisible(e.currentTarget.checked)}
+              />
+              関係を表示
+            </label>
+            <label
+              class="panel-graph-era-toggle"
+              title="現在の時間軸で生存していないノードを薄く表示"
+            >
               <input
                 type="checkbox"
                 checked={eraFilterOn()}
                 disabled={EraContext.isBase()}
                 onChange={(e) => setEraFilterOn(e.currentTarget.checked)}
               />
-              Era フィルタ
+              時間軸フィルタ
               <Show when={EraContext.isBase()}>
-                <span class="panel-graph-hint"> (Era を選択すると有効)</span>
+                <span class="panel-graph-hint"> (時間軸を選択すると有効)</span>
               </Show>
             </label>
           </Show>
@@ -317,6 +455,27 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             <span class="panel-graph-hint">
               ノードクリックで Script に jump · 「次へ」=暗黙 next / 線=choice goto
             </span>
+          </Show>
+          <Show when={lensMode() === 'plot-board'}>
+            <span class="panel-graph-hint">
+              プロットや伏線をカード化し、複数の筋を同じ面で整理します
+            </span>
+          </Show>
+          <Show when={lensMode() !== 'plot-board'}>
+            <button
+              type="button"
+              class="panel-graph-add-comment"
+              title="グラフに自由メモ (グループ説明など) を追加"
+              onClick={() => {
+                // 画面中央付近に新しいメモを置く (world 座標は単純に 0,0 + ランダム offset)
+                GraphComments.add({
+                  x: 40 + Math.random() * 80,
+                  y: 40 + Math.random() * 80,
+                });
+              }}
+            >
+              ＋ メモ
+            </button>
           </Show>
           <code class="panel-graph-id">{params.api.id}</code>
         </div>
@@ -359,28 +518,79 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             </Show>
           </div>
         </Show>
+        <Show when={lensMode() === 'plot-board'}>
+          <div class="panel-graph-header-row">
+            <input
+              type="search"
+              class="panel-graph-search panel-graph-search--wide"
+              placeholder="🔍 プロットカード検索 (タイトル / 本文 / ID)"
+              value={searchQuery()}
+              onInput={(e) => setSearchQuery(e.currentTarget.value)}
+            />
+            <Show when={searchQuery() !== ''}>
+              <button
+                type="button"
+                class="panel-graph-search-clear"
+                onClick={() => setSearchQuery('')}
+                title="検索クリア"
+              >
+                ×
+              </button>
+            </Show>
+          </div>
+        </Show>
       </header>
       <div class="panel-graph-canvas">
         <Show
-          when={lens() && lens()!.nodes.length > 0}
+          when={lensMode() === 'plot-board'}
           fallback={
-            <div class="panel-graph-empty">
-              <p>ノードがありません。Outline で追加してください。</p>
-            </div>
+            <Show
+              when={lens() && lens()!.nodes.length > 0}
+              fallback={
+                <div class="panel-graph-empty">
+                  <p>ノードがありません。Outline で追加してください。</p>
+                </div>
+              }
+            >
+              <LensCanvas
+                payload={lens()!}
+                positions={positions()}
+                thumbnailUrls={thumbnailUrls() ?? new Map()}
+                onSelect={(id) => SelectionContext.selectNode(id)}
+                onActivate={activate}
+                onPositionChange={(id, p) => GraphPositions.setPosition(id, p, { persist: false })}
+                onPositionCommit={(id, p) => GraphPositions.commitPosition(id, p)}
+                onCreateRelation={startCreate}
+                onEdgeClick={startEdit}
+                selected={SelectionContext.selectedNodeId()}
+                dimmed={dimmed()}
+                nodeRadius={nodeSize()}
+                viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${lensMode()}`}
+              />
+            </Show>
           }
         >
-          <LensCanvas
-            payload={lens()!}
-            positions={positions()}
-            thumbnailUrls={thumbnailUrls() ?? new Map()}
-            onSelect={(id) => SelectionContext.selectNode(id)}
-            onActivate={activate}
-            onPositionChange={(id, p) => GraphPositions.setPosition(id, p)}
-            onCreateRelation={startCreate}
-            onEdgeClick={startEdit}
-            selected={SelectionContext.selectedNodeId()}
-            dimmed={dimmed()}
-          />
+          <Show when={plotBoard()}>
+            {(board) => (
+              <PlotBoardCanvas
+                board={board()}
+                dimmed={plotBoardDimmed()}
+                referenceNodes={plotBoardReferenceNodes()}
+                viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${board().id}`}
+                onAddNode={(kind, position) => PlotBoardService.addNode(kind, position)}
+                onNodeChange={(id, patch) => PlotBoardService.updateNode(id, patch)}
+                onNodeCommit={(id) => PlotBoardService.commitNode(id)}
+                onNodeMove={(id, position) => PlotBoardService.moveNode(id, position)}
+                onNodeMoveCommit={(id, position, from) =>
+                  PlotBoardService.commitNodeMove(id, position, from)
+                }
+                onNodeDelete={(id) => PlotBoardService.removeNode(id)}
+                onCreateEdge={(source, target) => PlotBoardService.addEdge(source, target)}
+                onEdgeEdit={editPlotBoardEdge}
+                onEdgeDelete={(id) => PlotBoardService.removeEdge(id)}
+              />
+            )}
+          </Show>
         </Show>
       </div>
 
@@ -392,31 +602,47 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         onSubmit={(input) => {
           const p = pending();
           if (!p) return;
-          void RelationsService.add({
-            source: p.source,
-            target: p.target,
-            type: input.type,
-          }).then((rel) => {
-            if (rel && input.label) void RelationsService.setLabel(rel.id, input.label);
-          });
+          void (async () => {
+            await RelationsService.add({ source: p.source, target: p.target, text: input.text });
+            if (input.reverseText) {
+              await RelationsService.add({
+                source: p.target,
+                target: p.source,
+                text: input.reverseText,
+              });
+            }
+          })();
         }}
       />
       <RelationTypePicker
         open={!!editing()}
         canDelete={true}
         caption={editing()?.caption}
-        initial={editing()?.current}
+        initial={editing() ? { text: editing()!.text } : undefined}
         onClose={() => setEditing(undefined)}
         onSubmit={(input) => {
           const e = editing();
           if (!e) return;
-          void RelationsService.setType(e.relationId, input.type);
-          void RelationsService.setLabel(e.relationId, input.label);
+          void RelationsService.update(e.relationId, { text: input.text });
         }}
         onDelete={() => {
           const e = editing();
           if (!e) return;
           void RelationsService.remove(e.relationId);
+        }}
+      />
+      <PlotEdgeEditor
+        open={!!edgeEdit()}
+        initial={edgeEdit() ? { type: edgeEdit()!.type, label: edgeEdit()!.label } : undefined}
+        caption={edgeEdit()?.caption}
+        onClose={() => setEdgeEdit(undefined)}
+        onSubmit={(label) => {
+          const e = edgeEdit();
+          if (e) PlotBoardService.updateEdge(e.edgeId, { label });
+        }}
+        onDelete={() => {
+          const e = edgeEdit();
+          if (e) PlotBoardService.removeEdge(e.edgeId);
         }}
       />
     </div>

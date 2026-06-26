@@ -128,6 +128,33 @@ export class FsScenarioRepository {
   }
 
   /**
+   * 章タイトルと章プロット (summary) をまとめて更新する。
+   * slug は内部識別子なのでここでは変更しない。
+   */
+  async updateChapter(input: {
+    chapterSlug: string;
+    title?: string | undefined;
+    summary?: string | undefined;
+  }): Promise<void> {
+    const indexPath = `${SCENARIOS_ROOT}/${input.chapterSlug}/_index.yaml`;
+    if (!(await this.adapter.exists(this.handle, indexPath))) {
+      throw new Error(`Chapter ${input.chapterSlug} does not exist`);
+    }
+    const text = await this.adapter.read(this.handle, indexPath);
+    const { value } = parseYaml(text);
+    const v = expectMapping(value, indexPath);
+    if (input.title !== undefined && input.title.trim() !== '') {
+      v['title'] = input.title.trim();
+    }
+    if (input.summary !== undefined) {
+      const summary = input.summary.trim();
+      if (summary === '') delete v['summary'];
+      else v['summary'] = summary;
+    }
+    await this.adapter.write(this.handle, indexPath, stringifyYaml(sanitizeYamlTree(v)));
+  }
+
+  /**
    * 章内のシーン順を `_scene_index.yaml` に再書込み。slug の追加 / 削除はしない。
    */
   async reorderScenes(chapterSlug: string, newOrder: readonly string[]): Promise<void> {

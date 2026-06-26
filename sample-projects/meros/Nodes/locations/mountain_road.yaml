@@ -1,0 +1,11 @@
+schemaVersion: 1
+kind: node
+id: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+templateId: template.location
+slug: mountain_road
+fields:
+  display_name: 山賊の出る街道
+  reading: さんぞくのでるかいどう
+  dev_name: MountainRoad
+  founded_year: 0
+  description: シラクスと村を結ぶ山中の街道。山賊が潜み、増水した川が橋を呑む。メロスが帰路で三つの試練に遭う場所。

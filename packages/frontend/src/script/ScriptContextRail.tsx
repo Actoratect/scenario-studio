@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { CHARACTER_TEMPLATE, type ParsedScene, type ScenarioNode } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
-import { scanGlossary } from '../services/GlossaryHighlight';
+import { deriveGlossary, scanGlossary } from '../services/GlossaryHighlight';
 import { LintService } from '../services/LintService';
 import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
@@ -63,7 +63,9 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
       if (node.templateId !== CHARACTER_TEMPLATE.id) continue;
       map.set(node.slug, node);
       const dev = node.fields['dev_name'];
-      if (typeof dev === 'string' && dev !== '') map.set(dev, node);
+      if (typeof dev === 'string' && dev.trim() !== '') map.set(dev.trim(), node);
+      const display = node.fields['display_name'];
+      if (typeof display === 'string' && display.trim() !== '') map.set(display.trim(), node);
     }
     return map;
   });
@@ -104,9 +106,14 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
     if (!ctx)
       return {
         okTerms: [] as readonly string[],
-        violations: [] as readonly { match: string; term: string }[],
+        okItems: [] as readonly { term: string; sourceLabel?: string | undefined }[],
+        violations: [] as readonly {
+          match: string;
+          term: string;
+          sourceLabel?: string | undefined;
+        }[],
       };
-    return scanGlossary(sceneText(), ctx.project.glossary ?? []);
+    return scanGlossary(sceneText(), deriveGlossary(ctx.project));
   });
 
   /** Lint issues — 現在 scene に関連しそうなもののみ filter。
@@ -159,7 +166,7 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
           {collapsed() ? '◀' : '▶'}
         </button>
         <Show when={!collapsed()}>
-          <span class="ss-script-rail-title">📋 シーン文脈</span>
+          <span class="ss-script-rail-title">📋 シーン詳細</span>
         </Show>
       </header>
 
@@ -226,13 +233,17 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
           </section>
 
           {/* Glossary */}
-          <Show when={glossaryScan().okTerms.length > 0 || glossaryScan().violations.length > 0}>
+          <Show when={glossaryScan().okItems.length > 0 || glossaryScan().violations.length > 0}>
             <section class="ss-script-rail-section">
               <h4 class="ss-script-rail-h">用語</h4>
-              <Show when={glossaryScan().okTerms.length > 0}>
+              <Show when={glossaryScan().okItems.length > 0}>
                 <div class="ss-script-rail-chips">
-                  <For each={glossaryScan().okTerms}>
-                    {(t) => <span class="ss-script-rail-chip ss-script-rail-chip--ok">✓ {t}</span>}
+                  <For each={glossaryScan().okItems}>
+                    {(t) => (
+                      <span class="ss-script-rail-chip ss-script-rail-chip--ok">
+                        ✓ {t.sourceLabel ?? '用語'}: {t.term}
+                      </span>
+                    )}
                   </For>
                 </div>
               </Show>
@@ -241,7 +252,7 @@ export const ScriptContextRail: Component<ScriptContextRailProps> = (props) => {
                   <For each={glossaryScan().violations}>
                     {(v) => (
                       <span class="ss-script-rail-chip ss-script-rail-chip--warn">
-                        ⚠ {v.match} → {v.term}
+                        ⚠ {v.sourceLabel ?? '用語'}: {v.match} → {v.term}
                       </span>
                     )}
                   </For>

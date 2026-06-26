@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 01MERS04PHIL0ST6IJ4LMTN8DWGT
+templateId: template.character
+slug: philostratos
+fields:
+  gender: male
+  tone: formal
+  display_name: フィロストラトス
+  reading: ふぃろすとらとす
+  dev_name: Philostratos
+  birth_year: 0
+  height: 0
+  appearance: 王の近習にふさわしい装い。
+  personality: ディオニス王の近習。セリヌンティウスの弟子でもある。誠実な人物で、メロスに対し帰還を諦めるよう諭す場面もある。
+  first_person: 私

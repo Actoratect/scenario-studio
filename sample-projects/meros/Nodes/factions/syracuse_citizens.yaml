@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 01MERS07FACC0YZ9LM7OPWQ1GZJW
+templateId: template.faction
+slug: syracuse_citizens
+fields:
+  is_active: true
+  display_name: シラクスの市民
+  reading: しらくすのしみん
+  dev_name: SyracuseCitizens
+  founded_year: 0
+  description: ディオニス王の恐怖政治のもと、怯えながら暮らす市民たち。物語の終幕で歓声を上げる。

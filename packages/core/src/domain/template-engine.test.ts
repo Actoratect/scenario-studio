@@ -14,9 +14,11 @@ describe('defaultFields', () => {
     expect(d['display_name']).toBeUndefined();
   });
 
-  it('faction template includes bool default', () => {
+  it('faction template no longer includes the removed basic info defaults', () => {
     const d = defaultFields(FACTION_TEMPLATE);
-    expect(d['is_active']).toBe(true);
+    expect(d['is_active']).toBeUndefined();
+    expect(d['founded_year']).toBeUndefined();
+    expect(d['banner_color']).toBeUndefined();
   });
 });
 

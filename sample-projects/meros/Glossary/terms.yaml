@@ -1,0 +1,21 @@
+schemaVersion: 1
+kind: glossary
+terms:
+  - term: 信実
+    aliases:
+      - Sincerity
+      - しんじつ
+    forbidden: []
+    description: メロスとセリヌンティウスの友情を支える根幹。「信実とは、決して空虚な妄想ではなかった」という王の言葉に集約される。
+  - term: 人質
+    aliases:
+      - ひとじち
+      - Hostage
+    forbidden: []
+    description: セリヌンティウスが自らの命を賭けてメロスの代わりに王城に留まった立場。
+  - term: 暴君
+    aliases:
+      - ぼうくん
+      - Tyrant
+    forbidden: []
+    description: ディオニス王を指す。人を信じられず恐怖政治を敷くが、心の底では信実を切望していた。

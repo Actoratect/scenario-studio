@@ -1,0 +1,9 @@
+schemaVersion: 1
+kind: chapter
+id: ch02_village
+title: 第二章　故郷
+order: 2
+scenes:
+  - s01_homecoming
+  - s02_wedding
+  - s03_departure

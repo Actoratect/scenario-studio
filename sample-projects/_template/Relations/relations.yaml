@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: relations
+# ノード間の明示的な相関。グラフパネルから編集できる。
+# 例:
+#   - id: rel01
+#     from: <ノード id>
+#     to: <ノード id>
+#     type: friendship
+#     label_from: 親友
+#     label_to: 親友
+#     description: 二人の関係の説明。
+relations: []

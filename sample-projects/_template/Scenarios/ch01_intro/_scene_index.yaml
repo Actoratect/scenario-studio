@@ -1,0 +1,5 @@
+schemaVersion: 1
+kind: scene_index
+# シーンを並べたい順に slug (= .scn.yaml の拡張子を除いた名前) を列挙する。
+scenes:
+  - s01_opening

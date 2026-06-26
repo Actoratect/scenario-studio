@@ -1,7 +1,6 @@
 import type { NodeId } from '../domain/era.js';
 import type { ScenarioNode } from '../domain/node.js';
 import type { Relation, RelationId } from '../domain/Relation.js';
-import { getRelationType, type RelationType } from '../domain/relations.js';
 import type { TemplateRegistry } from '../domain/templates/index.js';
 
 // ScenarioNode 集合と TemplateRegistry から「Relationship Lens」用の
@@ -30,13 +29,11 @@ export interface LensEdge {
   id: string;
   source: NodeId;
   target: NodeId;
-  /** 表示ラベル — implicit は fieldId、explicit は relation type の label (Relation.label があれば優先)。 */
+  /** 表示ラベル — implicit は fieldId、explicit は Relation.text。 */
   label: string;
   kind: LensEdgeKind;
   /** explicit の場合のみ: Relation.id を保持 (UI で picker / delete に使う)。 */
   relationId?: RelationId;
-  /** explicit の場合のみ: relation type を保持。 */
-  relationType?: RelationType;
 }
 
 export interface LensPayload {
@@ -90,21 +87,13 @@ export function computeRelationshipLens(
   // Explicit: PR-E Relation エンティティ
   for (const rel of relations) {
     if (!validIds.has(rel.source) || !validIds.has(rel.target)) continue;
-    const typeLabel = (() => {
-      try {
-        return getRelationType(rel.type).label;
-      } catch {
-        return rel.type;
-      }
-    })();
     edges.push({
       id: rel.id,
       source: rel.source,
       target: rel.target,
-      label: rel.label && rel.label !== '' ? rel.label : typeLabel,
+      label: rel.text,
       kind: 'explicit',
       relationId: rel.id,
-      relationType: rel.type,
     });
   }
 

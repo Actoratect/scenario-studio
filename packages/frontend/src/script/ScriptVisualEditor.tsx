@@ -1,4 +1,14 @@
-import { createMemo, For, Match, Show, Switch } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  Index,
+  Match,
+  Show,
+  Switch,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import {
   type FieldAiContext,
@@ -6,12 +16,16 @@ import {
   type ScriptBlock,
   type ScriptBlockChoice,
   type ScriptBlockChoiceOption,
+  type ScriptBlockImage,
 } from '@scenario-studio/core';
 import { NodeThumbnail } from '../global/NodeThumbnail';
+import { StableTextInput } from '../global/StableTextControl';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { ProjectService } from '../services/ProjectService';
-import { scanGlossary } from '../services/GlossaryHighlight';
+import { ScriptImageService } from '../services/ScriptImageService';
+import { deriveGlossary } from '../services/GlossaryHighlight';
+import { KNOWN_EMOTIONS, emotionLabel } from './emotions';
 
 // 脚本のブロック視覚エディタ (PR-AA)。
 // YAML を見せず、各 script item を「カード」として描画。
@@ -40,6 +54,8 @@ export interface ScriptVisualEditorProps {
   onMoveBlock: (idx: number, delta: -1 | 1) => void;
   /** kind 指定で新規ブロックを末尾に追加。 */
   onAppendBlock: (kind: ScriptBlock['kind']) => void;
+  /** 指定 index に新規ブロックを挿入 (途中挿入)。kind 別の default は親が組み立てる。 */
+  onInsertBlock: (index: number, kind: ScriptBlock['kind']) => void;
 }
 
 /**
@@ -63,7 +79,7 @@ function buildBlockAiContext(
   if (after && 'text' in after && typeof after.text === 'string') {
     surrounding.push(`後: ${after.text}`);
   }
-  const glossaryTerms = (ctx?.project.glossary ?? []).map((g) => g.term);
+  const glossaryTerms = ctx ? deriveGlossary(ctx.project).map((g) => g.term) : [];
   return {
     target: {
       kind: 'script-block',
@@ -90,6 +106,8 @@ const KIND_META: Record<ScriptBlock['kind'], { icon: string; label: string; colo
   sfx: { icon: '🔊', label: 'SFX', color: 'orange' },
   bgm: { icon: '🎵', label: 'BGM', color: 'orange' },
   choice: { icon: '🌟', label: '選択肢', color: 'vermillion' },
+  image: { icon: 'IMG', label: '画像', color: 'teal' },
+  comment: { icon: '📝', label: 'コメント', color: 'faint' },
   unknown: { icon: '❓', label: '不明', color: 'faint' },
 };
 
@@ -101,33 +119,48 @@ const ADDABLE_KINDS: readonly ScriptBlock['kind'][] = [
   'sfx',
   'bgm',
   'choice',
+  'image',
+  'comment',
 ];
+
+function keepPointerFromStealingFocus(e: MouseEvent): void {
+  e.preventDefault();
+}
 
 export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) => {
   return (
     <div class="ss-script-visual">
       <div class="ss-script-visual-blocks">
-        <For
-          each={props.parsed.blocks}
+        <Show
+          when={props.parsed.blocks.length > 0}
           fallback={
             <p class="ss-script-visual-empty">ブロック無し。下のボタンから追加してください。</p>
           }
         >
-          {(block, i) => (
-            <ScriptBlockCard
-              block={block}
-              idx={i()}
-              total={props.parsed.blocks.length}
-              cast={props.parsed.cast}
-              parsed={props.parsed}
-              chapterSlug={props.chapterSlug}
-              sceneSlug={props.sceneSlug}
-              onChange={(next) => props.onChangeBlock(i(), next)}
-              onDelete={() => props.onDeleteBlock(i())}
-              onMove={(delta) => props.onMoveBlock(i(), delta)}
-            />
-          )}
-        </For>
+          {/* 各ブロック前に「＋ 挿入」hover bar を入れる。最後のブロック後ろにも 1 個。
+           *  PR (ux-overhaul-3): For → Index に変更。block の identity が変わっても DOM を
+           *  保持するので、textarea を編集しても再 mount されず cursor が飛ばない。 */}
+          <InsertBar index={0} onInsert={(k) => props.onInsertBlock(0, k)} />
+          <Index each={props.parsed.blocks}>
+            {(block, i) => (
+              <>
+                <ScriptBlockCard
+                  block={block()}
+                  idx={i}
+                  total={props.parsed.blocks.length}
+                  cast={props.parsed.cast}
+                  parsed={props.parsed}
+                  chapterSlug={props.chapterSlug}
+                  sceneSlug={props.sceneSlug}
+                  onChange={(next) => props.onChangeBlock(i, next)}
+                  onDelete={() => props.onDeleteBlock(i)}
+                  onMove={(delta) => props.onMoveBlock(i, delta)}
+                />
+                <InsertBar index={i + 1} onInsert={(k) => props.onInsertBlock(i + 1, k)} />
+              </>
+            )}
+          </Index>
+        </Show>
       </div>
       <div class="ss-script-visual-add">
         <span class="ss-script-visual-add-label">＋ ブロック追加:</span>
@@ -137,6 +170,7 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
               type="button"
               class="ss-script-visual-add-btn"
               data-color={KIND_META[k].color}
+              onMouseDown={keepPointerFromStealingFocus}
               onClick={() => props.onAppendBlock(k)}
               title={`${KIND_META[k].label} ブロックを末尾に追加`}
             >
@@ -145,6 +179,56 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
           )}
         </For>
       </div>
+    </div>
+  );
+};
+
+/**
+ * ブロック間に表示する「＋ ここに挿入」hover bar。クリックで kind 選択メニューが開く。
+ * 通常は薄く目立たない (hover で背景色付き)。
+ */
+const InsertBar: Component<{
+  index: number;
+  onInsert: (kind: ScriptBlock['kind']) => void;
+}> = (props) => {
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  return (
+    <div
+      class="ss-script-insert-bar"
+      classList={{ 'ss-script-insert-bar--open': menuOpen() }}
+      onMouseLeave={() => setMenuOpen(false)}
+    >
+      <button
+        type="button"
+        class="ss-script-insert-bar-trigger"
+        onMouseDown={keepPointerFromStealingFocus}
+        onClick={() => setMenuOpen((b) => !b)}
+        title={`位置 ${props.index} にブロックを挿入`}
+        aria-label={`位置 ${props.index} にブロックを挿入`}
+      >
+        ＋
+      </button>
+      <Show when={menuOpen()}>
+        <div class="ss-script-insert-bar-menu">
+          <For each={ADDABLE_KINDS}>
+            {(k) => (
+              <button
+                type="button"
+                class="ss-script-insert-bar-item"
+                data-color={KIND_META[k].color}
+                onMouseDown={keepPointerFromStealingFocus}
+                onClick={() => {
+                  props.onInsert(k);
+                  setMenuOpen(false);
+                }}
+                title={`${KIND_META[k].label} を挿入`}
+              >
+                {KIND_META[k].icon} {KIND_META[k].label}
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
     </div>
   );
 };
@@ -170,18 +254,20 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
     const out: { id: string; slug: string; devName: string; display: string }[] = [];
     for (const n of ctx.project.nodes.values()) {
       if (n.templateId !== 'template.character') continue;
-      const dn = typeof n.fields['dev_name'] === 'string' ? n.fields['dev_name'] : '';
+      const dn = typeof n.fields['dev_name'] === 'string' ? n.fields['dev_name'].trim() : '';
       const display =
         typeof n.fields['display_name'] === 'string'
           ? (n.fields['display_name'] as string)
           : n.slug;
-      out.push({ id: n.id, slug: n.slug, devName: dn || n.slug, display });
+      out.push({ id: n.id, slug: n.slug, devName: dn, display });
     }
     return out.sort((a, b) => a.display.localeCompare(b.display));
   });
 
   function findCharByIdentifier(identifier: string) {
-    return characters().find((c) => c.devName === identifier || c.slug === identifier);
+    return characters().find(
+      (c) => c.slug === identifier || c.devName === identifier || c.display === identifier,
+    );
   }
 
   return (
@@ -241,6 +327,15 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
           <Match when={props.block.kind === 'choice'}>
             <ChoiceBlockView block={props.block as ScriptBlockChoice} onChange={props.onChange} />
           </Match>
+          <Match when={props.block.kind === 'image'}>
+            <ImageBlockView block={props.block as ScriptBlockImage} onChange={props.onChange} />
+          </Match>
+          <Match when={props.block.kind === 'comment'}>
+            <CommentBlock
+              block={props.block as ScriptBlock & { kind: 'comment' }}
+              onChange={props.onChange}
+            />
+          </Match>
           <Match when={props.block.kind === 'unknown'}>
             <UnknownBlockView block={props.block as ScriptBlock & { kind: 'unknown' }} />
           </Match>
@@ -250,6 +345,7 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           disabled={props.idx === 0}
+          onMouseDown={keepPointerFromStealingFocus}
           onClick={() => props.onMove(-1)}
           title="上へ"
         >
@@ -258,6 +354,7 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           disabled={props.idx === props.total - 1}
+          onMouseDown={keepPointerFromStealingFocus}
           onClick={() => props.onMove(1)}
           title="下へ"
         >
@@ -266,12 +363,9 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
         <button
           type="button"
           class="ss-script-card-delete"
-          onClick={() => {
-            if (window.confirm(`${KIND_META[props.block.kind].label} ブロックを削除しますか?`)) {
-              props.onDelete();
-            }
-          }}
-          title="削除"
+          onMouseDown={keepPointerFromStealingFocus}
+          onClick={() => props.onDelete()}
+          title="削除 (確認なし — 取り消しは Ctrl+Z)"
         >
           ×
         </button>
@@ -280,49 +374,135 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   );
 };
 
-const KNOWN_EMOTIONS: readonly string[] = [
-  '',
-  'happy',
-  'sad',
-  'angry',
-  'tired',
-  'suspicious',
-  'surprised',
-  'embarrassed',
-  'calm',
-];
+/** PR (ux-overhaul-5): 最終 Stable textarea。
+ *
+ *  ScriptPanel が createStore + produce + in-place mutation で fine-grained reactivity を
+ *  実現済み。textarea は value bind を完全に外して uncontrolled として扱い、
+ *  外部更新だけを ref 経由で同期する。
+ *
+ *  原則:
+ *    - 初回マウント時に ref.value = props.value
+ *    - createEffect で props.value 変化を監視。composing 中でなく、DOM の現在値と
+ *      props.value が異なる時だけ ref.value = v (= 外部更新時のみ)
+ *    - ユーザー入力 (onInput) は composing でなければ親に通知
+ *    - IME composition (onCompositionStart/End) で composing flag。中の input は ignore
+ */
+const StableTextarea: Component<{
+  class?: string;
+  rows?: string;
+  value: string;
+  placeholder?: string;
+  onInput: (value: string) => void;
+  onContextMenu?: (e: MouseEvent) => void;
+}> = (props) => {
+  let ref: HTMLTextAreaElement | undefined;
+  let composing = false;
+
+  // 内容の改行に合わせて高さを自動調整する。
+  // 旧版は rows 固定 + ユーザーリサイズ可で、Index が DOM を位置で再利用するため
+  // 手動リサイズした高さが別シナリオに切り替えても残っていた (バグ報告)。
+  // リセットは 'auto' だと rows 属性が下限になり 1 行の内容でも余分な空行が出るため、
+  // '0px' にして scrollHeight が純粋な内容高さを返すようにする。
+  function autoResize(): void {
+    if (!ref) return;
+    ref.style.height = '0px';
+    // border-box でクリップしないよう border 分 (offsetHeight - clientHeight) を足す。
+    const border = ref.offsetHeight - ref.clientHeight;
+    ref.style.height = `${ref.scrollHeight + border}px`;
+  }
+
+  // 外部 value 変化を DOM に反映 + 高さ再計算 (シナリオ切替で新しい値が来た時も含む)。
+  createEffect(() => {
+    const v = props.value ?? '';
+    if (composing) return;
+    if (ref && ref.value !== v) ref.value = v;
+    autoResize();
+  });
+
+  return (
+    <textarea
+      ref={(el) => {
+        ref = el;
+        if (el) el.value = props.value ?? '';
+      }}
+      class={props.class}
+      rows={props.rows}
+      placeholder={props.placeholder}
+      onCompositionStart={() => {
+        composing = true;
+      }}
+      onCompositionEnd={(e) => {
+        composing = false;
+        autoResize();
+        props.onInput((e.currentTarget as HTMLTextAreaElement).value);
+      }}
+      onInput={(e) => {
+        autoResize();
+        if (composing) return;
+        props.onInput(e.currentTarget.value);
+      }}
+      onContextMenu={(e) => props.onContextMenu?.(e)}
+    />
+  );
+};
 
 const CharacterLine: Component<{
   block: ScriptBlock & { kind: 'line' | 'action' };
   characters: readonly { id: string; slug: string; devName: string; display: string }[];
-  findChar: (id: string) => { id: string; display: string } | undefined;
+  findChar: (
+    id: string,
+  ) => { id: string; slug: string; devName: string; display: string } | undefined;
   onChange: (next: ScriptBlock) => void;
   parsed: ParsedScene;
   blockIndex: number;
   chapterSlug?: string | undefined;
   sceneSlug?: string | undefined;
 }> = (props) => {
+  let whoSelect: HTMLSelectElement | undefined;
   const ctx = createMemo(() => ProjectService.currentProject());
   const charNode = createMemo(() => {
     const found = props.findChar(props.block.who);
     if (!found) return undefined;
     return ctx()?.project.nodes.get(found.id as never);
   });
+  const selectedChar = createMemo(() => props.findChar(props.block.who));
+  const hasCurrentOption = createMemo(() =>
+    props.characters.some((c) => optionValue(c) === props.block.who),
+  );
+
+  createEffect(() => {
+    const value = props.block.who;
+    if (whoSelect && whoSelect.value !== value) whoSelect.value = value;
+  });
+
+  function optionValue(c: { slug: string; devName: string; display: string }): string {
+    if (props.block.who === c.slug || props.block.who === c.devName) return props.block.who;
+    if (props.block.who === c.display) return props.block.who;
+    return c.devName || c.slug;
+  }
 
   return (
     <>
       <div class="ss-script-line-header">
         <Show when={charNode()}>{(n) => <NodeThumbnail node={n()} size={36} />}</Show>
         <select
+          ref={whoSelect}
           class="ss-script-line-who"
           value={props.block.who}
           onChange={(e) => props.onChange({ ...props.block, who: e.currentTarget.value })}
         >
-          <option value="">— who —</option>
+          <option value="" selected={props.block.who === ''}>
+            — 未選択 —
+          </option>
+          <Show when={props.block.who !== '' && !hasCurrentOption()}>
+            <option value={props.block.who} selected>
+              {selectedChar() ? selectedChar()!.display : `未登録: ${props.block.who}`}
+            </option>
+          </Show>
           <For each={props.characters}>
             {(c) => (
-              <option value={c.devName}>
-                {c.display} ({c.devName})
+              <option value={optionValue(c)} selected={optionValue(c) === props.block.who}>
+                {c.display}
               </option>
             )}
           </For>
@@ -345,21 +525,31 @@ const CharacterLine: Component<{
               props.onChange(next);
             }}
           >
-            <For each={KNOWN_EMOTIONS}>
-              {(e) => <option value={e}>{e === '' ? '— 感情 —' : e}</option>}
-            </For>
+            <option value="">— 感情 —</option>
+            {/* 既存値が KNOWN_EMOTIONS に無い場合 (英語値 / 自由入力) は最上段に表示 */}
+            <Show
+              when={(() => {
+                const cur = (props.block as { emotion?: string }).emotion ?? '';
+                return cur !== '' && !KNOWN_EMOTIONS.includes(cur);
+              })()}
+            >
+              <option value={(props.block as { emotion?: string }).emotion ?? ''}>
+                {emotionLabel((props.block as { emotion?: string }).emotion ?? '')}
+              </option>
+            </Show>
+            <For each={KNOWN_EMOTIONS}>{(e) => <option value={e}>{e}</option>}</For>
           </select>
         </Show>
         <Show when={props.block.kind === 'action'}>
           <span class="ss-script-line-action-tag">行動</span>
         </Show>
       </div>
-      <textarea
+      <StableTextarea
         class="ss-script-line-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder={props.block.kind === 'line' ? 'セリフを入力…' : '行動を入力…'}
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -374,7 +564,6 @@ const CharacterLine: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -389,12 +578,12 @@ const AsideBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-aside-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder="心の声 / 独白を入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -409,7 +598,6 @@ const AsideBlock: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -424,12 +612,12 @@ const StageBlock: Component<{
 }> = (props) => {
   return (
     <>
-      <textarea
+      <StableTextarea
         class="ss-script-stage-text"
-        rows="2"
+        rows="1"
         value={props.block.text}
         placeholder="状況描写 / ステージを入力…"
-        onInput={(e) => props.onChange({ ...props.block, text: e.currentTarget.value })}
+        onInput={(text) => props.onChange({ ...props.block, text })}
         onContextMenu={(e) => {
           if (!props.chapterSlug || !props.sceneSlug) return;
           const ctx = buildBlockAiContext(
@@ -444,7 +632,6 @@ const StageBlock: Component<{
           });
         }}
       />
-      <GlossaryChips text={props.block.text} />
     </>
   );
 };
@@ -454,12 +641,11 @@ const SfxBlock: Component<{
   onChange: (next: ScriptBlock) => void;
 }> = (props) => {
   return (
-    <input
-      type="text"
+    <StableTextInput
       class="ss-script-cue-input"
       value={props.block.name}
       placeholder="効果音名 (例: thunder_far)"
-      onInput={(e) => props.onChange({ ...props.block, name: e.currentTarget.value })}
+      onInput={(value) => props.onChange({ ...props.block, name: value })}
     />
   );
 };
@@ -470,12 +656,11 @@ const BgmBlock: Component<{
 }> = (props) => {
   return (
     <div class="ss-script-bgm-row">
-      <input
-        type="text"
+      <StableTextInput
         class="ss-script-cue-input"
         value={props.block.cue}
         placeholder="BGM cue (例: bgm_tense)"
-        onInput={(e) => props.onChange({ ...props.block, cue: e.currentTarget.value })}
+        onInput={(value) => props.onChange({ ...props.block, cue: value })}
       />
       <label class="ss-script-bgm-fade">
         fade:
@@ -518,38 +703,36 @@ const ChoiceBlockView: Component<{
 
   return (
     <>
-      <input
-        type="text"
+      <StableTextInput
         class="ss-script-choice-prompt"
         value={props.block.prompt}
         placeholder="質問 / プロンプト"
-        onInput={(e) => props.onChange({ ...props.block, prompt: e.currentTarget.value })}
+        onInput={(value) => props.onChange({ ...props.block, prompt: value })}
       />
       <ul class="ss-script-choice-options">
         <For each={props.block.options ?? []}>
           {(opt, i) => (
             <li class="ss-script-choice-option">
               <span class="ss-script-choice-bullet">{i() + 1}.</span>
-              <input
-                type="text"
+              <StableTextInput
                 class="ss-script-choice-text"
                 value={opt.text}
                 placeholder="選択肢テキスト"
-                onInput={(e) => setOption(i(), { text: e.currentTarget.value })}
+                onInput={(value) => setOption(i(), { text: value })}
               />
-              <input
-                type="text"
+              <StableTextInput
                 class="ss-script-choice-then"
                 value={opt.then ?? ''}
                 placeholder="飛び先 (任意, 例: scene.next)"
-                onInput={(e) => {
-                  const v = e.currentTarget.value;
+                onInput={(value) => {
+                  const v = value;
                   setOption(i(), v === '' ? { then: undefined } : { then: v });
                 }}
               />
               <button
                 type="button"
                 class="ss-script-choice-delete"
+                onMouseDown={keepPointerFromStealingFocus}
                 onClick={() => removeOption(i())}
                 title="この選択肢を削除"
               >
@@ -559,10 +742,129 @@ const ChoiceBlockView: Component<{
           )}
         </For>
       </ul>
-      <button type="button" class="ss-script-choice-add" onClick={addOption}>
+      <button
+        type="button"
+        class="ss-script-choice-add"
+        onMouseDown={keepPointerFromStealingFocus}
+        onClick={addOption}
+      >
         + 選択肢を追加
       </button>
     </>
+  );
+};
+
+const ImageBlockView: Component<{
+  block: ScriptBlockImage;
+  onChange: (next: ScriptBlock) => void;
+}> = (props) => {
+  let fileInput: HTMLInputElement | undefined;
+  const [imageUrl] = createResource(
+    () => props.block.src,
+    async (src) => (src ? await ScriptImageService.resolveUrl(src) : undefined),
+  );
+
+  async function acceptFile(file: File | undefined): Promise<void> {
+    if (!file) return;
+    const src = await ScriptImageService.upload(file);
+    if (!src) return;
+    props.onChange({ kind: 'image', src });
+  }
+
+  function onFileChange(e: Event): void {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    void acceptFile(file);
+  }
+
+  function onDragOver(e: DragEvent): void {
+    if (![...(e.dataTransfer?.items ?? [])].some((item) => item.type.startsWith('image/'))) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onDrop(e: DragEvent): void {
+    e.preventDefault();
+    const files = [...(e.dataTransfer?.files ?? [])];
+    const file = files.find((f) => f.type.startsWith('image/'));
+    void acceptFile(file);
+  }
+
+  return (
+    <div class="ss-script-image-block">
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+        class="ss-script-image-file"
+        onChange={onFileChange}
+      />
+      <div
+        class="ss-script-image-frame"
+        classList={{ 'ss-script-image-frame--empty': props.block.src === '' }}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        <Show
+          when={props.block.src !== ''}
+          fallback={
+            <button
+              type="button"
+              class="ss-script-image-empty"
+              onMouseDown={keepPointerFromStealingFocus}
+              onClick={() => fileInput?.click()}
+            >
+              画像を選択またはドロップ
+            </button>
+          }
+        >
+          <Show
+            when={imageUrl()}
+            fallback={
+              <div class="ss-script-image-missing">
+                <span>画像を読み込めません</span>
+                <code>{props.block.src}</code>
+              </div>
+            }
+          >
+            {(url) => <img class="ss-script-image-img" src={url()} alt="" />}
+          </Show>
+        </Show>
+      </div>
+      <div class="ss-script-image-toolbar">
+        <button
+          type="button"
+          onMouseDown={keepPointerFromStealingFocus}
+          onClick={() => fileInput?.click()}
+        >
+          画像を選択
+        </button>
+        <Show when={props.block.src !== ''}>
+          <button
+            type="button"
+            onMouseDown={keepPointerFromStealingFocus}
+            onClick={() => props.onChange({ kind: 'image', src: '' })}
+          >
+            画像を削除
+          </button>
+        </Show>
+      </div>
+    </div>
+  );
+};
+
+const CommentBlock: Component<{
+  block: ScriptBlock & { kind: 'comment' };
+  onChange: (next: ScriptBlock) => void;
+}> = (props) => {
+  return (
+    <StableTextarea
+      class="ss-script-comment-text"
+      value={props.block.text}
+      placeholder="作者向けコメント / プロットメモ (本編には出ません)"
+      onInput={(text) => props.onChange({ ...props.block, text })}
+    />
   );
 };
 
@@ -570,40 +872,6 @@ const UnknownBlockView: Component<{ block: ScriptBlock & { kind: 'unknown' } }> 
   return <pre class="ss-script-unknown">{JSON.stringify(props.block.raw, null, 2)}</pre>;
 };
 
-/**
- * PR-AF: テキスト中の Glossary 用語 / 禁止表記を検出して chip 行に表示。
- * 該当無しなら何も描画しない。
- */
-const GlossaryChips: Component<{ text: string }> = (props) => {
-  const result = createMemo(() => {
-    const ctx = ProjectService.currentProject();
-    const glossary = ctx?.project.glossary ?? [];
-    return scanGlossary(props.text, glossary);
-  });
-  return (
-    <Show when={result().okTerms.length > 0 || result().violations.length > 0}>
-      <div class="ss-script-glossary-chips">
-        <For each={result().okTerms}>
-          {(term) => (
-            <span
-              class="ss-script-glossary-chip ss-script-glossary-chip--ok"
-              title="用語集に登録済"
-            >
-              ✓ {term}
-            </span>
-          )}
-        </For>
-        <For each={result().violations}>
-          {(v) => (
-            <span
-              class="ss-script-glossary-chip ss-script-glossary-chip--warn"
-              title={`禁止表記: 「${v.match}」→ 正式「${v.term}」を推奨`}
-            >
-              ⚠ {v.match} → {v.term}
-            </span>
-          )}
-        </For>
-      </div>
-    </Show>
-  );
-};
+// PR-AF の Glossary chip 行 (緑の楕円) は、脚本の文章量を優先して撤去した。
+// 用語検出ロジック自体 (GlossaryHighlight の deriveGlossary / scanGlossary) は
+// Lint・プロジェクト健全性など他所で引き続き利用される。

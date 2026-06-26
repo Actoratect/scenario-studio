@@ -47,25 +47,16 @@ export const ProjectPicker: Component = () => {
     }
   }
 
-  /** PR-AE: bundle 済 FF7 サンプルを選択フォルダに展開して開く */
-  async function onOpenSample(): Promise<void> {
-    if (
-      !window.confirm(
-        'FF7 サンプルを開きます。空フォルダを 1 つ選んでください (そこに 30 個ほどのファイルが書き出されます)。',
-      )
-    ) {
-      return;
-    }
+  async function onOpenRecent(id: string): Promise<void> {
+    const recent = ProjectService.recentProjects().find((p) => p.id === id);
+    if (!recent) return;
     setBusy(true);
     try {
-      await ProjectService.openFf7Sample();
-      Toast.success('FF7 サンプルを展開しました');
+      const opened = await ProjectService.openRecent(recent);
+      if (!opened) Toast.error('最近開いたプロジェクトの権限を取得できませんでした');
     } catch (e) {
-      console.error('open ff7 sample failed', e);
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!(e instanceof DOMException && e.name === 'AbortError')) {
-        Toast.error(`FF7 サンプルを開けません: ${msg}`);
-      }
+      console.error('open recent failed', e);
+      Toast.error(`プロジェクトを開けません: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -122,20 +113,6 @@ export const ProjectPicker: Component = () => {
           </button>
         </section>
 
-        <section class="picker-card picker-card--sample">
-          <h2>🎮 FF7 サンプルを試す</h2>
-          <p>
-            キャラ / Faction / Item / Era / 章 / シーン / 脚本が一通り入ったサンプル。
-            空のフォルダを選ぶと、そこに展開して開きます。
-          </p>
-          <button data-variant="primary" onClick={() => void onOpenSample()} disabled={busy()}>
-            <Show when={busy()}>
-              <Spinner /> 展開中…
-            </Show>
-            <Show when={!busy()}>FF7 サンプルを展開して開く</Show>
-          </button>
-        </section>
-
         <section class="picker-card">
           <h2>最近開いた</h2>
           <Show
@@ -157,7 +134,7 @@ export const ProjectPicker: Component = () => {
                     <button
                       class="picker-recent-open"
                       disabled={busy()}
-                      onClick={() => void ProjectService.openRecent(r)}
+                      onClick={() => void onOpenRecent(r.id)}
                     >
                       <strong>{r.name}</strong>
                       <span class="picker-recent-time">

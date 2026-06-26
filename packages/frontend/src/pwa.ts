@@ -7,8 +7,28 @@
 export async function registerPwa(): Promise<void> {
   if (typeof window === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
+  // PR (ux-overhaul-5): dev で過去 prod build の SW がキャッシュを返し続けて
+  // 新しい JS が反映されない事故を防ぐため、dev 中は既存 SW を unregister。
+  if (import.meta.env.DEV) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        await reg.unregister();
+        console.info('[Scenario Studio] dev: unregistered stale service worker');
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+        if (keys.length > 0) {
+          console.info(`[Scenario Studio] dev: cleared ${keys.length} stale cache(s)`);
+        }
+      }
+    } catch (e) {
+      console.warn('[Scenario Studio] failed to unregister SW', e);
+    }
+    return;
+  }
   // vite-plugin-pwa が virtual module で register API を提供する。
-  // dev では VitePWA({ devOptions: { enabled: false } }) なので virtual module は no-op。
   try {
     const mod = (await import(/* @vite-ignore */ 'virtual:pwa-register')) as {
       registerSW: (opts: {

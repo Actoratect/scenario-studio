@@ -1,6 +1,8 @@
-import { createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
+import { StableTextarea } from '../global/StableTextControl';
+import { GraphComments, type GraphComment } from './graph-comments';
 
 // SVG ベースの軽量グラフ canvas (PR-C/E)。
 // 機能:
@@ -21,15 +23,19 @@ export interface LensCanvasProps {
   onSelect?: (id: NodeId) => void;
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
+  onPositionCommit?: (id: NodeId, p: { x: number; y: number }) => void;
   /** Shift+drag で関係作成 (source → target)。 */
   onCreateRelation?: (source: NodeId, target: NodeId) => void;
   /** edge ラベルクリック (relation type 変更 / 削除 picker)。 */
   onEdgeClick?: (edge: LensEdge) => void;
   selected?: NodeId | undefined;
   dimmed?: ReadonlySet<NodeId>;
+  nodeRadius?: number | undefined;
+  viewKey?: string | undefined;
 }
 
-const NODE_RADIUS = 22;
+const DEFAULT_NODE_RADIUS = 22;
+const GRAPH_VIEW_PREFIX = 'scenario-studio:graph-view:';
 
 interface ViewState {
   x: number;
@@ -40,13 +46,62 @@ interface ViewState {
 type DragMode =
   | { kind: 'pan'; startX: number; startY: number; vx: number; vy: number }
   | { kind: 'node'; id: NodeId; startX: number; startY: number; px: number; py: number }
-  | { kind: 'connect'; source: NodeId; toX: number; toY: number };
+  | { kind: 'connect'; source: NodeId; toX: number; toY: number }
+  | {
+      kind: 'comment-move';
+      id: string;
+      startX: number;
+      startY: number;
+      cx: number;
+      cy: number;
+    }
+  | {
+      kind: 'comment-resize';
+      id: string;
+      startX: number;
+      startY: number;
+      cw: number;
+      ch: number;
+    };
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
-  const [view, setView] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
+  const [view, setViewSignal] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
   const [hoverNode, setHoverNode] = createSignal<NodeId | undefined>(undefined);
+  const radius = (): number => props.nodeRadius ?? DEFAULT_NODE_RADIUS;
+  const edgeRoutes = createMemo(() => {
+    const groups = new Map<string, LensEdge[]>();
+    for (const edge of props.payload.edges) {
+      const key = unorderedPairKey(edge.source, edge.target);
+      const arr = groups.get(key) ?? [];
+      arr.push(edge);
+      groups.set(key, arr);
+    }
+    const out = new Map<string, { offset: number; labelT: number }>();
+    for (const group of groups.values()) {
+      const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id));
+      const step = 14;
+      const center = (sorted.length - 1) / 2;
+      sorted.forEach((edge, i) => {
+        const direction = directedPairSign(edge.source, edge.target);
+        out.set(edge.id, {
+          offset: (i - center) * step * direction,
+          labelT: 0.55,
+        });
+      });
+    }
+    return out;
+  });
+
+  function setView(next: ViewState): void {
+    setViewSignal(next);
+    saveView(props.viewKey, next);
+  }
+
+  createEffect(() => {
+    setViewSignal(loadView(props.viewKey));
+  });
 
   function clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
     const rect = svg?.getBoundingClientRect();
@@ -68,11 +123,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   function onNodeMouseDown(e: MouseEvent, id: NodeId): void {
     if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault();
+    const p = pos(id);
     if (e.shiftKey) {
-      const p = pos(id);
       setDrag({ kind: 'connect', source: id, toX: p.x, toY: p.y });
     } else {
-      const p = pos(id);
       setDrag({ kind: 'node', id, startX: e.clientX, startY: e.clientY, px: p.x, py: p.y });
     }
   }
@@ -94,18 +149,74 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
       return;
     }
-    // connect: マウス位置を world に変換して rubber-band の終端に
-    const w = clientToWorld(e.clientX, e.clientY);
-    setDrag({ ...d, toX: w.x, toY: w.y });
+    if (d.kind === 'comment-move') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(d.id, { x: d.cx + dx, y: d.cy + dy }, { persist: false });
+      return;
+    }
+    if (d.kind === 'comment-resize') {
+      const v = view();
+      const dx = (e.clientX - d.startX) / v.scale;
+      const dy = (e.clientY - d.startY) / v.scale;
+      GraphComments.update(
+        d.id,
+        {
+          width: Math.max(80, d.cw + dx),
+          height: Math.max(40, d.ch + dy),
+        },
+        { persist: false },
+      );
+      return;
+    }
+    // Keep the rubber-band endpoint in world coordinates while connecting.
+    if (d.kind === 'connect') {
+      const w = clientToWorld(e.clientX, e.clientY);
+      setDrag({ ...d, toX: w.x, toY: w.y });
+    }
   }
 
   function onMouseUp(e: MouseEvent): void {
     const d = drag();
     setDrag(null);
-    if (!d || d.kind !== 'connect') return;
-    // ターゲット node の解決: マウス up 位置に最も近いノード (距離 NODE_RADIUS 以内)
+    if (!d) return;
+    if (d.kind === 'node') {
+      const p = pos(d.id);
+      const moved = Math.hypot(p.x - d.px, p.y - d.py);
+      if (moved < 6) {
+        props.onPositionChange?.(d.id, { x: d.px, y: d.py });
+      } else {
+        props.onPositionCommit?.(d.id, p);
+      }
+      return;
+    }
+    if (d.kind === 'comment-move') {
+      const current = GraphComments.comments().find((c) => c.id === d.id);
+      const moved = current ? Math.hypot(current.x - d.cx, current.y - d.cy) : 0;
+      if (moved < 6) {
+        GraphComments.update(d.id, { x: d.cx, y: d.cy }, { persist: false });
+      } else {
+        GraphComments.commit(d.id);
+      }
+      return;
+    }
+    if (d.kind === 'comment-resize') {
+      const current = GraphComments.comments().find((c) => c.id === d.id);
+      const resized = current
+        ? Math.max(Math.abs(current.width - d.cw), Math.abs(current.height - d.ch))
+        : 0;
+      if (resized < 6) {
+        GraphComments.update(d.id, { width: d.cw, height: d.ch }, { persist: false });
+      } else {
+        GraphComments.commit(d.id);
+      }
+      return;
+    }
+    if (d.kind !== 'connect') return;
+    // ターゲット node の解決: マウス up 位置に最も近いノード
     const w = clientToWorld(e.clientX, e.clientY);
-    const target = nearestNodeWithin(w, NODE_RADIUS * 1.5);
+    const target = nearestNodeWithin(w, radius() * 1.5);
     if (target && target !== d.source) {
       props.onCreateRelation?.(d.source, target);
     }
@@ -165,7 +276,9 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
 
   function edgeBox(label: string): { w: number; h: number } {
     const ch = label.length;
-    return { w: Math.max(28, ch * 8 + 14), h: 18 };
+    // ラベルは scale で割って常に画面 px 一定にするため、box も同じ補正をかける。
+    const s = view().scale;
+    return { w: Math.max(28, ch * 8 + 14) / s, h: 18 / s };
   }
 
   return (
@@ -204,35 +317,57 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* edges */}
         <For each={props.payload.edges}>
           {(edge) => {
-            const s = pos(edge.source);
-            const t = pos(edge.target);
-            const dx = t.x - s.x;
-            const dy = t.y - s.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const ux = dx / len;
-            const uy = dy / len;
-            const sx = s.x + ux * NODE_RADIUS;
-            const sy = s.y + uy * NODE_RADIUS;
-            const tx = t.x - ux * NODE_RADIUS;
-            const ty = t.y - uy * NODE_RADIUS;
-            const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
-            const dim = isDimmed(edge.source) || isDimmed(edge.target);
-            const box = edgeBox(edge.label);
+            // PR (ux-overhaul-3): pos を memo にしてノード drag に追随する
+            const s = createMemo(() => pos(edge.source));
+            const t = createMemo(() => pos(edge.target));
+            const geom = createMemo(() => {
+              const sp = s();
+              const tp = t();
+              const dx = tp.x - sp.x;
+              const dy = tp.y - sp.y;
+              const len = Math.hypot(dx, dy) || 1;
+              const ux = dx / len;
+              const uy = dy / len;
+              const r = radius();
+              const sx = sp.x + ux * r;
+              const sy = sp.y + uy * r;
+              const tx = tp.x - ux * r;
+              const ty = tp.y - uy * r;
+              const route = edgeRoutes().get(edge.id) ?? { offset: 0, labelT: 0.55 };
+              const px = -uy;
+              const py = ux;
+              const osx = sx + px * route.offset;
+              const osy = sy + py * route.offset;
+              const otx = tx + px * route.offset;
+              const oty = ty + py * route.offset;
+              return {
+                sx: osx,
+                sy: osy,
+                tx: otx,
+                ty: oty,
+                label: {
+                  x: osx + (otx - osx) * route.labelT,
+                  y: osy + (oty - osy) * route.labelT,
+                },
+              };
+            });
+            const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
+            const box = createMemo(() => edgeBox(edge.label));
             const explicit = edge.kind === 'explicit';
             return (
-              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim }}>
+              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
                 <line
-                  x1={sx}
-                  y1={sy}
-                  x2={tx}
-                  y2={ty}
+                  x1={geom().sx}
+                  y1={geom().sy}
+                  x2={geom().tx}
+                  y2={geom().ty}
                   stroke={explicit ? '#0072b2' : '#5a6068'}
                   stroke-width={explicit ? 2 : 1.5}
                   stroke-dasharray={explicit ? undefined : '4 3'}
                   marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
                 <g
-                  transform={`translate(${mid.x}, ${mid.y})`}
+                  transform={`translate(${geom().label.x}, ${geom().label.y})`}
                   class="lens-edge-label-group"
                   classList={{
                     'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
@@ -244,10 +379,10 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   }}
                 >
                   <rect
-                    x={-box.w / 2}
-                    y={-box.h / 2}
-                    width={box.w}
-                    height={box.h}
+                    x={-box().w / 2}
+                    y={-box().h / 2}
+                    width={box().w}
+                    height={box().h}
                     rx="4"
                     ry="4"
                     fill="#ffffff"
@@ -259,6 +394,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     text-anchor="middle"
                     dominant-baseline="middle"
                     fill={explicit ? '#0072b2' : undefined}
+                    style={{ 'font-size': `${10 / view().scale}px` }}
                   >
                     {edge.label}
                   </text>
@@ -271,14 +407,16 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
         {/* connect モード中の rubber-band */}
         <Show when={drag()?.kind === 'connect'}>
           {(_) => {
-            const d = drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number };
-            const s = pos(d.source);
+            // PR (ux-overhaul-3): drag() を memo にして mousemove に追随させる
+            const dm = createMemo(
+              () => drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number },
+            );
             return (
               <line
-                x1={s.x}
-                y1={s.y}
-                x2={d.toX}
-                y2={d.toY}
+                x1={pos(dm().source).x}
+                y1={pos(dm().source).y}
+                x2={dm().toX}
+                y2={dm().toY}
                 stroke="#0072b2"
                 stroke-width="2"
                 stroke-dasharray="6 4"
@@ -289,10 +427,43 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
           }}
         </Show>
 
+        {/* comments (nodes より下に描画して、ノードを背景色で囲うイメージ) */}
+        <For each={GraphComments.comments()}>
+          {(c) => (
+            <CommentRect
+              comment={c}
+              onMoveStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-move',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cx: c.x,
+                  cy: c.y,
+                });
+              }}
+              onResizeStart={(e) => {
+                e.stopPropagation();
+                setDrag({
+                  kind: 'comment-resize',
+                  id: c.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  cw: c.width,
+                  ch: c.height,
+                });
+              }}
+            />
+          )}
+        </For>
+
         {/* nodes */}
         <For each={props.payload.nodes}>
           {(node) => {
-            const p = pos(node.id);
+            // PR (ux-overhaul-3): pos を memo にして props.positions の変化を tracked。
+            // For 子は 1 回しか走らないので、pos を let const で読むと初期値で固まる。
+            const p = createMemo(() => pos(node.id));
             const isSelected = () => props.selected === node.id;
             const dim = () => isDimmed(node.id);
             const isHover = () => hoverNode() === node.id;
@@ -305,7 +476,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   'lens-node--dimmed': dim(),
                   'lens-node--target-hover': connecting() && isHover(),
                 }}
-                transform={`translate(${p.x}, ${p.y})`}
+                transform={`translate(${p().x}, ${p().y})`}
                 onMouseDown={(e) => onNodeMouseDown(e, node.id)}
                 onMouseEnter={() => setHoverNode(node.id)}
                 onMouseLeave={() => setHoverNode(undefined)}
@@ -322,7 +493,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   when={props.thumbnailUrls?.get(node.id)}
                   fallback={
                     <circle
-                      r={NODE_RADIUS}
+                      r={radius()}
                       fill={colorForTemplate(node.templateId)}
                       stroke={
                         isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
@@ -335,20 +506,20 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     <>
                       <defs>
                         <clipPath id={`clip-${node.id}`}>
-                          <circle r={NODE_RADIUS} />
+                          <circle r={radius()} />
                         </clipPath>
                       </defs>
                       <image
                         href={url()}
-                        x={-NODE_RADIUS}
-                        y={-NODE_RADIUS}
-                        width={NODE_RADIUS * 2}
-                        height={NODE_RADIUS * 2}
+                        x={-radius()}
+                        y={-radius()}
+                        width={radius() * 2}
+                        height={radius() * 2}
                         clip-path={`url(#clip-${node.id})`}
                         preserveAspectRatio="xMidYMid slice"
                       />
                       <circle
-                        r={NODE_RADIUS}
+                        r={radius()}
                         fill="none"
                         stroke={
                           isSelected()
@@ -373,7 +544,11 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                     <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
                   </Show>
                 </Show>
-                <text class="lens-node-label" y={NODE_RADIUS + 14}>
+                <text
+                  class="lens-node-label"
+                  y={radius() + 14 / view().scale}
+                  style={{ 'font-size': `${11 / view().scale}px` }}
+                >
                   {node.label}
                 </text>
               </g>
@@ -385,8 +560,108 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   );
 };
 
+/** SVG 内に foreignObject で配置するメモ box。背景色 + 編集可能 textarea + 角の resize handle。 */
+const CommentRect: Component<{
+  comment: GraphComment;
+  onMoveStart: (e: MouseEvent) => void;
+  onResizeStart: (e: MouseEvent) => void;
+}> = (props) => {
+  return (
+    <g class="lens-comment" transform={`translate(${props.comment.x}, ${props.comment.y})`}>
+      <rect
+        width={props.comment.width}
+        height={props.comment.height}
+        rx="6"
+        ry="6"
+        fill={props.comment.color ?? 'rgba(255, 240, 180, 0.85)'}
+        stroke="rgba(180, 140, 60, 0.6)"
+        stroke-width="1"
+        onMouseDown={(e) => props.onMoveStart(e)}
+      />
+      <foreignObject
+        x="0"
+        y="0"
+        width={props.comment.width}
+        height={props.comment.height}
+        pointer-events="none"
+      >
+        <div
+          class="lens-comment-body"
+          style={{ width: `${props.comment.width}px`, height: `${props.comment.height}px` }}
+        >
+          <StableTextarea
+            class="lens-comment-text"
+            value={props.comment.text}
+            onInput={(value) => GraphComments.update(props.comment.id, { text: value })}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="メモ / グループ説明"
+          />
+          <button
+            type="button"
+            class="lens-comment-delete"
+            title="メモを削除"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm('このメモを削除しますか?')) {
+                GraphComments.remove(props.comment.id);
+              }
+            }}
+          >
+            ×
+          </button>
+        </div>
+      </foreignObject>
+      {/* 右下リサイズハンドル (SVG 上に直接置く — foreignObject の pointer-events は none) */}
+      <rect
+        class="lens-comment-resize"
+        x={props.comment.width - 14}
+        y={props.comment.height - 14}
+        width="14"
+        height="14"
+        fill="rgba(180, 140, 60, 0.6)"
+        rx="2"
+        ry="2"
+        onMouseDown={(e) => props.onResizeStart(e)}
+        style={{ cursor: 'nwse-resize' }}
+      />
+    </g>
+  );
+};
+
 function clampScale(s: number): number {
   return Math.max(0.1, Math.min(4, s));
+}
+
+function loadView(key: string | undefined): ViewState {
+  if (!key || typeof localStorage === 'undefined') return { x: 0, y: 0, scale: 1 };
+  try {
+    const raw = localStorage.getItem(`${GRAPH_VIEW_PREFIX}${key}`);
+    if (!raw) return { x: 0, y: 0, scale: 1 };
+    const parsed = JSON.parse(raw) as Partial<ViewState>;
+    const x = typeof parsed.x === 'number' ? parsed.x : 0;
+    const y = typeof parsed.y === 'number' ? parsed.y : 0;
+    const scale = typeof parsed.scale === 'number' ? clampScale(parsed.scale) : 1;
+    return { x, y, scale };
+  } catch {
+    return { x: 0, y: 0, scale: 1 };
+  }
+}
+
+function saveView(key: string | undefined, view: ViewState): void {
+  if (!key || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(`${GRAPH_VIEW_PREFIX}${key}`, JSON.stringify(view));
+  } catch {
+    /* quota */
+  }
+}
+
+function unorderedPairKey(a: NodeId, b: NodeId): string {
+  return String(a) < String(b) ? `${a}\u0000${b}` : `${b}\u0000${a}`;
+}
+
+function directedPairSign(a: NodeId, b: NodeId): 1 | -1 {
+  return String(a) < String(b) ? 1 : -1;
 }
 
 function colorForTemplate(templateId: string): string {

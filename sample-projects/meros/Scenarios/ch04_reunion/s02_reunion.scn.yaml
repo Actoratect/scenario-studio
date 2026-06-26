@@ -1,0 +1,92 @@
+schemaVersion: 1
+kind: scene
+id: ch04_s02_reunion
+title: 再会と告白
+chapter: ch04_reunion
+order: 2
+location: 01MERS10LTJO0EF2OP0RSZT4JCMZ
+era: era.ancient
+cast:
+  - melos
+  - serinuntius
+  - dionysius
+script:
+  - kind: bgm
+    track: reunion_tears
+
+  - kind: aside
+    text: |
+      間に合った。
+      日は、ほんの少し、地平線の上に残っていた。
+      メロスは、セリヌンティウスの縄を解いた。
+      二人は、しっかりと抱き合った。
+
+  - kind: stage
+    text: 城門前の処刑台広場。縄を解かれたセリヌンティウスとメロスが抱き合っている。周囲に群衆と衛兵。
+
+  - kind: sfx
+    sound: crowd_murmur
+
+  - kind: aside
+    text: |
+      しばらく、二人は黙って、相手の胸に顔を埋めていた。
+      しかしメロスは突然、セリヌンティウスの頬を力一杯殴った。
+
+  - kind: sfx
+    sound: slap
+
+  - kind: line
+    who: serinuntius
+    emotion: surprised
+    text: 'メロス！'
+
+  - kind: line
+    who: melos
+    emotion: anguished
+    text: |
+      セリヌンティウス、殴ってくれ。ちからいっぱいに頬を殴ってくれ。
+      私は、途中で一度、君を疑った。
+      君が私を待ちながら、もしや私は来ないのではないかと思っているかも知れない、
+      そうしたら、どんなに君の心が傷ついただろう、と思ったら、
+      私は、自分が恥ずかしかった。
+      君を裏切らなかったことは、よかった。しかし、疑った事は、嘘になる。
+      殴れ。
+
+  - kind: aside
+    text: セリヌンティウスは、黙って、しっかりとメロスの頬を打った。
+
+  - kind: sfx
+    sound: slap
+
+  - kind: line
+    who: serinuntius
+    emotion: tearful
+    text: |
+      メロス、私も一度だけ、ちらと君を疑った。
+      君が来てくれなかったら、どうしよう、と思った時が、一瞬あった。
+      生涯で一度だけ、そう思った。
+      殴ってくれ。
+
+  - kind: aside
+    text: メロスは、全力でセリヌンティウスの頬を殴った。
+
+  - kind: sfx
+    sound: slap
+
+  - kind: aside
+    text: |
+      二人は、また、しっかり抱き合い、それから笑った。
+      群衆の中からも、どよめきが上がった。
+
+  - kind: line
+    who: melos
+    emotion: laughing_through_tears
+    text: 'セリヌンティウス！'
+
+  - kind: line
+    who: serinuntius
+    emotion: laughing_through_tears
+    text: 'メロス！'
+
+  - kind: sfx
+    sound: crowd_cheering

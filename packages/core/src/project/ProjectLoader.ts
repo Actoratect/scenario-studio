@@ -7,6 +7,7 @@ import type { NodeRepository } from '../domain/NodeRepository.js';
 import { FsScenarioRepository } from '../domain/ScenarioRepository.js';
 import { FsGlossaryRepository } from '../domain/GlossaryRepository.js';
 import { FsRelationsRepository } from '../domain/RelationsRepository.js';
+import { FsPlotBoardRepository } from '../domain/PlotBoardRepository.js';
 import { TemplateRegistry } from '../domain/templates/index.js';
 import {
   defaultProjectSettings,
@@ -35,6 +36,8 @@ export interface LoadProjectResult {
   glossaryRepository: FsGlossaryRepository;
   /** PR-E から明示的 Relation の load/save に使う。 */
   relationsRepository: FsRelationsRepository;
+  /** ノードベースのプロット / 脚本メモボードの load/save に使う。 */
+  plotBoardRepository: FsPlotBoardRepository;
   /** Phase 3 でユーザ定義テンプレートを registry に追加する想定の hook。 */
   templates: TemplateRegistry;
 }
@@ -60,22 +63,25 @@ export async function loadProject(
   const scenarioRepository = new FsScenarioRepository(adapter, handle);
   const glossaryRepository = new FsGlossaryRepository(adapter, handle);
   const relationsRepository = new FsRelationsRepository(adapter, handle);
+  const plotBoardRepository = new FsPlotBoardRepository(adapter, handle);
 
-  const [nodes, eras, scenario, glossary, relations] = await Promise.all([
+  const [nodes, eras, scenario, glossary, relations, plotBoards] = await Promise.all([
     nodeRepository.loadAll() as Promise<ReadonlyMap<NodeId, ScenarioNode>>,
     eraRepository.loadAll(),
     scenarioRepository.load(),
     glossaryRepository.load(),
     relationsRepository.load(),
+    plotBoardRepository.loadAll(),
   ]);
 
   return {
-    project: { settings, nodes, eras, scenario, glossary, relations },
+    project: { settings, nodes, eras, scenario, glossary, relations, plotBoards },
     nodeRepository,
     eraRepository,
     scenarioRepository,
     glossaryRepository,
     relationsRepository,
+    plotBoardRepository,
     templates,
   };
 }

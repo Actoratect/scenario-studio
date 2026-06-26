@@ -56,3 +56,31 @@ export { FsGlossaryRepository } from './GlossaryRepository.js';
 export type { Relation, RelationId } from './Relation.js';
 export { relationId } from './Relation.js';
 export { createRelation, FsRelationsRepository } from './RelationsRepository.js';
+
+// Plot Boards (PR: graph plot board) — 並行プロット / 脚本メモの一次データ
+export type {
+  PlotBoard,
+  PlotBoardAnchors,
+  PlotBoardEdge,
+  PlotBoardEdgeId,
+  PlotBoardId,
+  PlotBoardNode,
+  PlotBoardNodeId,
+  PlotBoardNodeKind,
+  PlotBoardNodeViewMode,
+  PlotBoardPosition,
+} from './PlotBoard.js';
+export {
+  createMainPlotBoard,
+  MAIN_PLOT_BOARD_ID,
+  MAIN_PLOT_BOARD_TITLE,
+  plotBoardEdgeId,
+  plotBoardId,
+  plotBoardNodeId,
+} from './PlotBoard.js';
+export {
+  createPlotBoardEdge,
+  createPlotBoardNode,
+  FsPlotBoardRepository,
+  MAIN_PLOT_BOARD_FILE,
+} from './PlotBoardRepository.js';

@@ -1,0 +1,10 @@
+schemaVersion: 1
+kind: chapter
+id: ch03_trials
+title: 第三章　試練
+order: 3
+scenes:
+  - s01_flood
+  - s02_bandits
+  - s03_exhaustion
+  - s04_revival

@@ -1,0 +1,53 @@
+schemaVersion: 1
+kind: scene
+id: ch02_s02_wedding
+title: 妹の婚礼
+chapter: ch02_village
+order: 2
+location: 01MERS11LVLG0GH3PQ1STAU5KDNA
+era: era.ancient
+cast:
+  - melos
+  - imoto
+  - hanamuko
+script:
+  - kind: bgm
+    track: village_celebration
+
+  - kind: aside
+    text: |
+      翌日。村の祭典は賑やかに執り行われた。
+      花嫁は、したたかに美しかった。
+      メロスは、来年の祭のことなど考えながら、花婿の青年が羨ましかった。
+
+  - kind: stage
+    text: 村の広場で婚礼の宴。松明が焚かれ、村人たちが歌い踊っている。
+
+  - kind: line
+    who: melos
+    emotion: happy
+    text: '妹よ。いい顔だ。おまえは幸せ者だ。'
+
+  - kind: line
+    who: imoto
+    emotion: tearful
+    text: '兄さんも、幸せでいてね。必ず帰ってきてね。'
+
+  - kind: line
+    who: melos
+    emotion: cheerful
+    text: '帰ってくる。心配するな。さあ、笑え。今日は、おまえの晴れの日だ。'
+
+  - kind: sfx
+    sound: rain_starting
+
+  - kind: aside
+    text: |
+      夕方から雨が降り始めた。
+      雨は次第に激しくなった。庭の小川は見る見る増水した。
+      宴は、それでも夜遅くまで続いた。
+      メロスも、努めて愉快に振る舞い、歌い、踊った。
+      しかし、ひとりになったとき、顔が曇った。
+
+  - kind: bgm
+    track: rain_and_wind

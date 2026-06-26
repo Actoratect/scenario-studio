@@ -1,4 +1,14 @@
-import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
 import {
@@ -33,6 +43,13 @@ import { EraSelector } from '../global/EraSelector';
 import { NodeThumbnail } from '../global/NodeThumbnail';
 import { PortraitCropper } from '../global/PortraitCropper';
 import { useSaveScheduler } from '../services/save-scheduler-binding';
+import { deriveGlossary } from '../services/GlossaryHighlight';
+import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
+import { SceneSelection } from '../services/SceneSelection';
+import { PanelFocus } from '../services/PanelFocus';
+import { PanelPinService } from '../services/PanelPinService';
+
+type ProjectContext = NonNullable<ReturnType<typeof ProjectService.currentProject>>;
 
 // 選択中ノードの編集 UI。
 // テンプレート schema を読んで対応する form プリミティブを並べ、
@@ -43,11 +60,14 @@ import { useSaveScheduler } from '../services/save-scheduler-binding';
 
 export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const scheduler = useSaveScheduler();
+  const panelNodeId = createMemo<NodeId | undefined>(
+    () => PanelPinService.inspectorNode(params.api.id) ?? SelectionContext.selectedNodeId(),
+  );
 
   // project.nodes は immutable Map なので、ProjectService.currentProject() の参照変化を起点にメモ化
   const node = createMemo<ScenarioNode | undefined>(() => {
     const ctx = ProjectService.currentProject();
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!ctx || !id) return undefined;
     return ctx.project.nodes.get(id);
   });
@@ -91,15 +111,21 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     if (!ctx) return [];
     const out: NodeRefOption[] = [];
     for (const n of ctx.project.nodes.values()) {
-      out.push({ id: n.id, label: n.slug, hint: n.templateId });
+      // ID/slug ではなく display_name を主表示。slug は hint に回す。
+      const display = n.fields['display_name'];
+      const label = typeof display === 'string' && display !== '' ? (display as string) : n.slug;
+      out.push({ id: n.id, label, hint: n.slug });
     }
     return out;
   });
 
   // Solid 側の rerender を促すための tick。NodeFieldStore.observe で signal を起動。
   let unsubscribe: (() => void) | undefined;
-  onMount(() => {
-    const id = SelectionContext.selectedNodeId();
+  let suppressStoreNotify = false;
+  createEffect(() => {
+    unsubscribe?.();
+    unsubscribe = undefined;
+    const id = panelNodeId();
     if (!id) return;
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -107,13 +133,24 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     if (!store) return;
     unsubscribe = store.observe(() => {
       // ProjectModel.nodes を更新 — Inspector の render を促す
-      bumpProject(ctx, id);
+      if (suppressStoreNotify) return;
+      syncProjectNodeFields(ctx, id, { notify: true });
     });
   });
   onCleanup(() => unsubscribe?.());
 
+  function isTextLikeField(fieldId: string): boolean {
+    const field = template()?.fields.find((f) => f.id === fieldId);
+    return (
+      field?.type === 'string' ||
+      field?.type === 'media_ref' ||
+      field?.type === 'multiline_string' ||
+      field?.type === 'markdown'
+    );
+  }
+
   function setField(fieldId: string, value: FieldValue): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     const ctx = ProjectService.currentProject();
     if (!id || !ctx) return;
     // 非 base Era で編集 → variant override に書く (base.fields は触らない)
@@ -123,13 +160,19 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     }
     const store = ctx.history.get(id);
     if (!store) return;
-    store.set(fieldId, value);
-    bumpProject(ctx, id);
+    const deferNotify = isTextLikeField(fieldId);
+    suppressStoreNotify = true;
+    try {
+      store.set(fieldId, value);
+    } finally {
+      suppressStoreNotify = false;
+    }
+    syncProjectNodeFields(ctx, id, { notify: !deferNotify });
     scheduler.schedule(id);
   }
 
   function removeOverride(fieldId: string): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!id || EraContext.isBase()) return;
     void VariantsService.removeFieldOverride(id, EraContext.currentEraId(), fieldId);
   }
@@ -179,11 +222,12 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
   const longGroups = createMemo(() => buildGroups(isLongField));
 
   function onFieldBlur(): void {
-    const id = SelectionContext.selectedNodeId();
+    const id = panelNodeId();
     if (!id) return;
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     ctx.history.get(id)?.markUndoBoundary();
+    syncProjectNodeFields(ctx, id, { notify: true });
   }
 
   async function renameNode(): Promise<void> {
@@ -201,6 +245,7 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       const updated = { ...n, slug: trimmed };
       nextMap.set(n.id, updated);
       Object.assign(ctx.project, { nodes: nextMap });
+      ProjectService.touch();
       Toast.success(`slug を変更: ${n.slug} → ${trimmed}`);
     } catch (e) {
       Toast.error(`slug 変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -256,7 +301,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     await ThumbnailService.clearForNode(n);
   }
 
-  /** PR-AC: 立ち絵から「丸サムネに使う矩形」を node に保存 */
+  /** PR-AC: 立ち絵から「サムネに使う正方形」を node に保存。
+   *  保存成功時は短い Toast で feedback を出す (drag-end が自動 trigger するため、
+   *  ユーザーに「保存された」ことを明示しないと不安になるという指摘に対応)。 */
   async function saveThumbnailRect(rect: ThumbnailRect): Promise<void> {
     const n = node();
     const ctx = ProjectService.currentProject();
@@ -267,6 +314,10 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       const next = new Map(ctx.project.nodes);
       next.set(n.id, updated);
       Object.assign(ctx.project, { nodes: next });
+      // Graph / 脚本 サムネへの即時反映: Solid signal を bump して
+      // 依存 memo (lens / thumbnailUrls 等) を再評価させる。
+      ProjectService.touch();
+      Toast.success('サムネを保存しました', 1200);
     } catch (e) {
       Toast.error(`サムネ位置の保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -281,8 +332,16 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       await ctx.nodeRepository.delete(n.id);
       const nextMap = new Map(ctx.project.nodes);
       nextMap.delete(n.id);
+      const nextRelations = ctx.project.relations.filter(
+        (r) => r.source !== n.id && r.target !== n.id,
+      );
+      await ctx.relationsRepository.save(nextRelations);
       Object.assign(ctx.project, { nodes: nextMap });
+      Object.assign(ctx.project, { relations: nextRelations });
+      ctx.history.unregister(n.id);
       SelectionContext.selectNode(undefined);
+      PanelPinService.clearPanel(params.api.id);
+      ProjectService.touch();
       Toast.success(`ノードを削除: ${n.slug}`);
     } catch (e) {
       Toast.error(`削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -318,6 +377,9 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
               {devName()}
             </span>
             <span class="panel-inspector-template-tag">{template()!.displayName}</span>
+            <Show when={PanelPinService.isInspectorPinned(params.api.id)}>
+              <span class="panel-inspector-era-tag">📌 pinned</span>
+            </Show>
             <Show when={!EraContext.isBase()}>
               <span class="panel-inspector-era-tag">
                 ◆ {EraContext.currentEraId()}
@@ -430,10 +492,102 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
                 </For>
               </div>
             </Show>
+            {/* PR (ux-overhaul): 登場した章 / シーン (cast 自動集計) */}
+            <AppearancesSection node={node()!} />
           </div>
         </div>
       </Show>
     </div>
+  );
+};
+
+/** PR (ux-overhaul): このノードが登場/言及されるシーンを章別にまとめて表示。
+ *  scenario YAML をスキャンする SceneAppearanceIndex を遅延初期化して使う。
+ *  クリックで Script タブにジャンプ。 */
+const AppearancesSection: Component<{ node: ScenarioNode }> = (props) => {
+  // mount 時に index 構築 (まだ build されていなければ)
+  onMount(() => SceneAppearanceIndex.ensureBuilt());
+
+  const identifiers = createMemo<string[]>(() => {
+    const ids = [props.node.slug];
+    const dev = props.node.fields['dev_name'];
+    if (typeof dev === 'string' && dev !== '' && dev !== props.node.slug) ids.push(dev);
+    return ids;
+  });
+
+  const groupedByChapter = createMemo(() => {
+    // SceneAppearanceIndex の signal を読むことで再評価
+    void SceneAppearanceIndex.byIdentifier();
+    const list = SceneAppearanceIndex.appearancesFor(...identifiers());
+    const map = new Map<string, { title: string; scenes: (typeof list)[number][] }>();
+    for (const a of list) {
+      const cur = map.get(a.chapterSlug);
+      if (cur) cur.scenes.push(a);
+      else map.set(a.chapterSlug, { title: a.chapterTitle, scenes: [a] });
+    }
+    return [...map.entries()];
+  });
+
+  function jump(chapterSlug: string, sceneSlug: string, label: string): void {
+    SceneSelection.select({ chapterSlug, sceneSlug, label });
+    PanelFocus.focus('script-1');
+  }
+
+  return (
+    <section class="panel-inspector-appearances">
+      <h4 class="panel-inspector-appearances-title">
+        🎬 登場した章
+        <Show when={SceneAppearanceIndex.building()}>
+          <span class="panel-inspector-appearances-loading"> (集計中…)</span>
+        </Show>
+        <button
+          type="button"
+          class="panel-inspector-appearances-refresh"
+          title="登場集計を再計算"
+          onClick={() => void SceneAppearanceIndex.refresh()}
+        >
+          ⟳
+        </button>
+      </h4>
+      <Show
+        when={groupedByChapter().length > 0}
+        fallback={
+          <p class="panel-inspector-appearances-empty">
+            このノードが登場または言及されるシーンは見つかりませんでした。
+          </p>
+        }
+      >
+        <ul class="panel-inspector-appearances-list">
+          <For each={groupedByChapter()}>
+            {([chapterSlug, group]) => (
+              <li class="panel-inspector-appearances-chapter">
+                <span class="panel-inspector-appearances-chapter-title">
+                  📖 {group.title}{' '}
+                  <span class="panel-inspector-appearances-count">({group.scenes.length})</span>
+                </span>
+                <ul class="panel-inspector-appearances-scenes">
+                  <For each={group.scenes}>
+                    {(s) => (
+                      <li>
+                        <button
+                          type="button"
+                          class="panel-inspector-appearances-scene"
+                          onClick={() => jump(chapterSlug, s.sceneSlug, s.sceneTitle)}
+                          title={`${s.sceneTitle} を脚本タブで開く (出現 ${s.count})`}
+                        >
+                          🎬 {s.sceneTitle}
+                          <span class="panel-inspector-appearances-line-count">{s.count}</span>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </section>
   );
 };
 
@@ -605,7 +759,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
       typeof props.node.fields['display_name'] === 'string'
         ? (props.node.fields['display_name'] as string)
         : props.node.slug;
-    const glossaryTerms = (props.project.project.glossary ?? []).map((g) => g.term);
+    const glossaryTerms = deriveGlossary(props.project.project).map((g) => g.term);
     const ctx: FieldAiContext = {
       target: { kind: 'node-field', nodeId: props.node.id, fieldId: props.field.id },
       ...(typeof props.value === 'string' ? { currentValue: props.value } : {}),
@@ -655,7 +809,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
               type="button"
               class="panel-inspector-variant-remove"
               onClick={() => props.onRemoveOverride()}
-              title="この Era の override を解除してベース値に戻す"
+              title="この時間軸の override を解除してベース値に戻す"
             >
               × override 解除
             </button>
@@ -673,9 +827,9 @@ const FieldRow: Component<FieldRowProps> = (props) => {
                   value: props.value,
                 });
               }}
-              title="この override 値を別の Era にも一括適用 (PR-AP)"
+              title="この override 値を別の時間軸にも一括適用 (PR-AP)"
             >
-              ⤴ 他 Era にも適用
+              ⤴ 他の時間軸にも適用
             </button>
           </Show>
         </div>
@@ -812,9 +966,10 @@ const NodeRefPreview: Component<{
  * Solid signal は ProjectService.currentProject の identity 変更で reflow する想定。
  * MVP は in-place 差替 + ctx 再 set で促す (M4 で createStore を本格導入し細粒度反応にする)。
  */
-function bumpProject(
-  ctx: ReturnType<typeof ProjectService.currentProject> & object,
+function syncProjectNodeFields(
+  ctx: ProjectContext,
   id: NodeId,
+  options: { notify: boolean },
 ): void {
   const store = ctx.history.get(id);
   if (!store) return;
@@ -827,4 +982,5 @@ function bumpProject(
   // Map は immutable (ReadonlyMap) として公開しているが、
   // M3 では in-place 差替を許容 (M4 で immer 化)。
   Object.assign(ctx.project, { nodes: nextNodes });
+  if (options.notify) ProjectService.touch();
 }

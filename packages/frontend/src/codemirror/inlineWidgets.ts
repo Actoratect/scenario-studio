@@ -1,13 +1,15 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
+import { emotionLabel } from '../script/emotions';
 
 // 脚本エディタ用 inline widget — 行内の `who: <slug>` / `emotion: <tag>` を
 // それぞれサムネ円アイコン / 感情バッジに置き換える (= source 文字を non-replacing widget で前置)。
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §5.3
 
 const WHO_PATTERN = /who:\s*([A-Za-z0-9_]+)/g;
-const EMOTION_PATTERN = /emotion:\s*([A-Za-z0-9_]+)/g;
+// 感情値は英語 (legacy) と日本語 (新形式) の両方を許容するため Unicode 文字クラスを許す
+const EMOTION_PATTERN = /emotion:\s*([^\s,}]+)/g;
 const SFX_PATTERN = /\bkind:\s*sfx\b/g;
 const BGM_PATTERN = /\bkind:\s*bgm\b/g;
 const CHOICE_PATTERN = /\bkind:\s*choice\b/g;
@@ -49,7 +51,7 @@ class EmotionTagWidget extends WidgetType {
     const root = document.createElement('span');
     root.className = 'cm-ss-emotion';
     root.dataset.emotion = this.tag;
-    root.textContent = `🎭 ${this.tag}`;
+    root.textContent = `🎭 ${emotionLabel(this.tag)}`;
     root.style.background = emotionColor(this.tag);
     return root;
   }

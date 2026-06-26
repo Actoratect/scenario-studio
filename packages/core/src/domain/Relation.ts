@@ -11,7 +11,6 @@
 //       ../../../../Documentation/ScenarioEditor/03_data-model.md
 
 import type { NodeId } from './era.js';
-import type { RelationType } from './relations.js';
 
 export type RelationId = string & { readonly __brand: 'RelationId' };
 export const relationId = (s: string): RelationId => s as RelationId;
@@ -20,7 +19,10 @@ export interface Relation {
   id: RelationId;
   source: NodeId;
   target: NodeId;
-  type: RelationType;
-  /** UI 表示用の自由テキスト (空でも OK)。type だけでは語れない補足。 */
-  label?: string;
+  /**
+   * source → target 方向の関係性を表す自由テキスト。
+   * グラフでは source→target の矢印として 1 本描かれる。
+   * 双方向にしたい場合は逆向き (target→source) の Relation をもう 1 本作る。
+   */
+  text: string;
 }

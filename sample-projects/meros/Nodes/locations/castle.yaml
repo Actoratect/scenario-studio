@@ -1,0 +1,12 @@
+schemaVersion: 1
+kind: node
+id: 01MERS10LTJO0EF2OP0RSZT4JCMZ
+templateId: template.location
+slug: castle
+fields:
+  display_name: ディオニス王の城
+  reading: でぃおにすおうのしろ
+  dev_name: Castle
+  founded_year: 0
+  description: シラクスの丘の上に建つ王城。暗い謁見の間に処刑の歴史が刻まれている。処刑台は城門前の広場にある。
+  parent_location: 01MERS09LCTS0CD1NO9QRYS3IBLY

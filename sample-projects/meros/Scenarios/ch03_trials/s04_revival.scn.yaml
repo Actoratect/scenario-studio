@@ -1,0 +1,59 @@
+schemaVersion: 1
+kind: scene
+id: ch03_s04_revival
+title: 岩間の清水
+chapter: ch03_trials
+order: 4
+location: 01MERS12LOAD0IJ4QR2TUBV6LEOB
+era: era.ancient
+cast:
+  - melos
+script:
+  - kind: bgm
+    track: gentle_hope
+
+  - kind: aside
+    text: |
+      どれほど時が経ったか。
+      ふいに、足もとに、冷たいものを感じた。
+      メロスは、意識を取り戻した。
+      岩の裂け目から、清水が、さらさらと流れ出ていた。
+
+  - kind: stage
+    text: 岩陰。小さな清水が湧き出ている。メロスがゆっくりと目を開ける。
+
+  - kind: sfx
+    sound: gentle_water_trickle
+
+  - kind: aside
+    text: |
+      メロスは、がばと起き上がり、
+      清水を両手にすくって、一気に飲んだ。
+      さらに飲んだ。
+      ゆっくりと、力が戻ってきた。
+
+  - kind: line
+    who: melos
+    emotion: revived
+    text: '生き返った。ありがとう。神様。'
+
+  - kind: aside
+    text: |
+      メロスは、あの悪魔の囁きを思い出し、深く恥じた。
+      私は、信頼に値しない人間だ、と思った。
+      しかしだからこそ、今、走らなければならない。
+      信頼に値する人間になるために、走らなければならない。
+
+  - kind: line
+    who: melos
+    emotion: burning
+    text: 'セリヌンティウス、待っていてくれ。私は行く。死んでも行く。走れ、メロス！'
+
+  - kind: sfx
+    sound: melos_running_footsteps
+
+  - kind: aside
+    text: |
+      メロスは立ち上がった。
+      ふらつきながら、一歩、また一歩。
+      そして走り出した。

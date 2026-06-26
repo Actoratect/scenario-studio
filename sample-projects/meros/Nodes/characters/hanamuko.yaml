@@ -1,0 +1,16 @@
+schemaVersion: 1
+kind: node
+id: 01MERS06HANM0WX8KL6NOVP0FYIV
+templateId: template.character
+slug: hanamuko
+fields:
+  gender: male
+  tone: quiet
+  display_name: 花婿
+  reading: はなむこ
+  dev_name: Hanamuko
+  birth_year: 0
+  height: 0
+  appearance: 婚礼の衣装。実直そうな顔つき。
+  personality: 妹の婚約者。実直な若者。メロスから事情を聞かされ、無言でうなずいた。
+  first_person: 私

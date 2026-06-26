@@ -1,0 +1,63 @@
+schemaVersion: 1
+kind: scene
+id: ch02_s01_homecoming
+title: 帰村と告白
+chapter: ch02_village
+order: 1
+location: 01MERS11LVLG0GH3PQ1STAU5KDNA
+era: era.ancient
+cast:
+  - melos
+  - imoto
+  - hanamuko
+script:
+  - kind: bgm
+    track: village_evening
+
+  - kind: aside
+    text: |
+      その夜、メロスは、村に帰った。
+      妹は、メロスの顔を見てたいそう喜んだ。
+      花婿の青年も、そこにいた。
+
+  - kind: stage
+    text: メロスの小屋。妹が出迎えるが、メロスの様子がおかしいと気づく。
+
+  - kind: line
+    who: imoto
+    emotion: worried
+    text: '兄さん、どうしたの。顔色が悪いわ。'
+
+  - kind: line
+    who: melos
+    emotion: solemn
+    text: 'ちょっと待て。おまえに話がある。怖ろしい話だが、驚くな。よく聞くのだ。'
+
+  - kind: aside
+    text: |
+      メロスは一部始終を話した。
+      妹は兄の話を静かに聞いていたが、やがて、しくしくと泣き始めた。
+
+  - kind: line
+    who: imoto
+    emotion: crying
+    text: 'そんな、どうして…。兄さんは、三日後に…。'
+
+  - kind: line
+    who: melos
+    emotion: gentle
+    text: |
+      泣くな。私は帰ってくる。それよりも、結婚式を急いでくれ。
+      明日、こっそり、あの式を挙げてくれ。私は出席する。
+      花嫁の衣装も、なんとか間に合わせろ。
+
+  - kind: aside
+    text: 妹は黙ってうなずいた。花婿の青年も、こっくりうなずいた。
+
+  - kind: line
+    who: hanamuko
+    emotion: solemn
+    text: 'わかりました。明日、式を挙げましょう。'
+
+  - kind: aside
+    text: その夜、村中の人が、この不思議な兄の話を聞いた。誰も、けしからん話だとは言わなかった。
