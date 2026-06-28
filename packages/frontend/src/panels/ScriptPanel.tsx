@@ -392,8 +392,6 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   /** 現在表示中の scene の title / slug をプロンプトで変更し、ファイルを rename。 */
-  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameCurrentScene(): Promise<void> {
     const cur = scene();
     const ctx = ProjectService.currentProject();
@@ -565,6 +563,15 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           <option value="">— サンプル脚本 —</option>
           <For each={availableScenes()}>{(s) => <option value={s.path}>{s.label}</option>}</For>
         </select>
+        <button
+          type="button"
+          class="panel-script-rename"
+          disabled={!scene()}
+          onClick={() => void renameCurrentScene()}
+          title="シーン名 / slug を変更"
+        >
+          ✎ 名前変更
+        </button>
         <Show when={saving()}>
           <span class="panel-script-saving">
             <Spinner /> 保存中…

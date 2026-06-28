@@ -206,8 +206,6 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
-  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameChapter(chapterSlug: string, currentTitle: string): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
@@ -232,8 +230,6 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     }
   }
 
-  // TODO: 未配線の rename ハンドラ。UI に接続するまで lint 抑制。
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function renameScene(
     chapterSlug: string,
     sceneSlug: string,
@@ -533,6 +529,14 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                       📖 {chapter.title}
                     </button>
                     <button
+                      class="panel-outline-rename-chapter"
+                      disabled={busy()}
+                      onClick={() => void renameChapter(chapter.slug, chapter.title)}
+                      title="章タイトルを変更"
+                    >
+                      ✎
+                    </button>
+                    <button
                       class="panel-outline-add-scene"
                       disabled={busy()}
                       onClick={() => void addScene(chapter.slug)}
@@ -605,6 +609,16 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
                               title="脚本タブでこのシーンを開く"
                             >
                               脚本
+                            </button>
+                            <button
+                              class="panel-outline-rename-scene"
+                              disabled={busy()}
+                              onClick={() =>
+                                void renameScene(chapter.slug, scene.slug, scene.title)
+                              }
+                              title="シーン名 / slug を変更"
+                            >
+                              ✎
                             </button>
                             <button
                               class="panel-outline-delete-scene"
