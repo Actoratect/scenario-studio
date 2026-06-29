@@ -4491,6 +4491,24 @@ button {
   color: var(--ss-text-on-emph);
 }
 
+/* 章 rename ボタン (✎) */
+.panel-outline-rename-chapter {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ss-text-faint);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.panel-outline-rename-chapter:hover:not(:disabled) {
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+  border-color: var(--ss-accent-blue);
+}
+
 .panel-outline-chapter-title-button {
   background: transparent;
   border: none;
