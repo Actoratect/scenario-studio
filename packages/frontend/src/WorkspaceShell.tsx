@@ -260,15 +260,40 @@ class WorkspaceHeaderActions implements IHeaderActionsRenderer {
     }
 
     this.element.appendChild(menu);
+
+    // 画面下部のグループでメニューが見切れないよう、トリガー位置に応じて
+    // 上下の出し分け + 利用可能高さに max-height を合わせる (内部は overflow:auto)。
+    const btnRect = menuButton.getBoundingClientRect();
+    const gap = 8;
+    const spaceBelow = window.innerHeight - btnRect.bottom - gap;
+    const spaceAbove = btnRect.top - gap;
+    if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+      menu.style.top = 'auto';
+      menu.style.bottom = 'calc(100% + 2px)';
+      menu.style.maxHeight = `${Math.max(160, Math.floor(spaceAbove))}px`;
+    } else {
+      menu.style.maxHeight = `${Math.max(160, Math.floor(spaceBelow))}px`;
+    }
   }
 }
 
 // PR-AG: Dockview layout persistence
 const LAYOUT_STORAGE_KEY = 'scenario-studio:dockview-layout';
+const LAYOUT_VERSION_KEY = 'scenario-studio:dockview-layout-version';
+// パネル構成や既定レイアウトを変えたらこの版数を上げる。版数が一致しない古い保存
+// レイアウトは破棄して既定で開き直すため、アプリ更新後にレイアウトが崩れたまま
+// 復元される問題を防ぐ。
+const LAYOUT_VERSION = 2;
 
 function loadSavedLayout(): unknown | undefined {
   if (typeof localStorage === 'undefined') return undefined;
   try {
+    if (Number(localStorage.getItem(LAYOUT_VERSION_KEY)) !== LAYOUT_VERSION) {
+      // 旧版の保存レイアウトは現行のパネル構成と互換が無いので破棄する。
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
+      localStorage.removeItem(LAYOUT_VERSION_KEY);
+      return undefined;
+    }
     const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
     if (!raw) return undefined;
     return JSON.parse(raw);
@@ -281,6 +306,7 @@ function saveLayout(layout: unknown): void {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+    localStorage.setItem(LAYOUT_VERSION_KEY, String(LAYOUT_VERSION));
   } catch {
     /* quota / private mode */
   }
@@ -290,6 +316,7 @@ function clearSavedLayout(): void {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    localStorage.removeItem(LAYOUT_VERSION_KEY);
   } catch {
     /* ignore */
   }
@@ -430,6 +457,21 @@ export const WorkspaceShell: Component = () => {
   function closeWorkspacePanel(panel: IDockviewPanel): void {
     PanelPinService.clearPanel(panel.id);
     panel.api.close();
+  }
+
+  // タブ名を右クリックで閉じる。タブが多くてハンバーガーメニューが見切れる時の代替手段。
+  // dockview の既定タブは data-testid にパネル id を入れているのでそれで解決する。
+  function onTabContextMenu(e: MouseEvent): void {
+    if (!api) return;
+    const tab = (e.target as HTMLElement | null)?.closest<HTMLElement>('.dv-tab');
+    const id = tab?.getAttribute('data-testid');
+    if (!id) return;
+    const panel = api.getPanel(id);
+    if (!panel) return;
+    e.preventDefault();
+    const title = panel.title ?? id;
+    closeWorkspacePanel(panel);
+    Toast.info(`「${title}」タブを閉じました`, 1800);
   }
 
   function togglePanelPin(panel: IDockviewPanel): void {
@@ -606,11 +648,14 @@ export const WorkspaceShell: Component = () => {
       persist();
     });
     api.onDidActivePanelChange(persist);
+
+    host.addEventListener('contextmenu', onTabContextMenu);
   });
 
   onCleanup(() => {
     window.removeEventListener('keydown', onKeydown);
     window.removeEventListener('beforeunload', onBeforeUnload);
+    host?.removeEventListener('contextmenu', onTabContextMenu);
     disposeSaveScheduler();
     PanelFocus.unregister();
     api?.dispose();

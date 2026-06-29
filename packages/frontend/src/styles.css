@@ -179,6 +179,14 @@ button {
   display: none !important;
 }
 
+/* タブが多くて overflow した時の dockview ドロップダウン。高さ無制限だと画面下まで
+   伸びて見切れるため、上限 + スクロールにする。 */
+.dv-tabs-overflow-dropdown-root {
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .workspace-panel-actions {
   position: relative;
   display: flex;
