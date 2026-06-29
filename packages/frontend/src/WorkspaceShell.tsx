@@ -260,6 +260,20 @@ class WorkspaceHeaderActions implements IHeaderActionsRenderer {
     }
 
     this.element.appendChild(menu);
+
+    // 画面下部のグループでメニューが見切れないよう、トリガー位置に応じて
+    // 上下の出し分け + 利用可能高さに max-height を合わせる (内部は overflow:auto)。
+    const btnRect = menuButton.getBoundingClientRect();
+    const gap = 8;
+    const spaceBelow = window.innerHeight - btnRect.bottom - gap;
+    const spaceAbove = btnRect.top - gap;
+    if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+      menu.style.top = 'auto';
+      menu.style.bottom = 'calc(100% + 2px)';
+      menu.style.maxHeight = `${Math.max(160, Math.floor(spaceAbove))}px`;
+    } else {
+      menu.style.maxHeight = `${Math.max(160, Math.floor(spaceBelow))}px`;
+    }
   }
 }
 
@@ -430,6 +444,21 @@ export const WorkspaceShell: Component = () => {
   function closeWorkspacePanel(panel: IDockviewPanel): void {
     PanelPinService.clearPanel(panel.id);
     panel.api.close();
+  }
+
+  // タブ名を右クリックで閉じる。タブが多くてハンバーガーメニューが見切れる時の代替手段。
+  // dockview の既定タブは data-testid にパネル id を入れているのでそれで解決する。
+  function onTabContextMenu(e: MouseEvent): void {
+    if (!api) return;
+    const tab = (e.target as HTMLElement | null)?.closest<HTMLElement>('.dv-tab');
+    const id = tab?.getAttribute('data-testid');
+    if (!id) return;
+    const panel = api.getPanel(id);
+    if (!panel) return;
+    e.preventDefault();
+    const title = panel.title ?? id;
+    closeWorkspacePanel(panel);
+    Toast.info(`「${title}」タブを閉じました`, 1800);
   }
 
   function togglePanelPin(panel: IDockviewPanel): void {
@@ -606,11 +635,14 @@ export const WorkspaceShell: Component = () => {
       persist();
     });
     api.onDidActivePanelChange(persist);
+
+    host.addEventListener('contextmenu', onTabContextMenu);
   });
 
   onCleanup(() => {
     window.removeEventListener('keydown', onKeydown);
     window.removeEventListener('beforeunload', onBeforeUnload);
+    host?.removeEventListener('contextmenu', onTabContextMenu);
     disposeSaveScheduler();
     PanelFocus.unregister();
     api?.dispose();
