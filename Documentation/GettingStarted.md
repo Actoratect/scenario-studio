@@ -19,13 +19,51 @@
 
 | 種別 | 要件 | 確認コマンド |
 |---|---|---|
-| **Node.js** | v20 以上（v22 推奨） | `node -v` |
-| **pnpm** | リポジトリ同梱の corepack で有効化（個別インストール不要） | `corepack --version` |
+| **Node.js** | v20 以上（v22 LTS 推奨）。**npm と corepack が同梱** | `node -v` |
+| **pnpm** | Node 同梱の **corepack** 経由で使う（個別インストール不要） | `corepack pnpm -v` |
 | **Git** | リポジトリ取得・バージョン管理に使用 | `git --version` |
 | **ブラウザ** | **Chrome または Edge**（必須） | — |
 
 > ⚠️ **ブラウザは Chrome / Edge を使ってください。** プロジェクトフォルダの読み書きに
 > **File System Access API** を使うため、Firefox / Safari ではフォルダを直接開けません（警告が出ます）。
+
+#### 各自のインストール手順（Windows）
+
+いちばん簡単なのは Windows 標準の **winget**（Windows 10 / 11 に同梱）。**PowerShell** を開いて 1 行ずつ実行:
+
+```powershell
+winget install OpenJS.NodeJS.LTS   # Node.js（npm + corepack 同梱）
+winget install Git.Git             # Git
+winget install Google.Chrome       # Chrome（Edge は Windows 標準で既に入っています）
+```
+
+> インストール後は **PowerShell を開き直す**（PATH を反映させるため）。
+
+winget が無い / うまくいかない場合は、公式インストーラでも OK:
+
+- **Node.js**: <https://nodejs.org/>（**LTS** の Windows Installer `.msi`）
+- **Git**: <https://git-scm.com/download/win>
+- **Chrome**: <https://www.google.com/chrome/>（Edge は Windows 標準で導入不要）
+
+> **macOS** は [Homebrew](https://brew.sh/) で `brew install node git`、Chrome は公式から、でも同様です。
+
+#### pnpm は「入れない」— corepack を使う
+
+pnpm は Node 同梱の **corepack** から使うので、個別インストールは不要です。本リポジトリは
+`pnpm@9.12.0` を指定しているため、**`corepack pnpm …`** と打てば自動でそのバージョンが使われます。
+
+> ⚠️ **`corepack enable` は管理者権限が必要**です（`C:\Program Files\nodejs\` に `pnpm` を書き込むため、
+> 通常の PowerShell では `EPERM: operation not permitted` で失敗します）。
+> **`corepack pnpm …` を直接使えば管理者は不要**。素の `pnpm` コマンドを使いたいときだけ、
+> PowerShell を**管理者として実行**して `corepack enable` を一度だけ実行してください。
+
+#### インストール確認
+
+```powershell
+node -v            # v20 以上（例: v22.x）
+git --version
+corepack pnpm -v   # 9.12.0（初回は pnpm のダウンロード確認に Y）
+```
 
 ### 0-2. リポジトリを取得して起動する（Windows / PowerShell）
 
@@ -43,27 +81,25 @@ cd ~\Documents
 git clone https://github.com/Actoratect/scenario-studio.git
 cd scenario-studio
 
-# 2) pnpm を有効化（Node 同梱の corepack を使う。初回のみ）
-corepack enable
+# 2) 依存をインストール（corepack 同梱の pnpm を直接使う＝管理者不要）
+corepack pnpm install
 
-# 3) 依存をインストール
-pnpm install
-
-# 4) 開発サーバを起動（止めるときは Ctrl+C）
-pnpm -F frontend dev
+# 3) 開発サーバを起動（止めるときは Ctrl+C）
+corepack pnpm -F frontend dev
 #   → http://localhost:5173/ が表示される
 ```
 
-> **「このシステムではスクリプトの実行が無効になっている…」と出たら**:
-> PowerShell の既定で `.ps1`（`pnpm` の実体など）の実行が止められています。一度だけ
-> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を実行してから上をやり直してください
-> （現在のユーザーだけ・ローカル/署名付きスクリプトのみ許可する安全寄りの設定。**`Unrestricted` にはしない**こと）。
+> **`corepack enable` は実行しないでください**。管理者権限が必要で、通常の PowerShell では
+> `EPERM: operation not permitted, open 'C:\Program Files\nodejs\pnpm'` で失敗します。
+> 上のように **`corepack pnpm …`** を直接使えば管理者なしで動きます（詳細は 0-1）。
+> どうしても素の `pnpm` を使いたい場合のみ、**管理者 PowerShell** で `corepack enable` を一度だけ。
 >
-> **`pnpm` が見つからない場合**: `corepack pnpm install` / `corepack pnpm -F frontend dev`、
-> もしくは `npm install` → `npm run dev`（内部で同じ Vite が起動）でも代用できます。
+> **「このシステムではスクリプトの実行が無効…」と出たら**: 一度だけ
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を実行してからやり直す
+> （現在のユーザーのみ・安全寄りの設定。**`Unrestricted` にはしない**）。
 >
 > ポート 5173 が使用中なら Vite が自動で別ポートを選びます。起動ログの `Local:` の URL を見てください。
-> 2 回目以降は **`pnpm -F frontend dev` だけ**で起動できます（1〜3 は初回のみ）。
+> 2 回目以降は **`corepack pnpm -F frontend dev` だけ**で起動できます（1〜2 は初回のみ）。
 
 ### 0-3. ブラウザで開く
 
@@ -237,7 +273,7 @@ ScenarioStudio のデータ形式を把握して。
 2. 🩺 **Project Health** / ⚠ **コンソール（Lint）** で
    `node-ref-missing`（参照切れ）・`missing-display-name`・`script-unknown-who`・`empty-script` などを確認。
 3. 🗺 **Plot Flow Lens** で選択肢（choice）の遷移先が実在するかを可視化。
-4. 機械チェック（任意）: リポジトリで `pnpm test` 等。YAML の構文・参照整合は `yaml` パーサでも確認可能。
+4. 機械チェック（任意）: リポジトリで `corepack pnpm test` 等。YAML の構文・参照整合は `yaml` パーサでも確認可能。
 
 ### B-7. 🔒 機密・未公開プロジェクトの扱い（重要）
 
@@ -282,7 +318,7 @@ ScenarioStudio のデータ形式を把握して。
 
 | 症状 | 対処 |
 |---|---|
-| `pnpm` が見つからない | `corepack enable` を実行。だめなら `corepack pnpm …` か `npm install` / `npm run dev` で代用 |
+| `pnpm` が見つからない / `EPERM` で失敗 | `corepack enable`（管理者必須）は避け、**`corepack pnpm …`** を直接実行（管理者不要）。素の `pnpm` が要るときだけ管理者 PowerShell で `corepack enable` |
 | フォルダを開く画面が出ない / 警告が出る | **Chrome / Edge** で開いているか確認（File System Access API 必須） |
 | 起動したのに変更が反映されない | ブラウザを**ハードリロード**（`Ctrl+Shift+R`）。dev サーバ再起動も有効 |
 | 保存できない（SaveBadge が赤） | 外部で同じファイルを編集して競合した可能性。Toast を確認し、必要ならリロードで取り込み |
