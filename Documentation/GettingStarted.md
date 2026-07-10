@@ -240,7 +240,12 @@ my-story/
 リポジトリ内の YAML/Markdown を直接読み書きできる AI を使います（ベンダー自由）:
 
 - **Claude Code** / **Cursor** / **Codex** / **Aider** など（手元の端末で動かす CLI / エディタ統合型）
-- 完全オフラインで動かしたい場合は **Ollama などのローカル LLM** を使う構成も可
+- 完全オフラインにしたい場合は **Ollama などのローカル LLM** を使う構成
+
+> ⚠️ **データの送り先に注意**: Claude Code / Cursor / Codex などは「手元で動く」ツールですが、
+> 推論自体は各社の**クラウド LLM（Anthropic / OpenAI など）へ内容を送って**行います
+> （＝変換対象のテキストが提供元に送信される）。**端末内で完結させたいなら Ollama 等のローカルモデル**を使ってください。
+> 機密素材を扱うなら **B-7** を必ず確認。
 
 ### B-4. AI に「変換仕様」を渡す
 
@@ -276,7 +281,18 @@ ScenarioStudio のデータ形式を把握して。
 3. 🗺 **Plot Flow Lens** で選択肢（choice）の遷移先が実在するかを可視化。
 4. 機械チェック（任意）: リポジトリで `corepack pnpm test` 等。YAML の構文・参照整合は `yaml` パーサでも確認可能。
 
-### B-7. 取り込み後の微修正
+### B-7. 🔒 機密・未公開プロジェクトの扱い（重要）
+
+未公開企画など外に出せない素材を AI で扱う場合は、**「データがどこへ送られるか」を必ず意識**してください。
+
+- **AI の送り先を理解する**: クラウド AI（Claude / OpenAI / Gemini 等。**Claude Code / Cursor / Codex も裏でこれらに送る**）を使うと、
+  変換対象のテキストが提供元に渡ります。**端末から一切出したくないなら Ollama 等のローカル LLM** か、オフライン構成にする。
+- 使う AI に **「外部 / ネットワーク / Web 検索 / クラウドストレージ系のツールは使わず、ローカルファイルのみ」** と明示する
+  （サブエージェントを使う場合も同様に徹底）。クラウド同期・Web 検索・外部アップロードを挟まない。
+- 変換先フォルダを**社外リポジトリへ push しない**。Git 管理するならプライベート / ローカル限定に。
+- 提供元に送ってよいかは、**自分の契約・規約・社内ルールで判断**する（学習利用の有無・保存期間などはプロバイダにより異なる）。
+
+### B-8. 取り込み後の微修正
 
 - 章・シーン名は アウトライン / 脚本ヘッダの **✎** でリネーム。
 - フィールドの追記・修正は 📝 インスペクタ。
@@ -285,13 +301,30 @@ ScenarioStudio のデータ形式を把握して。
 
 ---
 
+## セキュリティ上の注意（A / B 共通）
+
+ローカルファースト設計のため外部送信は最小限ですが、**「ローカルに置く」だけでは AI への送信は防げません**。
+次の点を理解しておいてください。
+
+| 項目 | 何が起きるか | 対策 |
+|---|---|---|
+| **AI にデータが渡る** | クラウド AI（Claude / OpenAI / Gemini、および Claude Code / Cursor / Codex）は、補完・要約・変換のため**送ったテキストを提供元へ送信**する | 機密は B-7。端末内で完結させたいなら Ollama 等のローカル LLM。送信前に **Show prompt** で内容確認 |
+| **`pnpm install` が依存のスクリプトを実行** | install は依存パッケージのビルド / postinstall で**任意コードが走り得る**（サプライチェーン） | **信頼できる取得元**のみ。lockfile を固定（CI は `--frozen-lockfile`）。不審な依存追加に注意 |
+| **フォルダへの読み書き許可** | File System Access API で、**許可したフォルダ配下を読み書き**できる | 許可は**プロジェクトフォルダだけ**に。ホーム直下やシステム領域を選ばない |
+| **API キーの保存** | AI プロバイダのキーは `.editor/ai-keys.json` に **暗号化（WebCrypto / PBKDF2）** して保存 | `.editor/` は **`.gitignore`** に入れる。コミット・共有しない |
+| **書き出し物に内容が入る** | レビュー用 HTML は画像まで埋め込んだ**自己完結ファイル**。AI ハンドオフ（`Cmd/Ctrl+Shift+H`）も本文を含む | 機密プロジェクトの Export / ハンドオフ物の**共有先に注意**。外部 AI へ貼る内容も同じ |
+| **dev サーバの公開範囲** | `pnpm dev` は **localhost のみ**で待受（`--host` を付けない限り LAN には出ない） | 共有 PC / 公共ネットワークでは `--host` を付けない |
+| **PowerShell 実行ポリシー** | `RemoteSigned` はローカル/署名付きのみ許可する安全寄り設定 | `Unrestricted`（無制限）にはしない。`-Scope CurrentUser` で最小範囲に |
+
+> まとめ: 守るべきは主に **① AI への送信先 ② 依存の取得元 ③ 書き出し/共有物** の 3 点です。
+
+---
+
 ## トラブルシューティング
 
 | 症状 | 対処 |
 |---|---|
-| **`corepack enable` で `EPERM … open 'C:\Program Files\nodejs\pnpm'`** | `C:\Program Files` への書き込みに管理者権限が必要。→ **`corepack enable` は使わず `corepack pnpm install` / `corepack pnpm -F frontend dev` を直接実行**（管理者不要）。素の `pnpm` が要るときだけ管理者 PowerShell で `corepack enable` |
-| **`pnpm install` で「スクリプトの実行が無効…`pnpm.ps1` を読み込めません」(PSSecurityException)** | PowerShell の実行ポリシーが `.ps1` を止めている。→ `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`（確認に `Y`・管理者不要）後にやり直す。または **`corepack pnpm install`**（`.ps1` を経由せず回避） |
-| `pnpm` が見つからない | `corepack pnpm …` を使う（corepack は Node 同梱）。素の `pnpm` が要るときだけ管理者 PowerShell で `corepack enable` |
+| `pnpm` が見つからない / `EPERM` で失敗 | `corepack enable`（管理者必須）は避け、**`corepack pnpm …`** を直接実行（管理者不要）。素の `pnpm` が要るときだけ管理者 PowerShell で `corepack enable` |
 | フォルダを開く画面が出ない / 警告が出る | **Chrome / Edge** で開いているか確認（File System Access API 必須） |
 | 起動したのに変更が反映されない | ブラウザを**ハードリロード**（`Ctrl+Shift+R`）。dev サーバ再起動も有効 |
 | 保存できない（SaveBadge が赤） | 外部で同じファイルを編集して競合した可能性。Toast を確認し、必要ならリロードで取り込み |
