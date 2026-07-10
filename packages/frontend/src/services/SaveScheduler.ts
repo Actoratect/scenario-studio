@@ -6,7 +6,21 @@ import type { NodeId } from '@scenario-studio/core';
 //   debounceMs は廃止 (互換のため interface には残す)。
 //   詳細: ../../../../Documentation/ScenarioEditor/12_architecture.md §9.1, §4.3
 
-export type SaveFlushHandler = (nodeId: NodeId) => Promise<void> | void;
+/**
+ * flush 関数の戻り値。'skipped' は「意図的に書き込まなかった」(競合で外部変更を温存した等)
+ * ことを示し、dirty を解除せず残す。void / undefined は成功扱い。
+ */
+export type SaveFlushResult = void | 'skipped';
+
+export type SaveFlushHandler = (nodeId: NodeId) => Promise<SaveFlushResult> | SaveFlushResult;
+
+export interface SaveFlushSummary {
+  saved: number;
+  failed: number;
+  /** 競合温存等で書かなかった件数。dirty のまま残っている。 */
+  skipped: number;
+  errors: string[];
+}
 
 export interface SaveSchedulerOptions {
   /** legacy 互換のため受け取るが PR (ux-overhaul) 後は無視される。 */
@@ -33,18 +47,18 @@ export class SaveScheduler {
     this.dirtyIds.add(nodeId);
   }
 
-  /** 特定ノードの pending を即時 flush。失敗しても dirty には残す (再試行可能に)。 */
+  /** 特定ノードの pending を即時 flush。失敗 / skip 時は dirty に残す (再試行可能に)。 */
   flushNow(nodeId: NodeId): void {
     if (!this.dirtyIds.has(nodeId)) return;
     try {
       const result = this.flush(nodeId);
       if (result instanceof Promise) {
         result
-          .then(() => {
-            this.dirtyIds.delete(nodeId);
+          .then((r) => {
+            if (r !== 'skipped') this.dirtyIds.delete(nodeId);
           })
           .catch((e: unknown) => this.onError(nodeId, e));
-      } else {
+      } else if (result !== 'skipped') {
         this.dirtyIds.delete(nodeId);
       }
     } catch (e) {
@@ -59,17 +73,30 @@ export class SaveScheduler {
     }
   }
 
-  /** 全 dirty を flush し、Promise として完了を待てる版。 */
-  async flushAllAsync(): Promise<void> {
+  /**
+   * 全 dirty を flush し、結果 (成功 / 失敗 / skip) を集計して返す版。
+   * Cmd+S からはこちらを await して「保存しました」を実際の書込完了後に出す。
+   * 失敗 / skip した id は dirty に残る (次の保存で再試行できる)。
+   */
+  async flushAllAsync(): Promise<SaveFlushSummary> {
     const ids = [...this.dirtyIds];
+    const summary: SaveFlushSummary = { saved: 0, failed: 0, skipped: 0, errors: [] };
     for (const id of ids) {
       try {
-        await this.flush(id);
+        const result = await this.flush(id);
+        if (result === 'skipped') {
+          summary.skipped += 1;
+          continue;
+        }
         this.dirtyIds.delete(id);
+        summary.saved += 1;
       } catch (e) {
+        summary.failed += 1;
+        summary.errors.push(e instanceof Error ? e.message : String(e));
         this.onError(id, e);
       }
     }
+    return summary;
   }
 
   /** project close 時 — dirty を捨てる (flush 済みの想定)。 */

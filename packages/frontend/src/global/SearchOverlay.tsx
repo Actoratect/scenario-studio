@@ -140,6 +140,9 @@ const SearchOverlayUi: Component = () => {
   }
 
   function onKey(e: KeyboardEvent): void {
+    // IME 変換中の Enter (確定) / Esc (取消) を拾わない。日本語で検索語を確定した瞬間に
+    // 先頭ヒットへ jump して overlay が閉じる誤爆を防ぐ (isComposing = keyCode 229)。
+    if (e.isComposing) return;
     if (e.key === 'Escape') {
       SearchOverlay.hide();
       e.preventDefault();

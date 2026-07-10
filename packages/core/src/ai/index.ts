@@ -24,6 +24,9 @@ export type {
 
 export { TEXT_SUGGESTION_PRESETS } from './text-presets.js';
 
+// 送信前のコスト見積り (11_ai-workflow.md §0.2, §6.3, §7)
+export { estimateTokens } from './token-estimate.js';
+
 export { AgentRunnerError, LlmProviderError } from './types.js';
 
 export { AgentRunnerRegistry, LlmProviderRegistry } from './registry.js';

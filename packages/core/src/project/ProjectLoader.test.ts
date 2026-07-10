@@ -5,6 +5,7 @@ import {
   loadProject,
   PROJECT_DIRS,
   PROJECT_SETTINGS_FILE,
+  ProjectAlreadyInitializedError,
   ProjectNotInitializedError,
 } from './index.js';
 import type { ProjectHandle } from '../platform.js';
@@ -32,8 +33,8 @@ describe('ProjectLoader', () => {
 
   it('initializeProject refuses to overwrite existing project', async () => {
     await initializeProject(adapter, handle, { name: 'first' });
-    await expect(initializeProject(adapter, handle, { name: 'second' })).rejects.toThrow(
-      /already exists/,
+    await expect(initializeProject(adapter, handle, { name: 'second' })).rejects.toBeInstanceOf(
+      ProjectAlreadyInitializedError,
     );
   });
 

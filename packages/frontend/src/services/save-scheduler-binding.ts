@@ -22,14 +22,17 @@ function ensureScheduler(): SaveScheduler {
       const node = ctx.project.nodes.get(nodeId);
       if (!node) return;
       const token = SaveStatus.beginSave();
+      let path = '';
       try {
         // PR-AH: 上書き前に外部書き換えがないかチェック
-        const path = ctx.nodeRepository.pathFor(node);
+        path = ctx.nodeRepository.pathFor(node);
         const ok = await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, path);
         if (!ok) {
           SaveStatus.skipSave(token);
           Toast.info(`保存スキップ: ${path} (外部変更を温存)`, 4000);
-          return;
+          // 'skipped' を返して dirty を温存する。旧実装は void return で dirty が
+          // 消え、未保存なのに保存バッジ・beforeunload ガードから見えなくなっていた。
+          return 'skipped';
         }
         const content = ctx.nodeRepository.serializeForSave(node);
         await ctx.adapter.write(ctx.handle, path, content);
@@ -38,8 +41,9 @@ function ensureScheduler(): SaveScheduler {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         SaveStatus.failSave(token, msg);
-        Toast.error(`保存失敗: ${msg}`);
-        throw e;
+        // Toast は Cmd+S 側の集約トーストに一本化 (旧: ここで sticky toast を出し
+        // 「保存しました」と矛盾して並んでいた)。path を message に含めて rethrow。
+        throw new Error(path !== '' ? `${path}: ${msg}` : msg);
       }
     },
   });

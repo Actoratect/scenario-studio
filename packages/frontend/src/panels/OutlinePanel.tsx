@@ -22,6 +22,7 @@ import { SceneSelection } from '../services/SceneSelection';
 import { SelectionContext } from '../services/SelectionContext';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { Toast } from '../services/Toast';
+import { TrashService } from '../services/TrashService';
 
 // M4 Outliner: 章 / シーン階層 (Scenario) と Nodes 一覧の 2 セクション構成。
 // 真の TanStack Virtual / ドラッグ並べ替え は M5+ または Phase 1 後半。
@@ -82,11 +83,29 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     const ctx = ProjectService.currentProject();
     const ids = [...multiSelected()];
     if (!ctx || ids.length === 0) return;
-    if (!window.confirm(`選択中の ${ids.length} 件のノードを削除しますか? (元に戻せません)`))
+    if (
+      !window.confirm(
+        `選択中の ${ids.length} 件のノードを削除しますか?\n(🩺 プロジェクト ヘルスの「最近削除した項目」から復元できます)`,
+      )
+    )
       return;
     setBusy(true);
     try {
       for (const id of ids) {
+        // 物理削除の前に .editor/trash へ退避 (ソフトデリート)
+        const node = ctx.project.nodes.get(id);
+        if (node) {
+          const label =
+            typeof node.fields['display_name'] === 'string' && node.fields['display_name'] !== ''
+              ? (node.fields['display_name'] as string)
+              : node.slug;
+          await TrashService.stash(
+            ctx.adapter,
+            ctx.handle,
+            ctx.nodeRepository.pathFor(node),
+            `ノード: ${label}`,
+          );
+        }
         await ctx.nodeRepository.delete(id);
       }
       const next = new Map(ctx.project.nodes);
@@ -291,9 +310,25 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
   async function deleteScene(chapterSlug: string, sceneSlug: string): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
-    if (!window.confirm(`シーン "${sceneSlug}" を削除しますか? (元に戻せません)`)) return;
+    if (
+      !window.confirm(
+        `シーン "${sceneSlug}" を削除しますか?\n(🩺 プロジェクト ヘルスの「最近削除した項目」から復元できます)`,
+      )
+    )
+      return;
     setBusy(true);
     try {
+      // 物理削除の前に .editor/trash へ退避 (ソフトデリート)
+      const chapter = ctx.project.scenario.chapters.find((c) => c.slug === chapterSlug);
+      const sceneEntry = chapter?.scenes.find((s) => s.slug === sceneSlug);
+      if (chapter && sceneEntry) {
+        await TrashService.stash(
+          ctx.adapter,
+          ctx.handle,
+          `Scenarios/${chapterSlug}/${sceneEntry.relativePath}`,
+          `シーン: ${chapter.title} / ${sceneEntry.title}`,
+        );
+      }
       await ctx.scenarioRepository.removeScene(chapterSlug, sceneSlug);
       const nextChapters = ctx.project.scenario.chapters.map((c) =>
         c.slug === chapterSlug ? { ...c, scenes: c.scenes.filter((s) => s.slug !== sceneSlug) } : c,

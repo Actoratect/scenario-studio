@@ -11,7 +11,6 @@ import {
 } from '@scenario-studio/core';
 import { Spinner } from '@scenario-studio/ui-kit';
 import { createScriptEditor } from '../codemirror/createScriptEditor';
-import { SAMPLE_SCRIPT } from '../codemirror/sampleScript';
 import { insertSnippet, SNIPPETS, type SnippetKind } from '../codemirror/scriptSnippets';
 import { ScriptContextRail } from '../script/ScriptContextRail';
 import { ScriptVisualEditor } from '../script/ScriptVisualEditor';
@@ -22,10 +21,12 @@ import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
 import { Toast } from '../services/Toast';
 import { DirtyTracker } from '../services/DirtyTracker';
+import { ConflictDetector } from '../services/ConflictDetector';
 import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
 import { GlobalHistoryService } from '../services/GlobalHistoryService';
 import { ScriptHistoryService } from '../services/ScriptHistoryService';
 import { PanelPinService } from '../services/PanelPinService';
+import { PanelFocus } from '../services/PanelFocus';
 
 // 脚本エディタ Panel。
 // PR-AA: 既定は「視覚編集モード (visual)」— YAML を見せず、各ブロックをカードで描画。
@@ -59,13 +60,19 @@ function loadModePref(): EditorMode {
 //     (= 他のブロックは無関係、Solid が DOM を再 mount しない)
 // シーン切替えで前 scene の staging は残るので「タブ切替で破棄される」苦情も解消。
 const sceneStaging = new Map<string, ParsedScene>();
+// raw モード (生 YAML) で編集された scene の storageKey。raw は全文が編集対象なので
+// 保存時に full write する。visual 編集のみの scene は blocks だけを disk へマージ書きし、
+// PlotDetailRail 側の plot 編集 (別 DirtyTracker キー) を上書きしないようにする。
+const sceneRawEdited = new Set<string>();
 // Store proxy を unwrap してから JSON-clone する共通 helper。
 const cloneScene = ScriptHistoryService.cloneScene;
 
 export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [scene, setScene] = createSignal<SceneRef | undefined>(undefined);
   const pinnedScene = createMemo(() => PanelPinService.scriptScene(params.api.id));
-  const [doc, setDoc] = createSignal<string>(SAMPLE_SCRIPT);
+  // シーン未選択時は空。旧: SAMPLE_SCRIPT を初期表示していたが、「編集できるように
+  // 見えるのに編集が黙って破棄される」罠だったため廃止 (専用の空状態を表示する)。
+  const [doc, setDoc] = createSignal<string>('');
   // PR (ux-overhaul-4): visual mode の真の source of truth は Solid Store。
   // ブロックの text 変更などは produce() で in-place mutate → 該当 path のみ更新。
   // textarea の value は store の最末端パスを直接読むので、無関係な再 mount が起きない。
@@ -78,6 +85,9 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   // 履歴操作中フラグ (undo/redo 中は新規 history を積まない)
   let suppressHistory = false;
   const [saving, setSaving] = createSignal(false);
+  // YAML パース失敗の詳細 (undefined = 正常)。値がある間は原本を壊さないよう
+  // 保存対象へ積まず (commitRawText が early return)、visual 切替も封じてバナーで警告する。
+  const [parseError, setParseError] = createSignal<string | undefined>(undefined);
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
@@ -174,7 +184,14 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     } else {
       ScriptHistoryService.push(targetPath, parsedStore);
     }
-    if (!shouldMerge) GlobalHistoryService.recordScript(targetPath, mergeKey);
+    if (!shouldMerge) {
+      // Undo 通知用にシーンのラベル (章 / シーン名) を残す。
+      GlobalHistoryService.recordScript(
+        targetPath,
+        mergeKey,
+        `脚本「${scene()?.label ?? targetPath}」の編集`,
+      );
+    }
   }
 
   /** dirty 化 (毎 mutation 後に呼ぶ)。staging を最新の store snapshot で更新。 */
@@ -196,22 +213,36 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     // staging に既存があればそれを優先 (タブ切替で破棄しないため)
     const staged = sceneStaging.get(sceneStorageKey(ref.path));
     if (staged) {
+      setParseError(undefined);
       setParsedStore(reconcile(cloneScene(staged)));
       const text = serializeSceneYaml(staged);
       setDoc(text);
       replaceEditorDoc(text);
       return;
     }
+    // staging 無し = disk から読み直すので raw 編集フラグもクリーンにする。
+    sceneRawEdited.delete(sceneStorageKey(ref.path));
     const exists = await ctx.adapter.exists(ctx.handle, ref.path);
     const text = exists
       ? await ctx.adapter.read(ctx.handle, ref.path)
       : starterSceneYaml(ref.sceneSlug);
+    // 競合検知の baseline を「今 disk で見た内容」に設定。外部エージェント (Claude Code 等)
+    // が後からこのシーンを書き換えたら、保存直前の checkBeforeWrite で検知できる。
+    if (exists) ConflictDetector.recordSnapshot(ctx.handle, ref.path, text);
     let p: ParsedScene;
     try {
       p = parseSceneYaml(text);
-    } catch {
-      p = { meta: {}, title: '', cast: [], blocks: [] };
+    } catch (e) {
+      // パース不能。空シーンへ置換すると 1 ブロック編集 + 保存で原本を空で上書きしてしまう。
+      // raw モード固定で disk のテキストをそのまま見せ、markDirty を積まないことで
+      // 保存対象からも外し、バナーで修正を促す (パースが通れば commitRawText で解除)。
+      setParseError(e instanceof Error ? e.message : String(e));
+      setMode('raw');
+      setDoc(text);
+      replaceEditorDoc(text);
+      return;
     }
+    setParseError(undefined);
     setParsedStore(reconcile(p));
     setDoc(text);
     replaceEditorDoc(text);
@@ -225,28 +256,43 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     let next: ParsedScene;
     try {
       next = parseSceneYaml(text);
-    } catch {
-      // YAML parse 失敗時は staging 更新せず警告だけ
+    } catch (e) {
+      // YAML parse 失敗: staging を更新せず、原本を壊さないため保存対象からも外す。
+      // バナーで「壊れている・このままでは保存されない」ことを明示する
+      // (旧実装はコメントに反して無言 return で、ライターは気付けなかった)。
+      setParseError(e instanceof Error ? e.message : String(e));
       return;
     }
+    setParseError(undefined);
+    sceneRawEdited.add(sceneStorageKey(target.path));
     pushHistory(target.path, 'raw');
     setParsedStore(reconcile(next));
     markDirty(target);
   }
 
-  async function saveNow(ref: SceneRef): Promise<void> {
+  async function saveNow(ref: SceneRef): Promise<'skipped' | void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
-    const staged = sceneStaging.get(sceneStorageKey(ref.path));
+    const key = sceneStorageKey(ref.path);
+    const staged = sceneStaging.get(key);
     const current = scene()?.path === ref.path ? (unwrap(parsedStore) as ParsedScene) : undefined;
     const snapshot = staged ?? current;
     if (!snapshot) return;
-    const text = serializeSceneYaml(snapshot);
     setSaving(true);
     try {
+      // 上書き前に外部変更 (AI エージェント等) がないか確認。ユーザが温存を選んだら
+      // 書かずに 'skipped' を返し、staging / dirty を残す (⟳ 再読込で取り込める)。
+      const ok = await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, ref.path);
+      if (!ok) {
+        Toast.info(`保存スキップ: ${ref.label} (外部変更を温存)`, 4000);
+        return 'skipped';
+      }
+      const text = await mergedSceneYaml(ctx, ref.path, snapshot, sceneRawEdited.has(key));
       await ctx.adapter.write(ctx.handle, ref.path, text);
+      ConflictDetector.recordSnapshot(ctx.handle, ref.path, text);
       DirtyTracker.clear(ref.path);
-      sceneStaging.delete(sceneStorageKey(ref.path));
+      sceneStaging.delete(key);
+      sceneRawEdited.delete(key);
       bumpScriptLintVersion();
       SceneAppearanceIndex.invalidate();
     } catch (e) {
@@ -385,6 +431,53 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       setParsedStore(
         produce((s) => {
           (s.blocks as ScriptBlock[]).splice(clamped, 0, defaultBlock(kind, defaultWho));
+        }),
+      );
+    });
+    markDirty(target);
+  }
+  /** Ctrl+D: ブロックを複製して直下に挿入 (キーボード執筆フロー用)。 */
+  function onDuplicateBlock(idx: number): void {
+    const target = scene();
+    if (!target) return;
+    const cur = (unwrap(parsedStore) as ParsedScene).blocks[idx];
+    if (!cur) return;
+    pushHistory(target.path);
+    const clone = JSON.parse(JSON.stringify(cur)) as ScriptBlock;
+    preserveVisualScroll(() => {
+      setParsedStore(
+        produce((s) => {
+          (s.blocks as ScriptBlock[]).splice(idx + 1, 0, clone);
+        }),
+      );
+    });
+    markDirty(target);
+  }
+  /**
+   * Ctrl+Enter: 直下に同種の空ブロックを挿入。会話劇の執筆リズムを止めないよう
+   * line/action は話者 (line は感情も) を引き継ぐ。
+   */
+  function onInsertNextBlock(idx: number): void {
+    const target = scene();
+    if (!target) return;
+    const cur = (unwrap(parsedStore) as ParsedScene).blocks[idx];
+    if (!cur) return;
+    const kind = cur.kind === 'unknown' ? 'line' : cur.kind;
+    pushHistory(target.path);
+    const block = defaultBlock(kind, defaultCharacterIdentifier());
+    if (
+      (block.kind === 'line' || block.kind === 'action') &&
+      (cur.kind === 'line' || cur.kind === 'action')
+    ) {
+      block.who = cur.who;
+      if (block.kind === 'line' && cur.kind === 'line' && cur.emotion !== undefined) {
+        block.emotion = cur.emotion;
+      }
+    }
+    preserveVisualScroll(() => {
+      setParsedStore(
+        produce((s) => {
+          (s.blocks as ScriptBlock[]).splice(idx + 1, 0, block);
         }),
       );
     });
@@ -560,7 +653,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
             }
           }}
         >
-          <option value="">— サンプル脚本 —</option>
+          <option value="">— シーンを選択 —</option>
           <For each={availableScenes()}>{(s) => <option value={s.path}>{s.label}</option>}</For>
         </select>
         <button
@@ -584,8 +677,11 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           <button
             type="button"
             classList={{ active: mode() === 'visual' }}
+            disabled={!!parseError()}
             onClick={() => setModeAndPersist('visual')}
-            title="ブロックカード表示"
+            title={
+              parseError() ? 'YAML を修正するとビジュアル編集に戻れます' : 'ブロックカード表示'
+            }
           >
             🎨 ビジュアル
           </button>
@@ -603,8 +699,37 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         </span>
       </div>
 
+      {/* YAML パース失敗の警告 (原本破壊を防ぐため保存・visual 切替を封じている旨を明示) */}
+      <Show when={parseError()}>
+        {(msg) => (
+          <div class="panel-script-parse-error" role="alert">
+            <strong>⚠ YAML が壊れています</strong> — 修正されるまでこのシーンは保存されません。
+            <br />
+            <code>{msg()}</code>
+          </div>
+        )}
+      </Show>
+
+      {/* シーン未選択: 編集できない罠 UI を出さず、専用の空状態で導線を示す */}
+      <Show when={!scene()}>
+        <div class="panel-script-empty">
+          <p class="panel-script-empty-title">シーンがまだ選択されていません</p>
+          <p class="panel-script-empty-lead">
+            📚 アウトラインで「+ チャプター」→「+ シーン」を作成し、
+            上の「シーン:」から選ぶと執筆を始められます。
+          </p>
+          <button
+            type="button"
+            data-variant="primary"
+            onClick={() => PanelFocus.focusComponent('outline')}
+          >
+            📚 アウトラインを開く
+          </button>
+        </div>
+      </Show>
+
       {/* visual モード: 上部にシーンメタ */}
-      <Show when={mode() === 'visual'}>
+      <Show when={mode() === 'visual' && scene()}>
         <div class="panel-script-scene-meta">
           <Show when={parsedStore.title}>
             <span class="panel-script-scene-title">{parsedStore.title}</span>
@@ -621,7 +746,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       </Show>
 
       {/* raw モード: snippet toolbar */}
-      <Show when={mode() === 'raw'}>
+      <Show when={mode() === 'raw' && scene()}>
         <div class="panel-script-toolbar">
           <span class="panel-script-toolbar-label">挿入:</span>
           <For each={SNIPPETS}>
@@ -643,7 +768,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       {/* visual モード: ScriptVisualEditor + 右側 rail (PR-AS) */}
       <div
         class="panel-script-content panel-script-content--rail"
-        style={{ display: mode() === 'visual' ? 'flex' : 'none' }}
+        style={{ display: mode() === 'visual' && scene() ? 'flex' : 'none' }}
       >
         <div class="panel-script-content-main">
           <ScriptVisualEditor
@@ -655,6 +780,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
             onMoveBlock={onMoveBlock}
             onAppendBlock={onAppendBlock}
             onInsertBlock={onInsertBlock}
+            onDuplicateBlock={onDuplicateBlock}
+            onInsertNextBlock={onInsertNextBlock}
           />
         </div>
         <ScriptContextRail
@@ -664,15 +791,38 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         />
       </div>
 
-      {/* raw モード: CodeMirror */}
+      {/* raw モード: CodeMirror (host は CodeMirror の mount 先なので DOM には常に残す) */}
       <div
         class="panel-script-host"
         ref={host}
-        style={{ display: mode() === 'raw' ? 'block' : 'none' }}
+        style={{ display: mode() === 'raw' && scene() ? 'block' : 'none' }}
       />
     </div>
   );
 };
+
+// 保存時に「自分が編集した domain だけ」をディスクへ反映する。
+// visual モードで ScriptPanel が所有するのは blocks のみ。plot/title/cast は
+// PlotDetailRail の担当なので、書き込み直前にディスクの最新を読み直して blocks だけ
+// 差し替える。これで同一シーンを両パネルで未保存編集しても保存順に依らず双方の
+// 変更が残る (DirtyTracker キー衝突 / stale コピー上書きによる silent data loss の解消)。
+// raw モードは全文が編集対象なので full write。ディスクが壊れてマージ不能な場合も full write。
+async function mergedSceneYaml(
+  ctx: NonNullable<ReturnType<typeof ProjectService.currentProject>>,
+  path: string,
+  staged: ParsedScene,
+  rawEdited: boolean,
+): Promise<string> {
+  if (!rawEdited && (await ctx.adapter.exists(ctx.handle, path))) {
+    try {
+      const disk = parseSceneYaml(await ctx.adapter.read(ctx.handle, path));
+      return serializeSceneYaml({ ...disk, blocks: staged.blocks });
+    } catch {
+      // ディスク側が壊れている等でマージ不能 → staged を full write
+    }
+  }
+  return serializeSceneYaml(staged);
+}
 
 function defaultBlock(kind: ScriptBlock['kind'], defaultWho: string): ScriptBlock {
   switch (kind) {

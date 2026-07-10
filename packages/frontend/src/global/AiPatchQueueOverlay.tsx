@@ -4,6 +4,7 @@ import { AiPatchQueue, type AiPatch } from '../services/AiPatchQueue';
 import { scanGlossaryFixes } from '../services/GlossaryPatchScanner';
 import { ProjectService } from '../services/ProjectService';
 import { Toast } from '../services/Toast';
+import { ModalBase } from './ModalBase';
 
 // PR-AY: AI Patch Queue Overlay (UX-6)
 // AI / scanner が積んだ patch を「読んで承認/却下」する UI。
@@ -63,59 +64,61 @@ const Ui: Component = () => {
   }
 
   return (
-    <div class="ss-modal-backdrop" onClick={() => AiPatchQueueOverlay.hide()}>
-      <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>📝 AI Patch Queue</h3>
-        <p class="ss-patch-help">
-          AI / 用語スキャナが提案した変更を、行ごとに承認 / 却下します。承認した変更は 通常の Undo
-          に乗ります。
-        </p>
+    <ModalBase
+      onClose={() => AiPatchQueueOverlay.hide()}
+      dialogClass="ss-modal ss-modal--wide"
+      labelledBy="ss-ai-patch-queue-title"
+    >
+      <h3 id="ss-ai-patch-queue-title">📝 AI Patch Queue</h3>
+      <p class="ss-patch-help">
+        AI / 用語スキャナが提案した変更を、行ごとに承認 / 却下します。承認した変更は 通常の Undo
+        に乗ります。
+      </p>
 
-        <div class="ss-modal-actions">
-          <button
-            type="button"
-            disabled={busy()}
-            onClick={runScan}
-            title="Glossary forbidden を全 node text field でスキャン"
-          >
-            🔎 用語修正スキャン
-          </button>
-          <span class="ss-modal-spacer" />
-          <span class="ss-patch-count">未承認 {AiPatchQueue.pendingCount()} 件</span>
-          <button
-            type="button"
-            disabled={busy() || AiPatchQueue.pendingCount() === 0}
-            onClick={() => void acceptAll()}
-          >
-            すべて採用
-          </button>
-          <button
-            type="button"
-            disabled={busy() || AiPatchQueue.pendingCount() === 0}
-            onClick={rejectAll}
-          >
-            すべて却下
-          </button>
-          <button type="button" onClick={() => AiPatchQueueOverlay.hide()}>
-            閉じる
-          </button>
-        </div>
-
-        <Show
-          when={AiPatchQueue.all().length > 0}
-          fallback={
-            <p class="ss-patch-empty">
-              patch がありません。「用語修正スキャン」を実行するか、フィールドの右クリック AI
-              から提案を queue に積んでください。
-            </p>
-          }
+      <div class="ss-modal-actions">
+        <button
+          type="button"
+          disabled={busy()}
+          onClick={runScan}
+          title="Glossary forbidden を全 node text field でスキャン"
         >
-          <ul class="ss-patch-list">
-            <For each={AiPatchQueue.all()}>{(p) => <PatchRow patch={p} />}</For>
-          </ul>
-        </Show>
+          🔎 用語修正スキャン
+        </button>
+        <span class="ss-modal-spacer" />
+        <span class="ss-patch-count">未承認 {AiPatchQueue.pendingCount()} 件</span>
+        <button
+          type="button"
+          disabled={busy() || AiPatchQueue.pendingCount() === 0}
+          onClick={() => void acceptAll()}
+        >
+          すべて採用
+        </button>
+        <button
+          type="button"
+          disabled={busy() || AiPatchQueue.pendingCount() === 0}
+          onClick={rejectAll}
+        >
+          すべて却下
+        </button>
+        <button type="button" onClick={() => AiPatchQueueOverlay.hide()}>
+          閉じる
+        </button>
       </div>
-    </div>
+
+      <Show
+        when={AiPatchQueue.all().length > 0}
+        fallback={
+          <p class="ss-patch-empty">
+            patch がありません。「用語修正スキャン」を実行するか、フィールドの右クリック AI
+            から提案を queue に積んでください。
+          </p>
+        }
+      >
+        <ul class="ss-patch-list">
+          <For each={AiPatchQueue.all()}>{(p) => <PatchRow patch={p} />}</For>
+        </ul>
+      </Show>
+    </ModalBase>
   );
 };
 

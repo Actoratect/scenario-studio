@@ -12,4 +12,9 @@ export {
   serializeProjectSettings,
 } from './ProjectSettings.js';
 export type { LoadProjectResult } from './ProjectLoader.js';
-export { initializeProject, loadProject, ProjectNotInitializedError } from './ProjectLoader.js';
+export {
+  initializeProject,
+  loadProject,
+  ProjectAlreadyInitializedError,
+  ProjectNotInitializedError,
+} from './ProjectLoader.js';

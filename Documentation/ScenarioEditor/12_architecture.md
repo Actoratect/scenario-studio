@@ -219,9 +219,14 @@ User UI 操作
    → Domain でモデル更新 (immutable replace)
    → Signal が変更通知
    → 購読中のパネルが再レンダ (SolidJS の細粒度反応)
-   → SaveScheduler がデバウンス書き出し (Adapter 経由)
+   → SaveScheduler / DirtyTracker に dirty マーク (明示保存: Ctrl+S / 💾 で flush)
    → Index を増分更新
 ```
+
+> 保存モデルは PR (ux-overhaul) で「編集 500ms デバウンスの自動保存」から
+> 「明示保存 (Ctrl+S / 保存ボタン、未保存件数バッジ表示)」へ変更した。
+> 自動保存が残るのはプロットボードの debounce 書き出しのみ。
+> シーン脚本・ノード YAML の保存には ConflictDetector による外部変更チェックが挟まる。
 
 ### 4.4 外部編集の取り込み
 
@@ -392,7 +397,7 @@ DB: actoratect-scenario
 | グラフ 500 ノード操作 | 60 fps | SolidFlow + LOD |
 | グラフ 5,000 ノード | 30 fps | Sigma.js (移行) |
 | 脚本 10 万行 | スクロール 60 fps | CodeMirror 6 + 仮想化 |
-| 自動保存遅延 | 500ms | デバウンス |
+| 保存 (Ctrl+S) の体感遅延 | < 1 秒 | 明示保存 + 完了後に結果 Toast (自動保存はプロットボードのみ) |
 
 ### 9.2 メモリ
 
