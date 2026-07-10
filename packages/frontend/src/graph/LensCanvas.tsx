@@ -24,10 +24,20 @@ export interface LensCanvasProps {
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
   onPositionCommit?: (id: NodeId, p: { x: number; y: number }) => void;
-  /** Shift+drag で関係作成 (source → target)。 */
-  onCreateRelation?: (source: NodeId, target: NodeId) => void;
-  /** edge ラベルクリック (relation type 変更 / 削除 picker)。 */
-  onEdgeClick?: (edge: LensEdge) => void;
+  /** Shift+drag で関係作成 (source → target)。event はマウス位置 (picker をその場に出す用)。 */
+  onCreateRelation?: (source: NodeId, target: NodeId, event: MouseEvent) => void;
+  /**
+   * Shift+drag を「何もない場所」で離した時 (P1 dogfood: グラフ上で直接ノードを増やす)。
+   * world はドロップ地点のワールド座標 (新ノードの初期位置に使う)。
+   */
+  onConnectToEmpty?: (source: NodeId, world: { x: number; y: number }, event: MouseEvent) => void;
+  /** edge クリック (relation type 変更 / 削除 picker)。event はマウス位置。 */
+  onEdgeClick?: (edge: LensEdge, event: MouseEvent) => void;
+  /**
+   * implicit エッジもクリック編集可能にする (Plot Flow 用)。
+   * 既定 false = explicit のみ (Relationship の派閥線などは編集不可)。
+   */
+  implicitEdgesClickable?: boolean | undefined;
   selected?: NodeId | undefined;
   dimmed?: ReadonlySet<NodeId>;
   nodeRadius?: number | undefined;
@@ -218,7 +228,10 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     const w = clientToWorld(e.clientX, e.clientY);
     const target = nearestNodeWithin(w, radius() * 1.5);
     if (target && target !== d.source) {
-      props.onCreateRelation?.(d.source, target);
+      props.onCreateRelation?.(d.source, target, e);
+    } else if (!target) {
+      // 何もない場所で離した → その場に新しいノードを作る導線 (P1 dogfood)
+      props.onConnectToEmpty?.(d.source, w, e);
     }
   }
 
@@ -354,6 +367,8 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
             const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
             const box = createMemo(() => edgeBox(edge.label));
             const explicit = edge.kind === 'explicit';
+            const clickable = () =>
+              !!props.onEdgeClick && (explicit || props.implicitEdgesClickable === true);
             return (
               <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
                 <line
@@ -363,42 +378,60 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                   y2={geom().ty}
                   stroke={explicit ? '#0072b2' : '#5a6068'}
                   stroke-width={explicit ? 2 : 1.5}
-                  stroke-dasharray={explicit ? undefined : '4 3'}
+                  stroke-dasharray="4 3"
                   marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
                 />
-                <g
-                  transform={`translate(${geom().label.x}, ${geom().label.y})`}
-                  class="lens-edge-label-group"
-                  classList={{
-                    'lens-edge-label-group--clickable': explicit && !!props.onEdgeClick,
-                  }}
-                  onClick={(e) => {
-                    if (!explicit) return;
-                    e.stopPropagation();
-                    props.onEdgeClick?.(edge);
-                  }}
-                >
-                  <rect
-                    x={-box().w / 2}
-                    y={-box().h / 2}
-                    width={box().w}
-                    height={box().h}
-                    rx="4"
-                    ry="4"
-                    fill="#ffffff"
-                    stroke={explicit ? '#0072b2' : '#5a6068'}
-                    stroke-width="1"
+                {/* ラベル無しエッジ用の当たり判定 (太い透明線)。
+                    ラベル pill を出さない Plot Flow の暗黙 next でも、線クリックで編集できる。 */}
+                <Show when={clickable()}>
+                  <line
+                    class="lens-edge-hit"
+                    x1={geom().sx}
+                    y1={geom().sy}
+                    x2={geom().tx}
+                    y2={geom().ty}
+                    stroke="transparent"
+                    stroke-width={12 / view().scale}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      props.onEdgeClick?.(edge, e);
+                    }}
                   />
-                  <text
-                    class="lens-edge-label"
-                    text-anchor="middle"
-                    dominant-baseline="middle"
-                    fill={explicit ? '#0072b2' : undefined}
-                    style={{ 'font-size': `${10 / view().scale}px` }}
+                </Show>
+                {/* ラベルが空のエッジは pill 自体を描かない (「次へ」ノイズの廃止) */}
+                <Show when={edge.label !== ''}>
+                  <g
+                    transform={`translate(${geom().label.x}, ${geom().label.y})`}
+                    class="lens-edge-label-group"
+                    classList={{ 'lens-edge-label-group--clickable': clickable() }}
+                    onClick={(e) => {
+                      if (!clickable()) return;
+                      e.stopPropagation();
+                      props.onEdgeClick?.(edge, e);
+                    }}
                   >
-                    {edge.label}
-                  </text>
-                </g>
+                    <rect
+                      x={-box().w / 2}
+                      y={-box().h / 2}
+                      width={box().w}
+                      height={box().h}
+                      rx="4"
+                      ry="4"
+                      fill="#ffffff"
+                      stroke={explicit ? '#0072b2' : '#5a6068'}
+                      stroke-width="1"
+                    />
+                    <text
+                      class="lens-edge-label"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      fill={explicit ? '#0072b2' : undefined}
+                      style={{ 'font-size': `${10 / view().scale}px` }}
+                    >
+                      {edge.label}
+                    </text>
+                  </g>
+                </Show>
               </g>
             );
           }}

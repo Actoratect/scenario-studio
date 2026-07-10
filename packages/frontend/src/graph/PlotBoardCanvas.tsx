@@ -307,6 +307,22 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
                         y2={g().ty}
                         marker-end="url(#plot-board-arrow)"
                       />
+                      {/* 当たり判定 (太い透明線): クリックで編集 / Alt+クリックで削除 */}
+                      <line
+                        class="plot-board-edge-hit"
+                        x1={g().sx}
+                        y1={g().sy}
+                        x2={g().tx}
+                        y2={g().ty}
+                        stroke="transparent"
+                        stroke-width={12 / view().scale}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (e.altKey) props.onEdgeDelete(edge.id);
+                          else props.onEdgeEdit(edge.id);
+                        }}
+                      />
                       <foreignObject
                         x={g().mx - 58 / view().scale}
                         y={g().my - 11 / view().scale}
@@ -317,11 +333,12 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
                           type="button"
                           class="plot-board-edge-label"
                           style={{ 'font-size': `${11 / view().scale}px` }}
-                          title="クリックで線を編集"
+                          title="クリックで線を編集 / Alt+クリックで削除"
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
-                            props.onEdgeEdit(edge.id);
+                            if (e.altKey) props.onEdgeDelete(edge.id);
+                            else props.onEdgeEdit(edge.id);
                           }}
                         >
                           {edge.label || edge.type}

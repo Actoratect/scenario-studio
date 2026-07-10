@@ -5,10 +5,12 @@ import {
   CHARACTER_TEMPLATE,
   computePlotFlowLens,
   computeRelationshipLens,
+  createNode,
   deterministicCircularLayout,
   FACTION_TEMPLATE,
   ITEM_TEMPLATE,
   LOCATION_TEMPLATE,
+  plotFlowRowLayout,
   resolveNode,
   type LensEdge,
   type LensPayload,
@@ -17,6 +19,7 @@ import {
   type PlotBoardNodeId,
   type PlotFlowAnalysis,
   type RelationId,
+  type TemplateDefinition,
 } from '@scenario-studio/core';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
@@ -32,6 +35,9 @@ import { RelationTypePicker } from '../graph/RelationTypePicker';
 import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
 import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
+import { PlotFlowEdges } from '../graph/plot-flow-edges';
+import { QuickNodeCreator, QuickSceneCreator } from '../graph/QuickCreatePopover';
+import { Toast } from '../services/Toast';
 import { PlotBoardService } from '../services/PlotBoardService';
 import { createResource } from 'solid-js';
 
@@ -57,16 +63,24 @@ const TEMPLATE_TOGGLES: ReadonlyArray<{ id: string; label: string; emoji: string
   { id: FACTION_TEMPLATE.id, label: '勢力', emoji: '⚑' },
 ];
 
+/** マウス位置 (client 座標)。picker をクリック地点にポップアップさせる。 */
+interface PickerAt {
+  x: number;
+  y: number;
+}
+
 interface PendingPicker {
   source: NodeId;
   target: NodeId;
   caption: string;
+  at?: PickerAt | undefined;
 }
 
 interface EditingPicker {
   relationId: RelationId;
   text: string;
   caption: string;
+  at?: PickerAt | undefined;
 }
 
 interface EdgeEditState {
@@ -74,6 +88,24 @@ interface EdgeEditState {
   type: string;
   label?: string | undefined;
   caption: string;
+  at?: PickerAt | undefined;
+}
+
+/** Plot Flow: ユーザ定義接続の新規作成 (Shift+drag)。 */
+interface PlotFlowPending {
+  source: NodeId;
+  target: NodeId;
+  caption: string;
+  at?: PickerAt | undefined;
+}
+
+/** Plot Flow: 既存エッジのラベル編集。custom はユーザ定義線 (削除可)。 */
+interface PlotFlowEdgeEdit {
+  kind: 'custom' | 'structural';
+  edgeId: string;
+  label: string;
+  caption: string;
+  at?: PickerAt | undefined;
 }
 
 function loadLensMode(): LensMode {
@@ -90,6 +122,18 @@ function saveLensMode(m: LensMode): void {
   } catch {
     /* quota / private mode */
   }
+}
+
+/** 表示名から slug を生成 (OutlinePanel.slugFromName と同ロジック。util 切り出しは追って)。 */
+function quickNodeSlug(name: string, template: TemplateDefinition): string {
+  const ascii = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+  const base = ascii || `new_${template.directory.replace(/s$/, '')}`;
+  return `${base}_${Date.now().toString(36)}`;
 }
 
 function loadNodeSize(): number {
@@ -112,6 +156,22 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
   const [edgeEdit, setEdgeEdit] = createSignal<EdgeEditState | undefined>(undefined);
+  const [pfPending, setPfPending] = createSignal<PlotFlowPending | undefined>(undefined);
+  const [pfEdgeEdit, setPfEdgeEdit] = createSignal<PlotFlowEdgeEdit | undefined>(undefined);
+  // P1 dogfood: 空所への Shift+drag で新規ノード / シーンをその場に作る
+  const [quickNode, setQuickNode] = createSignal<
+    { source: NodeId; world: { x: number; y: number }; at: PickerAt; caption: string } | undefined
+  >(undefined);
+  const [quickScene, setQuickScene] = createSignal<
+    | {
+        chapterSlug: string;
+        sceneSlug: string;
+        world: { x: number; y: number };
+        at: PickerAt;
+        caption: string;
+      }
+    | undefined
+  >(undefined);
   const [lensMode, setLensMode] = createSignal<LensMode>(loadLensMode());
   const [nodeSize, setNodeSize] = createSignal(loadNodeSize());
 
@@ -155,12 +215,32 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     });
   });
 
-  // PR-AV: Lens 切替 (Relationship | Plot Flow) で raw payload を生成
+  // PR-AV: Lens 切替 (関係図 | プロットフロー) で raw payload を生成。
+  // プロットフローは構造由来エッジに PlotFlowEdges のラベル上書きを適用し、
+  // ユーザ定義接続 (章またぎ可) をマージする (P1 dogfood)。
   const rawLens = createMemo<LensPayload | undefined>(() => {
     const ctx = ProjectService.currentProject();
     if (!ctx) return undefined;
     if (lensMode() === 'plot-flow') {
-      return plotFlowAnalysis()?.payload;
+      const payload = plotFlowAnalysis()?.payload;
+      if (!payload) return undefined;
+      const overrides = PlotFlowEdges.labelOverrides();
+      const nodeIds = new Set(payload.nodes.map((n) => n.id));
+      const structural = payload.edges.map((e) => {
+        const label = overrides.get(e.id);
+        return label !== undefined ? { ...e, label } : e;
+      });
+      // 端点のシーンが削除/リネームされた custom エッジは描画から除外 (データは残す)
+      const custom: LensEdge[] = PlotFlowEdges.customEdges()
+        .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+        .map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          label: e.label,
+          kind: 'explicit',
+        }));
+      return { nodes: payload.nodes, edges: [...structural, ...custom] };
     }
     if (lensMode() === 'plot-board') return undefined;
     return computeRelationshipLens(ctx.project.nodes, ctx.templates, ctx.project.relations);
@@ -197,6 +277,12 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const fallbackPositions = createMemo(() => {
     const l = rawLens();
     if (!l) return new Map<NodeId, { x: number; y: number }>();
+    // プロットフローの既定は「章ごとに 1 行、シーンを左→右」(P1 dogfood)。
+    // 同心円だと章構造が読めない。ドラッグ済みの位置 (GraphPositions) はこれを上書きする。
+    if (lensMode() === 'plot-flow') {
+      const ctx = ProjectService.currentProject();
+      if (ctx) return plotFlowRowLayout(ctx.project.scenario.chapters);
+    }
     return deterministicCircularLayout(l, {
       centerX: 600,
       centerY: 400,
@@ -319,23 +405,164 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     SelectionContext.selectNode(id);
   }
 
-  function startCreate(source: NodeId, target: NodeId): void {
-    // PR-AV: Plot Flow モードでは関係作成を無効化 (scene transition は YAML 直接編集で)
-    if (lensMode() === 'plot-flow') return;
+  function startCreate(source: NodeId, target: NodeId, event: MouseEvent): void {
+    const at = { x: event.clientX, y: event.clientY };
+    // P1 dogfood: プロットフローでも Shift+drag で自由な接続を張れる (章またぎ可)。
+    // ファイル構造 (シーン順) は変えず、Graph/plot-flow.yaml に保存される注釈レイヤ。
+    if (lensMode() === 'plot-flow') {
+      setPfPending({
+        source,
+        target,
+        caption: `${nodeLabel(source)} → ${nodeLabel(target)}`,
+        at,
+      });
+      return;
+    }
     setPending({
       source,
       target,
       caption: `${nodeLabel(source)} → ${nodeLabel(target)}`,
+      at,
     });
   }
 
-  function startEdit(edge: LensEdge): void {
-    if (lensMode() === 'plot-flow') return;
+  /** Alt+クリック: 線を削除 (グラフエディタ共通の削除ジェスチャ)。 */
+  function deleteEdge(edge: LensEdge): void {
+    if (lensMode() === 'plot-flow') {
+      if (edge.id.startsWith('pfc:')) {
+        PlotFlowEdges.remove(edge.id);
+        Toast.success('接続を削除しました', 1500);
+      } else {
+        Toast.info(
+          'この線はシーン順 / choice 由来のため削除できません (クリックでラベル編集)',
+          3000,
+        );
+      }
+      return;
+    }
+    if (edge.kind === 'explicit' && edge.relationId) {
+      void RelationsService.remove(edge.relationId);
+      Toast.success('関係を削除しました', 1500);
+    }
+  }
+
+  /** 空所への Shift+drag: ドロップ地点に新規ノード (関係図) / シーン (プロットフロー) を作る。 */
+  function startCreateAtEmpty(
+    source: NodeId,
+    world: { x: number; y: number },
+    event: MouseEvent,
+  ): void {
+    const at = { x: event.clientX, y: event.clientY };
+    if (lensMode() === 'plot-flow') {
+      const m = /^plot\.([^.]+)\.(.+)$/.exec(source);
+      if (!m || !m[1] || !m[2]) return;
+      setQuickScene({
+        chapterSlug: m[1],
+        sceneSlug: m[2],
+        world,
+        at,
+        caption: nodeLabel(source),
+      });
+      return;
+    }
+    setQuickNode({ source, world, at, caption: nodeLabel(source) });
+  }
+
+  /** 関係図: クイック作成の確定。ノードを作ってドロップ地点に置き、任意で関係線も張る。 */
+  async function createNodeAtDrop(input: {
+    template: TemplateDefinition;
+    name: string;
+    relationText: string;
+  }): Promise<void> {
+    const q = quickNode();
+    const ctx = ProjectService.currentProject();
+    if (!q || !ctx) return;
+    try {
+      const node = createNode(ctx.templates, {
+        templateId: input.template.id,
+        slug: quickNodeSlug(input.name, input.template),
+        fields: { display_name: input.name },
+      });
+      await ctx.nodeRepository.save(node);
+      const next = new Map(ctx.project.nodes);
+      next.set(node.id, node);
+      Object.assign(ctx.project, { nodes: next });
+      ctx.history.register(node);
+      GraphPositions.commitPosition(node.id, q.world);
+      if (input.relationText !== '') {
+        await RelationsService.add({ source: q.source, target: node.id, text: input.relationText });
+      }
+      SelectionContext.selectNode(node.id);
+      ProjectService.touch();
+      Toast.success(`ノードを作成: ${input.name}`, 1800);
+    } catch (e) {
+      Toast.error(`ノードの作成に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** プロットフロー: クイック作成の確定。起点シーンの直後に新シーンを挿入する。 */
+  async function createSceneAfterDrop(title: string): Promise<void> {
+    const q = quickScene();
+    const ctx = ProjectService.currentProject();
+    if (!q || !ctx) return;
+    const chapter = ctx.project.scenario.chapters.find((c) => c.slug === q.chapterSlug);
+    if (!chapter) return;
+    try {
+      const existing = new Set(chapter.scenes.map((s) => s.slug));
+      const base = `sc_${String(chapter.scenes.length + 1).padStart(2, '0')}`;
+      let slug = base;
+      for (let i = 2; existing.has(slug); i += 1) slug = `${base}_${i}`;
+      const scene = await ctx.scenarioRepository.addScene({
+        chapterSlug: q.chapterSlug,
+        sceneSlug: slug,
+        title,
+      });
+      // addScene は末尾に付くので、起点シーンの直後へ並べ替える
+      const idx = chapter.scenes.findIndex((s) => s.slug === q.sceneSlug);
+      const scenes = [...chapter.scenes];
+      scenes.splice(idx >= 0 ? idx + 1 : scenes.length, 0, scene);
+      await ctx.scenarioRepository.reorderScenes(
+        q.chapterSlug,
+        scenes.map((s) => s.slug),
+      );
+      const nextChapters = ctx.project.scenario.chapters.map((c) =>
+        c.slug === q.chapterSlug ? { ...c, scenes } : c,
+      );
+      Object.assign(ctx.project, {
+        scenario: { ...ctx.project.scenario, chapters: nextChapters },
+      });
+      GraphPositions.commitPosition(`plot.${q.chapterSlug}.${slug}` as NodeId, q.world);
+      ProjectService.touch();
+      Toast.success(`シーンを作成: ${title}`, 1800);
+    } catch (e) {
+      Toast.error(`シーンの作成に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  function startEdit(edge: LensEdge, event: MouseEvent): void {
+    // Alt+クリック = 削除。編集ダイアログは開かない。
+    if (event.altKey) {
+      deleteEdge(edge);
+      return;
+    }
+    const at = { x: event.clientX, y: event.clientY };
+    if (lensMode() === 'plot-flow') {
+      const isCustom = edge.id.startsWith('pfc:');
+      setPfEdgeEdit({
+        kind: isCustom ? 'custom' : 'structural',
+        edgeId: edge.id,
+        label: edge.label,
+        caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
+        at,
+      });
+      return;
+    }
     if (edge.kind !== 'explicit' || !edge.relationId) return;
     setEditing({
       relationId: edge.relationId,
       text: edge.label,
       caption: `${nodeLabel(edge.source)} → ${nodeLabel(edge.target)}`,
+      at,
     });
   }
 
@@ -364,7 +591,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               onClick={() => setLensModeAndPersist('relationship')}
               title="ノード間の関係性を表示 (キャラ / 場所 / 派閥)"
             >
-              🕸 Relationship
+              🕸 関係図
             </button>
             <button
               type="button"
@@ -372,7 +599,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               onClick={() => setLensModeAndPersist('plot-flow')}
               title="シーン間の遷移を表示 (next / choice goto / 到達不能 警告)"
             >
-              🗺 Plot Flow
+              🗺 プロットフロー
             </button>
             <button
               type="button"
@@ -424,8 +651,11 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             )}
           </Show>
           <Show when={lensMode() === 'relationship'}>
-            <span class="panel-graph-hint" title="ノードを Shift+ドラッグで関係を作成">
-              ⓘ Shift+drag で関係作成
+            <span
+              class="panel-graph-hint"
+              title="ノードから Shift+ドラッグ: 別ノードへ = 関係作成 / 空所へ = 新規ノード作成。線は Alt+クリックで削除"
+            >
+              ⓘ Shift+drag で関係作成 (空所へ = 新規ノード) · Alt+クリックで線を削除
             </span>
             <label class="panel-graph-era-toggle" title="関係 (edge) 線の表示 / 非表示">
               <input
@@ -452,8 +682,11 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
             </label>
           </Show>
           <Show when={lensMode() === 'plot-flow'}>
-            <span class="panel-graph-hint">
-              ノードクリックで Script に jump · 「次へ」=暗黙 next / 線=choice goto
+            <span
+              class="panel-graph-hint"
+              title="ノードから Shift+ドラッグ: 別シーンへ = 接続追加 / 空所へ = 直後に新シーン作成。線はクリックでラベル編集、Alt+クリックで削除"
+            >
+              クリックで脚本へ · Shift+drag で接続 (空所へ = 新シーン) · Alt+クリックで線を削除
             </span>
           </Show>
           <Show when={lensMode() === 'plot-board'}>
@@ -561,7 +794,9 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
                 onPositionChange={(id, p) => GraphPositions.setPosition(id, p, { persist: false })}
                 onPositionCommit={(id, p) => GraphPositions.commitPosition(id, p)}
                 onCreateRelation={startCreate}
+                onConnectToEmpty={startCreateAtEmpty}
                 onEdgeClick={startEdit}
+                implicitEdgesClickable={lensMode() === 'plot-flow'}
                 selected={SelectionContext.selectedNodeId()}
                 dimmed={dimmed()}
                 nodeRadius={nodeSize()}
@@ -598,6 +833,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         open={!!pending()}
         canDelete={false}
         caption={pending()?.caption}
+        at={pending()?.at}
         onClose={() => setPending(undefined)}
         onSubmit={(input) => {
           const p = pending();
@@ -619,6 +855,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         canDelete={true}
         caption={editing()?.caption}
         initial={editing() ? { text: editing()!.text } : undefined}
+        at={editing()?.at}
         onClose={() => setEditing(undefined)}
         onSubmit={(input) => {
           const e = editing();
@@ -635,6 +872,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
         open={!!edgeEdit()}
         initial={edgeEdit() ? { type: edgeEdit()!.type, label: edgeEdit()!.label } : undefined}
         caption={edgeEdit()?.caption}
+        at={edgeEdit()?.at}
         onClose={() => setEdgeEdit(undefined)}
         onSubmit={(label) => {
           const e = edgeEdit();
@@ -644,6 +882,59 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           const e = edgeEdit();
           if (e) PlotBoardService.removeEdge(e.edgeId);
         }}
+      />
+      {/* プロットフロー: Shift+drag での接続追加 (章またぎ可) */}
+      <PlotEdgeEditor
+        open={!!pfPending()}
+        title="接続を追加"
+        caption={pfPending()?.caption}
+        placeholder="ラベル (任意。例: 伏線回収 / 時系列は逆)"
+        canDelete={false}
+        at={pfPending()?.at}
+        onClose={() => setPfPending(undefined)}
+        onSubmit={(label) => {
+          const p = pfPending();
+          if (p) PlotFlowEdges.add(p.source, p.target, label);
+        }}
+        onDelete={() => undefined}
+      />
+      {/* プロットフロー: エッジのラベル編集。structural (暗黙 next / choice) は
+          Graph/plot-flow.yaml の上書きで、空欄にすると既定 (ラベル無し) に戻る */}
+      <PlotEdgeEditor
+        open={!!pfEdgeEdit()}
+        title={pfEdgeEdit()?.kind === 'custom' ? '接続を編集' : '接続ラベルを編集'}
+        initial={pfEdgeEdit() ? { type: '', label: pfEdgeEdit()!.label } : undefined}
+        caption={pfEdgeEdit()?.caption}
+        placeholder="ラベル (空欄でラベル無しに戻す)"
+        canDelete={pfEdgeEdit()?.kind === 'custom'}
+        at={pfEdgeEdit()?.at}
+        onClose={() => setPfEdgeEdit(undefined)}
+        onSubmit={(label) => {
+          const e = pfEdgeEdit();
+          if (!e) return;
+          if (e.kind === 'custom') PlotFlowEdges.updateLabel(e.edgeId, label);
+          else PlotFlowEdges.setOverride(e.edgeId, label);
+        }}
+        onDelete={() => {
+          const e = pfEdgeEdit();
+          if (e && e.kind === 'custom') PlotFlowEdges.remove(e.edgeId);
+        }}
+      />
+      {/* 関係図: 空所への Shift+drag でノードをその場に作成 */}
+      <QuickNodeCreator
+        open={!!quickNode()}
+        sourceLabel={quickNode()?.caption}
+        at={quickNode()?.at}
+        onClose={() => setQuickNode(undefined)}
+        onSubmit={(input) => void createNodeAtDrop(input)}
+      />
+      {/* プロットフロー: 空所への Shift+drag で直後にシーンを作成 */}
+      <QuickSceneCreator
+        open={!!quickScene()}
+        sourceLabel={quickScene()?.caption}
+        at={quickScene()?.at}
+        onClose={() => setQuickScene(undefined)}
+        onSubmit={(title) => void createSceneAfterDrop(title)}
       />
     </div>
   );

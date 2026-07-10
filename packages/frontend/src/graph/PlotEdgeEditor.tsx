@@ -1,8 +1,9 @@
 import { createEffect, createSignal, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { StableTextInput } from '../global/StableTextControl';
+import { clampPopoverPosition } from './RelationTypePicker';
 
-// Modal: プロットボードの線 (edge) の種類/ラベルを編集 + 削除する。
+// Modal: プロットボード / Plot Flow の線 (edge) の種類/ラベルを編集 + 削除する。
 // 旧版は window.prompt/confirm でテーマ非対応かつ削除が「空欄送信」と分かりにくかった。
 // RelationTypePicker と同じ ss-modal スタイルに揃え、単一フィールドで編集する。
 
@@ -12,17 +13,30 @@ export interface PlotEdgeEditorProps {
   initial?: { type: string; label?: string | undefined } | undefined;
   /** "始点 → 終点" のキャプション。 */
   caption?: string | undefined;
+  /** ダイアログ見出し。既定は「線を編集」。 */
+  title?: string | undefined;
+  /** ラベル入力の placeholder。 */
+  placeholder?: string | undefined;
+  /** 削除ボタンを出すか。構造由来 (暗黙 next 等) の線は消せないので false。既定 true。 */
+  canDelete?: boolean | undefined;
+  /** 表示位置 (client 座標)。指定するとマウス位置近くにポップアップ (P1 dogfood)。 */
+  at?: { x: number; y: number } | undefined;
   onClose: () => void;
-  /** ラベルを確定。空文字なら種類 (type) 表示に戻る。 */
+  /** ラベルを確定。空文字なら種類 (type) 表示 / ラベル無しに戻る。 */
   onSubmit: (label: string) => void;
   onDelete: () => void;
 }
 
 export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
   const [text, setText] = createSignal('');
+  let dialogRef: HTMLDivElement | undefined;
 
   createEffect(() => {
-    if (props.open) setText(props.initial?.label || props.initial?.type || '');
+    if (props.open) {
+      setText(props.initial?.label || props.initial?.type || '');
+      // ポップアップと同時に入力可能にする (autofocus 属性は動的挿入では効かない)
+      queueMicrotask(() => dialogRef?.querySelector('input')?.focus());
+    }
   });
 
   function submit(): void {
@@ -34,12 +48,22 @@ export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
     <Show when={props.open}>
       <div
         class="ss-modal-backdrop"
+        classList={{ 'ss-modal-backdrop--popover': !!props.at }}
         onClick={() => props.onClose()}
         role="dialog"
         aria-modal="true"
       >
-        <div class="ss-modal" onClick={(e) => e.stopPropagation()}>
-          <h3>線を編集</h3>
+        <div
+          ref={dialogRef}
+          class="ss-modal"
+          style={props.at ? clampPopoverPosition(props.at, { w: 420, h: 220 }) : undefined}
+          classList={{ 'ss-modal--popover': !!props.at }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && !e.isComposing) props.onClose();
+          }}
+        >
+          <h3>{props.title ?? '線を編集'}</h3>
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>
 
           <div class="ss-modal-section">
@@ -51,23 +75,25 @@ export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submit();
                 }}
-                placeholder="例: 伏線 / 対立 / きっかけ"
+                placeholder={props.placeholder ?? '例: 伏線 / 対立 / きっかけ'}
                 autofocus
               />
             </label>
           </div>
 
           <div class="ss-modal-actions">
-            <button
-              type="button"
-              class="ss-modal-danger"
-              onClick={() => {
-                props.onDelete();
-                props.onClose();
-              }}
-            >
-              線を削除
-            </button>
+            <Show when={props.canDelete !== false}>
+              <button
+                type="button"
+                class="ss-modal-danger"
+                onClick={() => {
+                  props.onDelete();
+                  props.onClose();
+                }}
+              >
+                線を削除
+              </button>
+            </Show>
             <span class="ss-modal-spacer" />
             <button type="button" onClick={() => props.onClose()}>
               キャンセル

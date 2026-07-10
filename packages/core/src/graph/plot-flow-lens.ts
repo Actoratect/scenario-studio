@@ -88,7 +88,9 @@ export function computePlotFlowLens(options: PlotFlowOptions): PlotFlowAnalysis 
         templateId: SCENE_TEMPLATE_ID,
         label: sc.title,
       });
-      // 暗黙 next: 同章内の次 scene
+      // 暗黙 next: 同章内の次 scene。
+      // ラベルは既定で空 (P1 dogfood: 全エッジに「次へ」が並ぶのはノイズだった)。
+      // ユーザが任意テキストを付けたい場合は frontend 側の PlotFlowEdges override で上書きする。
       const next = ch.scenes[i + 1];
       if (next) {
         const nextId = makeNodeId(ch.slug, next.slug);
@@ -96,7 +98,7 @@ export function computePlotFlowLens(options: PlotFlowOptions): PlotFlowAnalysis 
           id: `flow:${ch.slug}:${sc.slug}->${next.slug}`,
           source: id,
           target: nextId,
-          label: '次へ',
+          label: '',
           kind: 'implicit',
         });
       }
@@ -154,4 +156,39 @@ export function computePlotFlowLens(options: PlotFlowOptions): PlotFlowAnalysis 
     unreachable,
     unresolvedTransitions,
   };
+}
+
+export interface PlotFlowLayoutOptions {
+  /** 左上原点。 */
+  originX?: number;
+  originY?: number;
+  /** シーン間の横間隔。 */
+  xGap?: number;
+  /** 章間の縦間隔。 */
+  yGap?: number;
+}
+
+/**
+ * Plot Flow の既定レイアウト: 章ごとに 1 行、シーンを宣言順に左から右へ並べる。
+ * (P1 dogfood: 同心円レイアウトでは章構造が読めなかったため。)
+ * 返り値のキーは computePlotFlowLens が振るノード id と同じ。
+ */
+export function plotFlowRowLayout(
+  chapters: readonly Chapter[],
+  options: PlotFlowLayoutOptions = {},
+): ReadonlyMap<NodeId, { x: number; y: number }> {
+  const originX = options.originX ?? 120;
+  const originY = options.originY ?? 120;
+  const xGap = options.xGap ?? 170;
+  const yGap = options.yGap ?? 220;
+  const out = new Map<NodeId, { x: number; y: number }>();
+  chapters.forEach((ch, row) => {
+    ch.scenes.forEach((sc, col) => {
+      out.set(makeNodeId(ch.slug, sc.slug), {
+        x: originX + col * xGap,
+        y: originY + row * yGap,
+      });
+    });
+  });
+  return out;
 }
