@@ -372,6 +372,29 @@ script:
     };
   }
 
+  /**
+   * 既存の scene ファイルを `_scene_index.yaml` に再登録する (ゴミ箱からの復元用)。
+   * addScene と違いファイルは作らない。既に登録済みなら何もしない。
+   */
+  async registerScene(chapterSlug: string, sceneSlug: string): Promise<void> {
+    const chapterDir = `${SCENARIOS_ROOT}/${chapterSlug}`;
+    const sceneIndexPath = `${chapterDir}/_scene_index.yaml`;
+    let order: string[] = [];
+    if (await this.adapter.exists(this.handle, sceneIndexPath)) {
+      const text = await this.adapter.read(this.handle, sceneIndexPath);
+      const { value } = parseYaml(text);
+      const v = expectMapping(value, sceneIndexPath);
+      order = expectStringArray(v, 'scenes');
+    }
+    if (order.includes(sceneSlug)) return;
+    order.push(sceneSlug);
+    await this.adapter.write(
+      this.handle,
+      sceneIndexPath,
+      stringifyYaml(sanitizeYamlTree({ schemaVersion: 1, kind: 'scene_index', scenes: order })),
+    );
+  }
+
   private async loadChapter(slug: string): Promise<Chapter | undefined> {
     const dir = `${SCENARIOS_ROOT}/${slug}`;
     const indexPath = `${dir}/_index.yaml`;

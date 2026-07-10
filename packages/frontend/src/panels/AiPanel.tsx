@@ -1,7 +1,7 @@
 import { createSignal, For, onMount, Show, Switch, Match } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
-import { AiService } from '../services/AiService';
+import { AiService, formatCostEstimate } from '../services/AiService';
 import type { ProviderId } from '../services/AiService';
 
 // AI Panel (M8) — Provider 切替 + 鍵設定 / unlock + Show prompt → 送信 → 応答表示。
@@ -49,6 +49,23 @@ export const AiPanel: Component<GroupPanelPartInitParameters> = (params) => {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** keyless provider (Ollama) の使用開始 — 接続確認だけして unlock。 */
+  async function handleStartKeyless(): Promise<void> {
+    setBusy(true);
+    try {
+      await AiService.startKeyless();
+    } catch {
+      // lastError はサービスが setSignal 済み
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** 現在の provider が keyless (Ollama 等) かどうか。 */
+  function isKeylessProvider(): boolean {
+    return AiService.providers.find((p) => p.id === AiService.providerId())?.keyless ?? false;
   }
 
   function handleSendRequest(): void {
@@ -110,6 +127,31 @@ export const AiPanel: Component<GroupPanelPartInitParameters> = (params) => {
         {(err) => <div class="panel-ai-error">{err().message}</div>}
       </Show>
 
+      <Show when={AiService.providerId() === 'ollama'}>
+        <div class="panel-ai-section">
+          <h3>Ollama 設定</h3>
+          <label>
+            Endpoint
+            <input
+              type="text"
+              value={AiService.ollamaEndpoint()}
+              onInput={(e) => AiService.setOllamaEndpoint(e.currentTarget.value)}
+              placeholder="http://localhost:11434"
+            />
+          </label>
+          <label>
+            Model
+            <input
+              type="text"
+              value={AiService.ollamaModel()}
+              onInput={(e) => AiService.setOllamaModel(e.currentTarget.value)}
+              placeholder="llama3"
+            />
+          </label>
+          <p class="panel-ai-hint">endpoint / model はこの端末の localStorage に保存されます。</p>
+        </div>
+      </Show>
+
       <Show when={AiService.status().kind === 'unlocked'}>
         <div class="panel-ai-section">
           <label class="panel-ai-inline-toggle">
@@ -129,33 +171,50 @@ export const AiPanel: Component<GroupPanelPartInitParameters> = (params) => {
 
       <Switch>
         <Match when={AiService.status().kind === 'no-key'}>
-          <div class="panel-ai-section">
-            <h3>初回設定</h3>
-            <p class="panel-ai-hint">
-              API キーをローカル IndexedDB に AES-GCM (PBKDF2 200k iter) で暗号化して保存します。
-              キー本体はメモリ + 暗号化 blob のみで、平文ではどこにも残しません。
-            </p>
-            <label>
-              API key
-              <input
-                type="password"
-                value={apiKey()}
-                onInput={(e) => setApiKey(e.currentTarget.value)}
-                placeholder="sk-..."
-              />
-            </label>
-            <label>
-              Passphrase (起動時に毎回入力)
-              <input
-                type="password"
-                value={passphrase()}
-                onInput={(e) => setPassphrase(e.currentTarget.value)}
-              />
-            </label>
-            <button type="button" disabled={busy()} onClick={() => void handleSetKey()}>
-              暗号化して保存
-            </button>
-          </div>
+          <Show
+            when={isKeylessProvider()}
+            fallback={
+              <div class="panel-ai-section">
+                <h3>初回設定</h3>
+                <p class="panel-ai-hint">
+                  API キーをローカル IndexedDB に AES-GCM (PBKDF2 200k iter)
+                  で暗号化して保存します。 キー本体はメモリ + 暗号化 blob
+                  のみで、平文ではどこにも残しません。
+                </p>
+                <label>
+                  API key
+                  <input
+                    type="password"
+                    value={apiKey()}
+                    onInput={(e) => setApiKey(e.currentTarget.value)}
+                    placeholder="sk-..."
+                  />
+                </label>
+                <label>
+                  Passphrase (起動時に毎回入力)
+                  <input
+                    type="password"
+                    value={passphrase()}
+                    onInput={(e) => setPassphrase(e.currentTarget.value)}
+                  />
+                </label>
+                <button type="button" disabled={busy()} onClick={() => void handleSetKey()}>
+                  暗号化して保存
+                </button>
+              </div>
+            }
+          >
+            <div class="panel-ai-section">
+              <h3>使用開始 (キー不要)</h3>
+              <p class="panel-ai-hint">
+                Ollama はキー不要です。ローカルで起動している Ollama サーバ (
+                <code>{AiService.ollamaEndpoint()}</code>) への接続を確認して使用開始します。
+              </p>
+              <button type="button" disabled={busy()} onClick={() => void handleStartKeyless()}>
+                接続して使用開始
+              </button>
+            </div>
+          </Show>
         </Match>
         <Match when={AiService.status().kind === 'locked'}>
           <div class="panel-ai-section">
@@ -234,6 +293,7 @@ export const AiPanel: Component<GroupPanelPartInitParameters> = (params) => {
               <strong>User:</strong>
               <pre>{userPrompt()}</pre>
             </section>
+            <p class="ss-ai-cost">{formatCostEstimate(systemPrompt() + '\n' + userPrompt())}</p>
             <div class="panel-ai-actions">
               <button type="button" onClick={() => setShowConfirm(false)}>
                 キャンセル

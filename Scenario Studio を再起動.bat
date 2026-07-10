@@ -1,10 +1,10 @@
 @echo off
-chcp 65001 >nul
 setlocal
-cd /d "%~dp0"
+REM Superseded by start-app.bat (P1). This wrapper keeps the "restart"
+REM behavior: stop any running vite dev server first, then delegate the
+REM actual launch (first-run install + vite --open) to start-app.bat.
 
-echo === Scenario Studio restart ===
-
+REM Kill any existing vite dev server on ports 5173-5180
 for /L %%P in (5173,1,5180) do (
   for /f "tokens=5" %%I in ('netstat -ano -p tcp ^| findstr ":%%P " ^| findstr "LISTENING"') do (
     echo killing PID %%I on port %%P
@@ -12,11 +12,5 @@ for /L %%P in (5173,1,5180) do (
   )
 )
 
-start "" /b cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:5173/"
-
-echo Starting vite dev server...
-call npm --prefix packages\frontend run dev
-
-echo.
-echo === dev server stopped ===
-pause
+endlocal
+call "%~dp0start-app.bat"

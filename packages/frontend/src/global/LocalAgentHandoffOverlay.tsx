@@ -6,6 +6,7 @@ import {
   type HandoffScope,
 } from '../services/LocalAgentHandoff';
 import { Toast } from '../services/Toast';
+import { ModalBase } from './ModalBase';
 
 // PR-AU: Local Agent Handoff overlay (UX-8)。
 // 起動: WorkspaceShell の 🤝 ボタン or Cmd+Shift+H。
@@ -86,85 +87,87 @@ const Ui: Component = () => {
   }
 
   return (
-    <div class="ss-modal-backdrop" onClick={() => LocalAgentHandoffOverlay.hide()}>
-      <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>🤝 ローカル AI に依頼</h3>
-        <Show
-          when={pkg()}
-          fallback={
+    <ModalBase
+      onClose={() => LocalAgentHandoffOverlay.hide()}
+      dialogClass="ss-modal ss-modal--wide"
+      labelledBy="ss-local-agent-handoff-title"
+    >
+      <h3 id="ss-local-agent-handoff-title">🤝 ローカル AI に依頼</h3>
+      <Show
+        when={pkg()}
+        fallback={
+          <p class="ss-modal-caption">
+            プロジェクトが開かれていない、または対象が選択されていません。 Outline / Inspector
+            などで対象を選んでから再度開いてください。
+          </p>
+        }
+      >
+        {(p) => (
+          <>
             <p class="ss-modal-caption">
-              プロジェクトが開かれていない、または対象が選択されていません。 Outline / Inspector
-              などで対象を選んでから再度開いてください。
+              スコープ: <strong>{p().scopeLabel}</strong>
             </p>
-          }
-        >
-          {(p) => (
-            <>
-              <p class="ss-modal-caption">
-                スコープ: <strong>{p().scopeLabel}</strong>
-              </p>
-              <Show when={p().relatedFiles.length > 0}>
-                <details class="ss-handoff-related">
-                  <summary>関連ファイル ({p().relatedFiles.length})</summary>
-                  <ul>
-                    <For each={p().relatedFiles}>
-                      {(f) => (
-                        <li>
-                          <code>{f}</code>
-                        </li>
-                      )}
-                    </For>
-                  </ul>
-                </details>
-              </Show>
+            <Show when={p().relatedFiles.length > 0}>
+              <details class="ss-handoff-related">
+                <summary>関連ファイル ({p().relatedFiles.length})</summary>
+                <ul>
+                  <For each={p().relatedFiles}>
+                    {(f) => (
+                      <li>
+                        <code>{f}</code>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </details>
+            </Show>
 
-              <p class="ss-modal-caption">プロンプト プレビュー (上 800 字):</p>
-              <pre class="ss-handoff-preview">
-                {p().promptMarkdown.slice(0, 800)}
-                {p().promptMarkdown.length > 800 ? '\n\n…' : ''}
-              </pre>
-              <p class="ss-handoff-hint">
-                {p().promptMarkdown.length.toLocaleString('en-US')} 字。AI に渡す前に
-                <strong>「## タスク」</strong> セクションを書き換えてください。
-              </p>
+            <p class="ss-modal-caption">プロンプト プレビュー (上 800 字):</p>
+            <pre class="ss-handoff-preview">
+              {p().promptMarkdown.slice(0, 800)}
+              {p().promptMarkdown.length > 800 ? '\n\n…' : ''}
+            </pre>
+            <p class="ss-handoff-hint">
+              {p().promptMarkdown.length.toLocaleString('en-US')} 字。AI に渡す前に
+              <strong>「## タスク」</strong> セクションを書き換えてください。
+            </p>
 
-              <div class="ss-handoff-actions">
-                <button type="button" data-variant="primary" onClick={() => void copyClipboard()}>
-                  📋 クリップボードにコピー
-                </button>
-                <button type="button" disabled={busy()} onClick={() => void saveToProject()}>
-                  💾 .editor/ai-context/ に保存
-                </button>
-                <span class="ss-handoff-divider" />
-                <button type="button" onClick={() => openWebUi('chatgpt')}>
-                  🌐 ChatGPT で開く
-                </button>
-                <button type="button" onClick={() => openWebUi('claude')}>
-                  🌐 Claude.ai で開く
-                </button>
-                <button type="button" onClick={() => openWebUi('gemini')}>
-                  🌐 Gemini で開く
-                </button>
-              </div>
+            <div class="ss-handoff-actions">
+              <button type="button" data-variant="primary" onClick={() => void copyClipboard()}>
+                📋 クリップボードにコピー
+              </button>
+              <button type="button" disabled={busy()} onClick={() => void saveToProject()}>
+                💾 .editor/ai-context/ に保存
+              </button>
+              <span class="ss-handoff-divider" />
+              <button type="button" onClick={() => openWebUi('chatgpt')}>
+                🌐 ChatGPT で開く
+              </button>
+              <button type="button" onClick={() => openWebUi('claude')}>
+                🌐 Claude.ai で開く
+              </button>
+              <button type="button" onClick={() => openWebUi('gemini')}>
+                🌐 Gemini で開く
+              </button>
+            </div>
 
-              <p class="ss-handoff-cli-hint">
-                <strong>CLI から使う場合:</strong> 保存した{' '}
-                <code>.editor/ai-context/&lt;ts&gt;.md</code> を<code>codex run</code> /{' '}
-                <code>claude</code> / <code>aider</code> に <code>&lt;</code> で stdin
-                として渡してください。Browser 環境ではアプリから直接 spawn できないため、 Tauri
-                ビルドで対応予定。
-              </p>
-            </>
-          )}
-        </Show>
-        <div class="ss-modal-actions">
-          <span class="ss-modal-spacer" />
-          <button type="button" onClick={() => LocalAgentHandoffOverlay.hide()}>
-            閉じる
-          </button>
-        </div>
+            <p class="ss-handoff-cli-hint">
+              <strong>CLI から使う場合:</strong> 保存した{' '}
+              <code>.editor/ai-context/&lt;ts&gt;.md</code> を<code>codex run</code> /{' '}
+              <code>claude</code> / <code>aider</code> に <code>&lt;</code> で stdin
+              として渡してください。Browser 環境ではアプリから直接 spawn できないため、 Tauri
+              ビルドで対応予定。
+            </p>
+          </>
+        )}
+      </Show>
+      <div class="ss-modal-actions">
+        <span class="ss-modal-spacer" />
+        <button type="button" onClick={() => LocalAgentHandoffOverlay.hide()}>
+          閉じる
+        </button>
       </div>
-    </div>
+    </ModalBase>
   );
 };
 

@@ -52,13 +52,14 @@ describe('GlobalHistoryService', () => {
     GlobalHistoryService.recordScript('scene-a');
 
     expect(GlobalHistoryService.canUndo()).toBe(true);
-    expect(await GlobalHistoryService.undo()).toBe(true);
-    expect(await GlobalHistoryService.undo()).toBe(true);
+    // undo/redo は適用したエントリの情報 (domain / label) を返す
+    expect(await GlobalHistoryService.undo()).toMatchObject({ domain: 'script' });
+    expect(await GlobalHistoryService.undo()).toMatchObject({ domain: 'project' });
     expect(calls).toEqual(['script undo scene-a', 'project undo']);
 
     expect(GlobalHistoryService.canRedo()).toBe(true);
-    expect(await GlobalHistoryService.redo()).toBe(true);
-    expect(await GlobalHistoryService.redo()).toBe(true);
+    expect(await GlobalHistoryService.redo()).toMatchObject({ domain: 'project' });
+    expect(await GlobalHistoryService.redo()).toMatchObject({ domain: 'script' });
     expect(calls).toEqual([
       'script undo scene-a',
       'project undo',
@@ -90,7 +91,7 @@ describe('GlobalHistoryService', () => {
 
     projectUndo += 1;
     GlobalHistoryService.recordProject();
-    expect(await GlobalHistoryService.undo()).toBe(true);
+    expect(await GlobalHistoryService.undo()).toMatchObject({ domain: 'project' });
     expect(GlobalHistoryService.canRedo()).toBe(true);
 
     projectUndo += 1;

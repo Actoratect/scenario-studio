@@ -369,6 +369,14 @@ git --version
 corepack pnpm -v   # 9.12.0（初回は pnpm のダウンロード確認に Y）
 </code></pre>
         <h3 id="sec-2">0-2. リポジトリを取得して起動する（Windows / PowerShell）</h3>
+        <blockquote>
+          <p>
+            <strong>いちばん簡単</strong>: リポジトリの取得（下の手順 1）まで済んでいれば、リポジトリ直下の
+            <strong><code>start-app.bat</code></strong> を<strong>ダブルクリック</strong>するだけで起動できます
+            （初回は依存インストールも自動実行 → dev サーバ起動 → ブラウザが開く）。
+            以下は、コマンドで手動セットアップする場合の手順です。
+          </p>
+        </blockquote>
         <p>
           操作は <strong>Windows の PowerShell</strong> を想定して説明します（macOS / Linux
           のターミナルでも、同じコマンドがそのまま動きます）。
@@ -434,17 +442,17 @@ corepack pnpm -F frontend dev
 │ Scenario Studio                          │
 │  [ 新規プロジェクト ]  空フォルダから作成     │  ← ルート A
 │  [ 既存プロジェクトを開く ]  フォルダを選んで開く │  ← ルート B / 既存
+│  [ 📖 サンプル『走れメロス』を試す ]          │  ← まず触ってみたい人
 │  [ 最近開いた ]  …                        │
 └──────────────────────────────────────────┘
 </code></pre>
         <blockquote>
           <p>
-            <strong>まず触ってみたい人へ</strong>: リポジトリの
-            <code>sample-projects/meros/</code>（走れメロスの完成サンプル）を
-            <strong>リポジトリの外</strong
-            >にコピーし、「既存プロジェクトを開く」でそのフォルダを選ぶと、実データの構造を体感できます。
-            （リポジトリ内のまま開くと編集が Git
-            差分に出るため、必ず外にコピーしてから開いてください。）
+            <strong>まず触ってみたい人へ</strong>: Welcome 画面の
+            <strong>「📖 サンプル『走れメロス』を試す」</strong> をクリックして空フォルダを 1
+            つ選ぶと、走れメロスの完成サンプルがそこに展開されて開きます（手動コピー不要）。
+            リポジトリ内の <code>sample-projects/meros/</code> を直接開くのは避けてください
+            （編集が Git 差分に出ます）。
           </p>
         </blockquote>
         <p>ここから <strong>ルート A</strong> か <strong>ルート B</strong> に進みます。</p>
@@ -601,10 +609,12 @@ corepack pnpm -F frontend dev
         <h3 id="sec-11">A-7. 保存とバックアップ</h3>
         <ul>
           <li>
-            編集は<strong>自動保存</strong>されます（ヘッダの SaveBadge で状態確認、<code
-              >Ctrl/Cmd+S</code
-            >
-            で即時 flush）。
+            編集は<strong>未保存として溜まり</strong>、ヘッダの 💾
+            <strong>保存ボタン（未保存件数バッジ付き）</strong>か <code>Ctrl/Cmd+S</code>
+            でまとめて保存します（自動保存はプロットボードのみ）。ヘッダの保存バッジが<strong
+              >「未保存 (Ctrl+S)」</strong
+            >の間は書き込まれていないので、<strong>閉じる前に件数が 0（保存済）か確認</strong
+            >してください。
           </li>
           <li>
             データは全て<strong>そのフォルダ内のテキストファイル（YAML/Markdown）</strong>。<strong

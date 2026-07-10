@@ -10,13 +10,19 @@ import { createSignal } from 'solid-js';
 // NodeId に紐づかないファイルも追跡できるようにするため)。SaveScheduler は manual mode に
 // 切り替えて、こちらの flushAll() と並走する。
 
+/**
+ * saveFn の戻り値。'skipped' は「意図的に書き込まなかった」(競合で外部変更を温存した等)
+ * ことを示し、flushAll は dirty を解除せず残す。void / undefined は成功扱い。
+ */
+export type SaveResult = void | 'skipped';
+
 export interface DirtyEntry {
   /** 一意キー (ファイル相対パス推奨)。 */
   key: string;
   /** UI 表示用 (Toast やバッジ用)。 */
   label: string;
-  /** flush 時に呼ぶ。失敗したら throw する。 */
-  saveFn: () => Promise<void> | void;
+  /** flush 時に呼ぶ。失敗したら throw、書かずに終えたら 'skipped' を返す。 */
+  saveFn: () => Promise<SaveResult> | SaveResult;
 }
 
 const [dirty, setDirty] = createSignal<ReadonlyMap<string, DirtyEntry>>(new Map());
@@ -47,15 +53,26 @@ export const DirtyTracker = {
     setDirty(next);
   },
 
-  /** 全 dirty を順に flush。途中失敗した key は dirty に残す。 */
-  async flushAll(): Promise<{ saved: number; failed: number; errors: string[] }> {
+  /** 全 dirty を順に flush。失敗 / skip した key は dirty に残す (次の保存で再試行可)。 */
+  async flushAll(): Promise<{
+    saved: number;
+    failed: number;
+    skipped: number;
+    errors: string[];
+  }> {
     const entries = [...dirty().values()];
     let saved = 0;
     let failed = 0;
+    let skipped = 0;
     const errors: string[] = [];
     for (const entry of entries) {
       try {
-        await entry.saveFn();
+        const result = await entry.saveFn();
+        if (result === 'skipped') {
+          // 意図的に書かなかった (競合温存等)。dirty のまま残す。
+          skipped++;
+          continue;
+        }
         DirtyTracker.clear(entry.key);
         saved++;
       } catch (e) {
@@ -63,7 +80,7 @@ export const DirtyTracker = {
         errors.push(`${entry.label}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    return { saved, failed, errors };
+    return { saved, failed, skipped, errors };
   },
 
   /** プロジェクト close 時の reset。 */

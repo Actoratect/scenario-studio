@@ -162,17 +162,29 @@ button {
   --dv-activegroup-hiddenpanel-tab-color: var(--ss-text-muted);
   --dv-inactivegroup-visiblepanel-tab-color: var(--ss-text-muted);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--ss-text-faint);
-  --dv-tab-divider-color: var(--ss-border-soft);
-  --dv-separator-border: var(--ss-border-soft);
+  /* P1 dogfood: 境界が薄くグループの切れ目が読めなかった → 1 段濃い border に */
+  --dv-tab-divider-color: var(--ss-border);
+  --dv-separator-border: var(--ss-border);
   --dv-paneview-active-outline-color: var(--ss-accent-blue);
 }
 
 .workspace .dv-groupview {
-  box-shadow: inset 0 0 0 1px var(--ss-border-soft);
+  box-shadow: inset 0 0 0 1px var(--ss-border);
 }
 
 .workspace .dv-tabs-and-actions-container {
-  border-bottom: 1px solid var(--ss-border-soft);
+  border-bottom: 2px solid var(--ss-border);
+}
+
+/* アクティブなグループはタブバー下線をアクセント色にして「今どこにいるか」を示す
+   (P1 dogfood: ハンバーガーメニューがあるタブ上部のボーダーを目立たせる要望)。 */
+.workspace .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
+  border-bottom-color: var(--ss-accent-blue);
+}
+
+/* グループ間の sash (リサイズ境界) にも薄く色を乗せて切れ目を見せる */
+.workspace .dv-sash-container > .dv-sash {
+  background: var(--ss-border-soft);
 }
 
 .workspace .dv-default-tab-action {
@@ -591,6 +603,78 @@ button {
   align-items: center;
   justify-content: center;
   z-index: 1500;
+}
+
+/* マウス位置ポップオーバー版モーダル (P1 dogfood: 関係/接続の編集を画面中央でなく
+   クリックした場所に出す)。backdrop は click-outside-close 用に残し、暗幕だけ消す。 */
+.ss-modal-backdrop--popover {
+  background: transparent;
+  display: block;
+}
+
+.ss-modal--popover {
+  position: fixed;
+  margin: 0;
+  width: 420px;
+  max-width: calc(100vw - 16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* 描画クラッシュ時の受け皿 (ErrorBoundary fallback)。全画面を占有し白画面を防ぐ。 */
+.ss-crash-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--ss-bg-soft, #f5f7fa);
+  z-index: 3000;
+}
+
+.ss-crash-card {
+  max-width: 640px;
+  width: 100%;
+  padding: 24px 28px;
+  background: var(--ss-bg, #ffffff);
+  border: 1px solid var(--ss-border, #d4d7dc);
+  border-top: 4px solid var(--ss-accent-vermillion, #d55e00);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.ss-crash-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--ss-accent-vermillion, #d55e00);
+}
+
+.ss-crash-lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ss-text, #1a1d24);
+}
+
+.ss-crash-detail {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0 0 16px;
+  padding: 12px;
+  background: var(--ss-bg-subtle, #fafbfd);
+  border: 1px solid var(--ss-border-soft, #e6e8ec);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ss-text-muted, #5a6068);
+}
+
+.ss-crash-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .ss-modal {
@@ -1878,6 +1962,50 @@ button {
   background: var(--ss-bg-soft);
   border-bottom: 1px solid var(--ss-border-soft);
   font-size: 12px;
+}
+
+.panel-script-parse-error {
+  padding: 8px 12px;
+  background: var(--ss-bg-error, #fae0d2);
+  border-bottom: 2px solid var(--ss-accent-vermillion, #d55e00);
+  color: var(--ss-text, #1a1d24);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.panel-script-parse-error strong {
+  color: var(--ss-accent-vermillion, #d55e00);
+}
+
+.panel-script-parse-error code {
+  color: var(--ss-text-muted, #5a6068);
+  word-break: break-word;
+}
+
+/* シーン未選択時の空状態 (押しても効かないボタン群の代わりに導線を示す) */
+.panel-script-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.panel-script-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ss-text, #1a1d24);
+}
+
+.panel-script-empty-lead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ss-text-muted, #5a6068);
 }
 
 .panel-script-toolbar-label {
@@ -4208,6 +4336,32 @@ button {
   transition: opacity 0.15s ease-out;
 }
 
+.lens-edge-hit {
+  cursor: pointer;
+}
+
+/* クイック作成ポップオーバーのテンプレ選択ボタン列 */
+.ss-quick-create-templates {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ss-quick-create-templates button {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  background: var(--ss-bg);
+  cursor: pointer;
+}
+
+.ss-quick-create-templates button.active {
+  border-color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
+}
+
 .lens-edge-label {
   font-size: 10px;
   fill: var(--ss-text-muted);
@@ -5207,6 +5361,15 @@ button {
 .plot-board-edge line {
   stroke: #4b5563;
   stroke-width: 1.8;
+  /* P1 dogfood: 「接続」線の見た目をグラフ全体で点線に統一 */
+  stroke-dasharray: 4 3;
+}
+
+.plot-board-edge-hit {
+  cursor: pointer;
+  /* 当たり判定線は透明のまま (親の stroke 指定を打ち消す) */
+  stroke: transparent !important;
+  stroke-dasharray: none;
 }
 
 .plot-board-edge-label {
@@ -7313,4 +7476,13 @@ button {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* === AI panel P1 (Ollama/確認画面/コスト表示) === */
+
+/* 送信前のコスト見積り 1 行 (入力 約 N tokens / 概算 $ / 無料 (ローカル)) */
+.ss-ai-cost {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
 }

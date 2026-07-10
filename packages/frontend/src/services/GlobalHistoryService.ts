@@ -3,9 +3,24 @@ import { createSignal } from 'solid-js';
 const HISTORY_LIMIT = 200;
 
 type HistoryEntry =
-  | { readonly domain: 'project' }
-  | { readonly domain: 'script'; readonly path: string; readonly mergeKey?: string }
-  | { readonly domain: 'plotBoard' };
+  | { readonly domain: 'project'; readonly label?: string }
+  | {
+      readonly domain: 'script';
+      readonly path: string;
+      readonly mergeKey?: string;
+      readonly label?: string;
+    }
+  | { readonly domain: 'plotBoard'; readonly label?: string };
+
+/**
+ * undo()/redo() が実際に適用したエントリの情報。Ctrl+Z の結果を Toast で
+ * 「何を取り消したか」ユーザーに伝えるために返す (非表示パネルの変更が
+ * 無言で巻き戻る問題への対処)。undefined = 適用できるものが無かった。
+ */
+export interface AppliedHistoryInfo {
+  readonly domain: 'project' | 'script' | 'plotBoard';
+  readonly label?: string | undefined;
+}
 
 type ApplyState = 'apply' | 'blocked' | 'stale';
 
@@ -93,12 +108,12 @@ async function applyTop(
   source: HistoryEntry[],
   target: HistoryEntry[],
   direction: 'undo' | 'redo',
-): Promise<boolean> {
-  if (applying) return false;
+): Promise<AppliedHistoryInfo | undefined> {
+  if (applying) return undefined;
   while (source.length > 0) {
     const entry = source[source.length - 1]!;
     const state = applyState(entry, direction);
-    if (state === 'blocked') return false;
+    if (state === 'blocked') return undefined;
     source.pop();
     if (state === 'stale') {
       touch();
@@ -131,11 +146,11 @@ async function applyTop(
       // target は undo 方向なら redoStack、redo 方向なら undoStack。
       trim(target, direction === 'undo' ? 'redo' : 'undo');
       touch();
-      return true;
+      return { domain: entry.domain, label: entry.label };
     }
     touch();
   }
-  return false;
+  return undefined;
 }
 
 function record(entry: HistoryEntry): void {
@@ -182,8 +197,8 @@ export const GlobalHistoryService = {
     };
   },
 
-  recordProject(): void {
-    record({ domain: 'project' });
+  recordProject(label?: string): void {
+    record(label !== undefined ? { domain: 'project', label } : { domain: 'project' });
   },
 
   canMergeScript(path: string, mergeKey: string): boolean {
@@ -191,12 +206,17 @@ export const GlobalHistoryService = {
     return last?.domain === 'script' && last.path === path && last.mergeKey === mergeKey;
   },
 
-  recordScript(path: string, mergeKey?: string): void {
-    record(mergeKey ? { domain: 'script', path, mergeKey } : { domain: 'script', path });
+  recordScript(path: string, mergeKey?: string, label?: string): void {
+    record({
+      domain: 'script',
+      path,
+      ...(mergeKey !== undefined ? { mergeKey } : {}),
+      ...(label !== undefined ? { label } : {}),
+    });
   },
 
-  recordPlotBoard(): void {
-    record({ domain: 'plotBoard' });
+  recordPlotBoard(label?: string): void {
+    record(label !== undefined ? { domain: 'plotBoard', label } : { domain: 'plotBoard' });
   },
 
   canUndo(): boolean {
@@ -207,11 +227,12 @@ export const GlobalHistoryService = {
     return hasApplicable(redoStack, 'redo');
   },
 
-  async undo(): Promise<boolean> {
+  /** 適用したエントリの情報を返す (undefined = 何も適用されなかった)。 */
+  async undo(): Promise<AppliedHistoryInfo | undefined> {
     return applyTop(undoStack, redoStack, 'undo');
   },
 
-  async redo(): Promise<boolean> {
+  async redo(): Promise<AppliedHistoryInfo | undefined> {
     return applyTop(redoStack, undoStack, 'redo');
   },
 

@@ -122,7 +122,7 @@ function recordHistory(ctx: OpenProjectContext, before: PlotBoard): void {
   // 上限トリムは GlobalHistoryService の単一スタックに委譲する。plotBoard マーカーが
   // トリムされると onTrimOldest が呼ばれ undoBoards も同期で削るため、本数が常に一致し
   // 孤立スナップショットが残らない (旧: 独立 200 トリムで desync していた)。
-  GlobalHistoryService.recordPlotBoard();
+  GlobalHistoryService.recordPlotBoard('プロットボードの変更');
 }
 
 function canUseHistory(stack: readonly PlotBoard[]): boolean {

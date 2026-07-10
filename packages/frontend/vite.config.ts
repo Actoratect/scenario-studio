@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import { join, posix, relative, sep } from 'node:path';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import solid from 'vite-plugin-solid';
@@ -66,6 +68,65 @@ self.addEventListener('activate', (event) => {
   };
 }
 
+/**
+ * P1: 走れメロスサンプル (`sample-projects/meros/`) を仮想 module として bundle。
+ * frontend は `import { MEROS_SAMPLE } from 'virtual:meros-sample'` で参照し、
+ * Welcome 画面の「サンプル『走れメロス』を試す」が選択フォルダにコピーする。
+ * (PR-AE の ff7SamplePlugin と同方式。FF7 版は著作権配慮で削除、
+ *  パブリックドメインの走れメロスで復活。GitHub Pages 配布でも動く。)
+ *
+ * 出力構造: { files: { '<rel-path>': { kind: 'text' | 'binary', text? | base64? } } }
+ * バイナリ (画像など) は base64、それ以外は raw text。
+ */
+function merosSamplePlugin(): Plugin {
+  const VIRTUAL_ID = 'virtual:meros-sample';
+  const RESOLVED_ID = '\0' + VIRTUAL_ID;
+  const SAMPLE_ROOT = join(__dirname, '..', '..', 'sample-projects', 'meros');
+  const TEXT_EXT = new Set(['.yaml', '.yml', '.md', '.txt', '.json']);
+
+  async function build(): Promise<string> {
+    type Entry = { kind: 'text'; text: string } | { kind: 'binary'; base64: string };
+    const files: Record<string, Entry> = {};
+    async function walk(dir: string): Promise<void> {
+      const items = await fs.readdir(dir, { withFileTypes: true });
+      for (const it of items) {
+        const full = join(dir, it.name);
+        if (it.isDirectory()) {
+          await walk(full);
+        } else if (it.isFile()) {
+          const rel = relative(SAMPLE_ROOT, full).split(sep).join(posix.sep);
+          const dot = it.name.lastIndexOf('.');
+          const ext = dot >= 0 ? it.name.slice(dot).toLowerCase() : '';
+          if (TEXT_EXT.has(ext)) {
+            files[rel] = { kind: 'text', text: await fs.readFile(full, 'utf8') };
+          } else {
+            files[rel] = { kind: 'binary', base64: (await fs.readFile(full)).toString('base64') };
+          }
+        }
+      }
+    }
+    try {
+      await walk(SAMPLE_ROOT);
+    } catch (e) {
+      // sample-projects/meros が無い (CI 等) なら空 manifest
+      console.warn('[merosSamplePlugin] sample dir not found, exporting empty manifest', e);
+    }
+    return `export const MEROS_SAMPLE = ${JSON.stringify({ files })};\n`;
+  }
+
+  return {
+    name: 'scenario-studio:meros-sample',
+    resolveId(id) {
+      if (id === VIRTUAL_ID) return RESOLVED_ID;
+      return null;
+    },
+    async load(id) {
+      if (id === RESOLVED_ID) return await build();
+      return null;
+    },
+  };
+}
+
 // SolidJS + Vite + PWA。
 // M8: 本格的なキャッシュ戦略 — JS/CSS は SWR (新版を即座に学習しつつ古版で起動高速化)、
 // 画像は Cache-First (めったに変わらない)、index.html は NetworkFirst (新ビルド即反映)。
@@ -82,6 +143,7 @@ export default defineConfig({
     solid(),
     devServiceWorkerCleanupPlugin(),
     cspPlugin(),
+    merosSamplePlugin(),
     VitePWA({
       registerType: 'prompt',
       // 開発時に SW をオフ (HMR 干渉回避)。本番ビルドのみ有効。

@@ -5,6 +5,7 @@ import { LintService } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
 import { buildReviewHtml } from '../services/ReviewHtmlExport';
 import { Toast } from '../services/Toast';
+import { ModalBase } from './ModalBase';
 
 // Export dialog (PR-K) — Cmd+E もしくは workspace header の Export ボタンで開く。
 // 範囲: シーン単体 / 章まるごと / プロジェクト全体
@@ -180,132 +181,131 @@ const ExportDialogUi: Component = () => {
   }
 
   return (
-    <div class="ss-modal-backdrop" onClick={() => ExportDialog.hide()}>
-      <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>Export</h3>
+    <ModalBase
+      onClose={() => ExportDialog.hide()}
+      dialogClass="ss-modal ss-modal--wide"
+      labelledBy="ss-export-title"
+    >
+      <h3 id="ss-export-title">Export</h3>
 
-        <Show when={fmt() !== 'review-html'}>
-          <div class="ss-modal-section">
-            <strong>範囲</strong>
-            <div class="ss-export-radio-group">
-              <label>
-                <input
-                  type="radio"
-                  checked={scope() === 'project'}
-                  onChange={() => setScope('project')}
-                />
-                プロジェクト全体
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  checked={scope() === 'chapter'}
-                  onChange={() => setScope('chapter')}
-                />
-                章
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  checked={scope() === 'scene'}
-                  onChange={() => setScope('scene')}
-                />
-                シーン
-              </label>
-            </div>
-          </div>
-        </Show>
-
-        <Show when={fmt() !== 'review-html' && scope() === 'chapter'}>
-          <div class="ss-modal-section">
-            <strong>章を選択</strong>
-            <select
-              value={selectedChapter()}
-              onChange={(e) => setSelectedChapter(e.currentTarget.value)}
-            >
-              <option value="">— 選択 —</option>
-              <For each={ProjectService.currentProject()?.project.scenario.chapters ?? []}>
-                {(ch) => <option value={ch.slug}>{ch.title}</option>}
-              </For>
-            </select>
-          </div>
-        </Show>
-
-        <Show when={fmt() !== 'review-html' && scope() === 'scene'}>
-          <div class="ss-modal-section">
-            <strong>シーンを選択</strong>
-            <select
-              value={selectedScene()}
-              onChange={(e) => setSelectedScene(e.currentTarget.value)}
-            >
-              <option value="">— 選択 —</option>
-              <For each={scenes()}>
-                {(s) => <option value={`${s.chapterSlug}/${s.sceneSlug}`}>{s.label}</option>}
-              </For>
-            </select>
-          </div>
-        </Show>
-
+      <Show when={fmt() !== 'review-html'}>
         <div class="ss-modal-section">
-          <strong>形式</strong>
+          <strong>範囲</strong>
           <div class="ss-export-radio-group">
             <label>
               <input
                 type="radio"
-                checked={fmt() === 'markdown'}
-                onChange={() => setFmt('markdown')}
+                checked={scope() === 'project'}
+                onChange={() => setScope('project')}
               />
-              Markdown (.md)
-            </label>
-            <label>
-              <input type="radio" checked={fmt() === 'text'} onChange={() => setFmt('text')} />
-              プレーンテキスト (.txt)
+              プロジェクト全体
             </label>
             <label>
               <input
                 type="radio"
-                checked={fmt() === 'review-html'}
-                onChange={() => setFmt('review-html')}
+                checked={scope() === 'chapter'}
+                onChange={() => setScope('chapter')}
               />
-              レビュー用 HTML (.html, 画像同梱)
+              章
+            </label>
+            <label>
+              <input
+                type="radio"
+                checked={scope() === 'scene'}
+                onChange={() => setScope('scene')}
+              />
+              シーン
             </label>
           </div>
         </div>
+      </Show>
 
-        <div class="ss-modal-actions">
-          <button
-            type="button"
-            data-variant="primary"
-            disabled={busy()}
-            onClick={() => void generate()}
+      <Show when={fmt() !== 'review-html' && scope() === 'chapter'}>
+        <div class="ss-modal-section">
+          <strong>章を選択</strong>
+          <select
+            value={selectedChapter()}
+            onChange={(e) => setSelectedChapter(e.currentTarget.value)}
           >
-            生成
-          </button>
-          <span class="ss-modal-spacer" />
-          <Show when={fmt() === 'review-html'}>
-            <button type="button" disabled={output() === ''} onClick={openHtmlPreview}>
-              ブラウザでプレビュー
-            </button>
-          </Show>
-          <button type="button" disabled={output() === ''} onClick={() => void copyToClipboard()}>
-            クリップボードにコピー
-          </button>
-          <button type="button" disabled={output() === ''} onClick={download}>
-            ダウンロード
-          </button>
-          <button type="button" onClick={() => ExportDialog.hide()}>
-            閉じる
-          </button>
+            <option value="">— 選択 —</option>
+            <For each={ProjectService.currentProject()?.project.scenario.chapters ?? []}>
+              {(ch) => <option value={ch.slug}>{ch.title}</option>}
+            </For>
+          </select>
         </div>
+      </Show>
 
-        <Show when={output() !== ''}>
-          <div class="ss-modal-section">
-            <strong>プレビュー ({output().length.toLocaleString('en-US')} 文字)</strong>
-            <textarea class="ss-export-output" readOnly={true} value={output()} />
-          </div>
-        </Show>
+      <Show when={fmt() !== 'review-html' && scope() === 'scene'}>
+        <div class="ss-modal-section">
+          <strong>シーンを選択</strong>
+          <select value={selectedScene()} onChange={(e) => setSelectedScene(e.currentTarget.value)}>
+            <option value="">— 選択 —</option>
+            <For each={scenes()}>
+              {(s) => <option value={`${s.chapterSlug}/${s.sceneSlug}`}>{s.label}</option>}
+            </For>
+          </select>
+        </div>
+      </Show>
+
+      <div class="ss-modal-section">
+        <strong>形式</strong>
+        <div class="ss-export-radio-group">
+          <label>
+            <input
+              type="radio"
+              checked={fmt() === 'markdown'}
+              onChange={() => setFmt('markdown')}
+            />
+            Markdown (.md)
+          </label>
+          <label>
+            <input type="radio" checked={fmt() === 'text'} onChange={() => setFmt('text')} />
+            プレーンテキスト (.txt)
+          </label>
+          <label>
+            <input
+              type="radio"
+              checked={fmt() === 'review-html'}
+              onChange={() => setFmt('review-html')}
+            />
+            レビュー用 HTML (.html, 画像同梱)
+          </label>
+        </div>
       </div>
-    </div>
+
+      <div class="ss-modal-actions">
+        <button
+          type="button"
+          data-variant="primary"
+          disabled={busy()}
+          onClick={() => void generate()}
+        >
+          生成
+        </button>
+        <span class="ss-modal-spacer" />
+        <Show when={fmt() === 'review-html'}>
+          <button type="button" disabled={output() === ''} onClick={openHtmlPreview}>
+            ブラウザでプレビュー
+          </button>
+        </Show>
+        <button type="button" disabled={output() === ''} onClick={() => void copyToClipboard()}>
+          クリップボードにコピー
+        </button>
+        <button type="button" disabled={output() === ''} onClick={download}>
+          ダウンロード
+        </button>
+        <button type="button" onClick={() => ExportDialog.hide()}>
+          閉じる
+        </button>
+      </div>
+
+      <Show when={output() !== ''}>
+        <div class="ss-modal-section">
+          <strong>プレビュー ({output().length.toLocaleString('en-US')} 文字)</strong>
+          <textarea class="ss-export-output" readOnly={true} value={output()} />
+        </div>
+      </Show>
+    </ModalBase>
   );
 };
 

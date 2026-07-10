@@ -36,6 +36,7 @@ import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { Toast } from '../services/Toast';
+import { TrashService } from '../services/TrashService';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
 import { BulkVariantOverlay } from '../global/BulkVariantOverlay';
@@ -327,8 +328,24 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const n = node();
     const ctx = ProjectService.currentProject();
     if (!n || !ctx) return;
-    if (!window.confirm(`ノード "${n.slug}" を削除しますか? (元に戻せません)`)) return;
+    if (
+      !window.confirm(
+        `ノード "${n.slug}" を削除しますか?\n(🩺 プロジェクト ヘルスの「最近削除した項目」から復元できます)`,
+      )
+    )
+      return;
     try {
+      // 物理削除の前に .editor/trash へ退避 (ソフトデリート)
+      const label =
+        typeof n.fields['display_name'] === 'string' && n.fields['display_name'] !== ''
+          ? (n.fields['display_name'] as string)
+          : n.slug;
+      await TrashService.stash(
+        ctx.adapter,
+        ctx.handle,
+        ctx.nodeRepository.pathFor(n),
+        `ノード: ${label}`,
+      );
       await ctx.nodeRepository.delete(n.id);
       const nextMap = new Map(ctx.project.nodes);
       nextMap.delete(n.id);

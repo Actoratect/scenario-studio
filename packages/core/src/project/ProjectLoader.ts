@@ -96,9 +96,7 @@ export async function initializeProject(
 ): Promise<LoadProjectResult> {
   const exists = await adapter.exists(handle, PROJECT_SETTINGS_FILE);
   if (exists) {
-    throw new Error(
-      `${PROJECT_SETTINGS_FILE} already exists at handle ${handle.id} — refusing to overwrite`,
-    );
+    throw new ProjectAlreadyInitializedError(handle.name);
   }
   const settings: ProjectSettings = {
     ...defaultProjectSettings(options.name),
@@ -122,5 +120,18 @@ export class ProjectNotInitializedError extends Error {
       `Project "${projectName}" is not initialized (missing ${PROJECT_SETTINGS_FILE}). Use initializeProject() first.`,
     );
     this.name = 'ProjectNotInitializedError';
+  }
+}
+
+/**
+ * initializeProject が既存プロジェクト (ProjectSettings.yaml あり) に当たったときの専用エラー。
+ * UI 側は message 文字列ではなく instanceof で判別し、「既存として開き直す」導線に誘導できる。
+ */
+export class ProjectAlreadyInitializedError extends Error {
+  constructor(readonly projectName: string) {
+    super(
+      `Project "${projectName}" already has ${PROJECT_SETTINGS_FILE} — refusing to overwrite. Use loadProject() instead.`,
+    );
+    this.name = 'ProjectAlreadyInitializedError';
   }
 }
