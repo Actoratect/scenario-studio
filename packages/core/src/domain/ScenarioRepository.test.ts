@@ -67,6 +67,25 @@ describe('FsScenarioRepository', () => {
     expect(s.chapters[0]!.scenes[0]!.title).toBe('嵐の城門');
   });
 
+  it('registerScene re-appends an existing scene file to _scene_index.yaml (trash restore)', async () => {
+    await repo.addChapter({ slug: 'ch01', title: 'Chapter 1' });
+    await repo.saveProjectIndex([{ slug: 'ch01' }]);
+    await repo.addScene({ chapterSlug: 'ch01', sceneSlug: 's01', title: 'シーン 1' });
+    // removeScene で index から外れる (ファイルは復元済みという想定で置き直す)
+    const yaml = await adapter.read(handle, 'Scenarios/ch01/s01.scn.yaml');
+    await repo.removeScene('ch01', 's01');
+    await adapter.write(handle, 'Scenarios/ch01/s01.scn.yaml', yaml);
+
+    await repo.registerScene('ch01', 's01');
+    const s = await repo.load();
+    expect(s.chapters[0]!.scenes.map((sc) => sc.slug)).toEqual(['s01']);
+
+    // 冪等: 二重登録しない
+    await repo.registerScene('ch01', 's01');
+    const index = await adapter.read(handle, 'Scenarios/ch01/_scene_index.yaml');
+    expect(index.match(/s01/g)?.length).toBe(1);
+  });
+
   it('renameScene swaps slug + title and updates _scene_index.yaml', async () => {
     await repo.addChapter({ slug: 'ch01', title: 'C' });
     await repo.saveProjectIndex([{ slug: 'ch01' }]);

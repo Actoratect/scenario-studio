@@ -68,9 +68,66 @@ describe('SaveScheduler (manual mode)', () => {
     const s = new SaveScheduler({ flush, onError });
     s.schedule(nodeId('a'));
     s.flushNow(nodeId('a'));
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(onError).toHaveBeenCalledOnce();
     expect(onError).toHaveBeenCalledWith(nodeId('a'), expect.any(Error));
+  });
+
+  it('keeps edits made while an asynchronous save is running', async () => {
+    let complete!: () => void;
+    const flush = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const s = new SaveScheduler({ flush });
+    s.schedule(nodeId('a'));
+    const pending = s.flushAllAsync();
+    s.schedule(nodeId('a'));
+    complete();
+    expect(await pending).toMatchObject({ saved: 1, failed: 0 });
+    expect(s.pendingIds()).toEqual([nodeId('a')]);
+    const next = s.flushAllAsync();
+    complete();
+    await next;
+    expect(s.pendingCount).toBe(0);
+  });
+
+  it('shares an in-flight save between repeated save commands', async () => {
+    let complete!: () => void;
+    const flush = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const s = new SaveScheduler({ flush });
+    s.schedule(nodeId('a'));
+    s.flushNow(nodeId('a'));
+    const pending = s.flushAllAsync();
+    expect(flush).toHaveBeenCalledOnce();
+    complete();
+    await pending;
+    expect(s.pendingCount).toBe(0);
+  });
+
+  it('retains failed and skipped writes and reports them separately', async () => {
+    const onError = vi.fn();
+    const s = new SaveScheduler({
+      onError,
+      flush: (id) => {
+        if (id === nodeId('failed')) throw new Error('disk unavailable');
+        if (id === nodeId('skipped')) return 'skipped';
+      },
+    });
+    for (const id of ['saved', 'failed', 'skipped']) s.schedule(nodeId(id));
+    expect(await s.flushAllAsync()).toEqual({
+      saved: 1,
+      failed: 1,
+      skipped: 1,
+      errors: ['disk unavailable'],
+    });
+    expect(s.pendingIds()).toEqual([nodeId('failed'), nodeId('skipped')]);
   });
 });

@@ -3,6 +3,7 @@ import {
   AnthropicProvider,
   decryptApiKey,
   encryptApiKey,
+  estimateTokens,
   OpenAiProvider,
   OllamaProvider,
   TEXT_SUGGESTION_PRESETS,
@@ -31,6 +32,14 @@ export interface AiProviderOption {
   defaultModel: string;
   /** API キーが要らない (Ollama 等) なら true。 */
   keyless: boolean;
+  /**
+   * 入力 1M tokens あたりの参考単価 (USD)。送信前のコスト見積り表示に使う。
+   * 参考値・変動あり — 正確な請求額は各社の課金ページで確認すること。
+   * 両方 0 なら UI は「無料 (ローカル)」と表示する。
+   */
+  inputUsdPerMTok: number;
+  /** 出力 1M tokens あたりの参考単価 (USD)。参考値・変動あり。 */
+  outputUsdPerMTok: number;
 }
 
 export const AI_PROVIDERS: readonly AiProviderOption[] = [
@@ -40,9 +49,28 @@ export const AI_PROVIDERS: readonly AiProviderOption[] = [
     displayName: 'Anthropic Claude',
     defaultModel: 'claude-opus-4-7',
     keyless: false,
+    // 参考値・変動あり: Claude Sonnet 4.6 の 2025 年公表値 ($3/$15)。Opus 系はより高額
+    inputUsdPerMTok: 3,
+    outputUsdPerMTok: 15,
   },
-  { id: 'openai', displayName: 'OpenAI GPT', defaultModel: 'gpt-4o-mini', keyless: false },
-  { id: 'ollama', displayName: 'Ollama (local)', defaultModel: 'llama3', keyless: true },
+  {
+    id: 'openai',
+    displayName: 'OpenAI GPT',
+    defaultModel: 'gpt-4o-mini',
+    keyless: false,
+    // 参考値・変動あり: gpt-4o-mini の 2025 年公表値 ($0.15/$0.60)
+    inputUsdPerMTok: 0.15,
+    outputUsdPerMTok: 0.6,
+  },
+  {
+    id: 'ollama',
+    displayName: 'Ollama (local)',
+    defaultModel: 'llama3',
+    keyless: true,
+    // ローカル実行のため API 課金なし → UI は「無料 (ローカル)」表示
+    inputUsdPerMTok: 0,
+    outputUsdPerMTok: 0,
+  },
 ];
 
 export type AiStatus =
@@ -65,6 +93,51 @@ const [inlineEnabled, setInlineEnabled] = createSignal<boolean>(false);
 
 let activeProvider: LlmProvider | undefined;
 
+// --- Ollama 設定 (P1) ---
+// keyless provider は鍵 blob を持たないため、endpoint / model 名は
+// 平文で問題ない localStorage に永続化する (graph-positions 等と同じ流儀)。
+const OLLAMA_ENDPOINT_KEY = 'scenario-studio:ai-ollama-endpoint';
+const OLLAMA_MODEL_KEY = 'scenario-studio:ai-ollama-model';
+const OLLAMA_DEFAULT_ENDPOINT = 'http://localhost:11434';
+
+function loadLocal(key: string): string {
+  if (typeof localStorage === 'undefined') return '';
+  try {
+    return localStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveLocal(key: string, value: string): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // quota / private mode は無視 (次回起動時にデフォルトへ戻るだけ)
+  }
+}
+
+const [ollamaEndpoint, setOllamaEndpointSignal] = createSignal<string>(
+  loadLocal(OLLAMA_ENDPOINT_KEY) || OLLAMA_DEFAULT_ENDPOINT,
+);
+const [ollamaModel, setOllamaModelSignal] = createSignal<string>(
+  loadLocal(OLLAMA_MODEL_KEY) || providerOption('ollama').defaultModel,
+);
+
+/** 入力途中の空文字を許容しつつ、実際の接続に使う endpoint を正規化する。 */
+function normalizedOllamaEndpoint(): string {
+  return (ollamaEndpoint().trim() || OLLAMA_DEFAULT_ENDPOINT).replace(/\/$/, '');
+}
+
+/** 実際に送信する model 文字列 — Ollama のみユーザ指定 model を優先。 */
+function activeModel(opt: AiProviderOption): string {
+  if (opt.id === 'ollama') {
+    return ollamaModel().trim() || opt.defaultModel;
+  }
+  return opt.defaultModel;
+}
+
 async function detectStatus(id: ProviderId): Promise<AiStatus> {
   const opt = providerOption(id);
   if (opt.keyless) return { kind: 'no-key' };
@@ -85,7 +158,7 @@ function buildProvider(id: ProviderId, apiKey: string): LlmProvider {
     case 'openai':
       return new OpenAiProvider({ apiKey });
     case 'ollama':
-      return new OllamaProvider({});
+      return new OllamaProvider({ endpoint: normalizedOllamaEndpoint() });
   }
 }
 
@@ -121,6 +194,50 @@ export const AiService = {
     await saveKeyBlob(id, blob);
     activeProvider = buildProvider(id, apiKey);
     setStatus({ kind: 'unlocked', providerId: id });
+  },
+
+  /**
+   * keyless provider (Ollama 等) の使用開始 — 鍵不要なので接続確認だけして unlock。
+   * `GET {endpoint}/api/tags` が通れば Ollama サーバが起動していると判断する。
+   */
+  async startKeyless(): Promise<void> {
+    setLastError(undefined);
+    const id = providerId();
+    const opt = providerOption(id);
+    if (!opt.keyless)
+      throw new Error(`Provider ${id} は API キーが必要です。setKey() を使うこと。`);
+    const endpoint = normalizedOllamaEndpoint();
+    try {
+      const res = await fetch(`${endpoint}/api/tags`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      const err = new Error(
+        `Ollama が起動していません。\`ollama serve\` を実行してください (endpoint: ${endpoint})`,
+      );
+      setLastError(err);
+      throw err;
+    }
+    activeProvider = buildProvider(id, '');
+    setStatus({ kind: 'unlocked', providerId: id });
+  },
+
+  // --- Ollama 設定 (P1) — endpoint / model は localStorage に永続化 ---
+  ollamaEndpoint,
+  ollamaModel,
+
+  /** Ollama endpoint を更新。unlock 済みなら Provider を作り直して即反映。 */
+  setOllamaEndpoint(v: string): void {
+    setOllamaEndpointSignal(v);
+    saveLocal(OLLAMA_ENDPOINT_KEY, v);
+    if (providerId() === 'ollama' && status().kind === 'unlocked') {
+      activeProvider = buildProvider('ollama', '');
+    }
+  },
+
+  /** Ollama model 名を更新。送信時に都度参照されるので再構築は不要。 */
+  setOllamaModel(v: string): void {
+    setOllamaModelSignal(v);
+    saveLocal(OLLAMA_MODEL_KEY, v);
   },
 
   /** 既存 blob をパスフレーズで復号して unlock。 */
@@ -175,7 +292,7 @@ export const AiService = {
       return await activeProvider.complete({
         systemPrompt: req.systemPrompt,
         messages: req.messages,
-        model: req.model ?? opt.defaultModel,
+        model: req.model ?? activeModel(opt),
         ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
       });
     } catch (e) {
@@ -188,8 +305,9 @@ export const AiService = {
   /**
    * PR-AR: テキスト欄右クリック → 3 案提案。
    * 単一プリセット (短く / 自然に / 口調強め 等) を選び、temperature 違いで
-   * 3 案を並列生成。Show prompt 確認は呼び側 UI で行う想定。
-   * unlock 必須。
+   * 3 案を並列生成。Show prompt 確認は呼び側 UI (AiCandidateOverlay の
+   * confirm 段階) が buildTextSuggestionSystemPrompt / buildFieldUserPrompt で
+   * 同一 prompt をプレビューしてから呼ぶ。unlock 必須。
    */
   async requestTextSuggestions(
     context: FieldAiContext,
@@ -197,16 +315,8 @@ export const AiService = {
   ): Promise<readonly TextSuggestionCandidate[]> {
     if (!activeProvider) throw new Error('AI not unlocked. Call unlock() first.');
     if (status().kind !== 'unlocked') throw new Error('AI not unlocked.');
-    const preset = TEXT_SUGGESTION_PRESETS.find((p) => p.id === presetId);
-    if (!preset) throw new Error(`Unknown text preset: ${presetId}`);
     const opt = providerOption(providerId());
-    const systemPrompt =
-      `あなたはシナリオ執筆を支援する日本語アシスタントです。\n` +
-      `タスク: ${preset.instruction}\n` +
-      `重要:\n` +
-      `- 与えられた以外のメタ情報を勝手に追加しない\n` +
-      `- 出力は書き換え後のテキスト 1 つだけ。前置きや「以下が候補です」等は不要\n` +
-      `- 改行は元テキストの構造を保つ範囲で\n`;
+    const systemPrompt = buildTextSuggestionSystemPrompt(presetId);
     const userPrompt = buildFieldUserPrompt(context);
     const provider = activeProvider;
     setLastError(undefined);
@@ -219,7 +329,7 @@ export const AiService = {
           provider.complete({
             systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
-            model: opt.defaultModel,
+            model: activeModel(opt),
             maxTokens: 600,
             temperature: t,
           }),
@@ -257,7 +367,7 @@ export const AiService = {
       const response = await activeProvider.complete({
         systemPrompt,
         messages: [{ role: 'user', content: sceneText }],
-        model: opt.defaultModel,
+        model: activeModel(opt),
         maxTokens: 120,
         temperature: 0.3,
       });
@@ -289,7 +399,7 @@ export const AiService = {
         {
           systemPrompt,
           messages: [{ role: 'user', content: prefix }],
-          model: opt.defaultModel,
+          model: activeModel(opt),
           maxTokens: 80,
           temperature: 0.7,
         },
@@ -308,10 +418,47 @@ export const AiService = {
 };
 
 /**
+ * PR-AR: 3 案生成の system prompt を組み立てる。
+ * 送信本体 (requestTextSuggestions) と Show prompt 確認 UI (AiCandidateOverlay)
+ * が同じ文字列を共有するため関数化して export。
+ */
+export function buildTextSuggestionSystemPrompt(presetId: TextSuggestionPresetId): string {
+  const preset = TEXT_SUGGESTION_PRESETS.find((p) => p.id === presetId);
+  if (!preset) throw new Error(`Unknown text preset: ${presetId}`);
+  return (
+    `あなたはシナリオ執筆を支援する日本語アシスタントです。\n` +
+    `タスク: ${preset.instruction}\n` +
+    `重要:\n` +
+    `- 与えられた以外のメタ情報を勝手に追加しない\n` +
+    `- 出力は書き換え後のテキスト 1 つだけ。前置きや「以下が候補です」等は不要\n` +
+    `- 改行は元テキストの構造を保つ範囲で\n`
+  );
+}
+
+/**
+ * 送信前のコスト見積り 1 行を作る (11_ai-workflow.md §0.2, §6.3, §7)。
+ * 入力トークンのみの概算 (出力は maxTokens 依存のため含めない)。
+ * requests > 1 (3 案並列生成 等) は「×N リクエスト」を明記し総額に反映する。
+ * 単価 0 の provider (Ollama) は「無料 (ローカル)」表示。
+ */
+export function formatCostEstimate(promptText: string, requests = 1): string {
+  const opt = providerOption(providerId());
+  const perRequest = estimateTokens(promptText);
+  const suffix = requests > 1 ? ` ×${requests} リクエスト` : '';
+  if (opt.inputUsdPerMTok === 0 && opt.outputUsdPerMTok === 0) {
+    return `入力 約 ${perRequest.toLocaleString('en-US')} tokens${suffix} / 無料 (ローカル)`;
+  }
+  const usd = (perRequest * requests * opt.inputUsdPerMTok) / 1_000_000;
+  const usdText = usd >= 0.01 ? usd.toFixed(2) : usd.toFixed(4);
+  return `入力 約 ${perRequest.toLocaleString('en-US')} tokens${suffix} / 概算 $${usdText} (参考値)`;
+}
+
+/**
  * PR-AR: FieldAiContext から user prompt を組み立てる。
  * 構造化された「対象 / 現在値 / 周辺 / プロジェクト文脈」を Markdown で並べる。
+ * Show prompt 確認 UI が送信前プレビューに使うため export。
  */
-function buildFieldUserPrompt(c: FieldAiContext): string {
+export function buildFieldUserPrompt(c: FieldAiContext): string {
   const parts: string[] = [];
   parts.push(`## 編集対象`);
   switch (c.target.kind) {

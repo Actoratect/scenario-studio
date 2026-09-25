@@ -109,44 +109,142 @@ button {
   box-shadow: var(--ss-focus-ring);
 }
 
+/* ===== Motion (ui-motion) =====
+ *
+ * 「分かりやすくキビキビ」の共通言語。方針:
+ *   - 入場は 140〜200ms の減速カーブ。出現元 (アンカー / クリック位置) から
+ *     縮小 + 数 px の移動で「どこから出たか」を伝える
+ *   - hover / press は 90ms。押下は scale 0.97 で即応感を出す
+ *   - 退場は原則アニメ無しで即閉じ (待たせない)。Toast のみ 140ms で滑り出る
+ *   - transform 個別プロパティ (translate / scale) を使い、既存の
+ *     transform: translateX(-50%) 等の位置決めと衝突させない
+ *   - keyframe アニメは末尾の prefers-reduced-motion で一括無効化される
+ */
+:root {
+  --ss-dur-1: 90ms; /* micro: hover / press / 選択強調 */
+  --ss-dur-2: 140ms; /* 小型 UI: メニュー / ポップオーバー / トースト退場 */
+  --ss-dur-3: 200ms; /* 大型 UI: モーダル / バナー / トースト入場 */
+  --ss-ease-out: cubic-bezier(0.2, 0, 0, 1); /* 素早く出て静かに止まる */
+  --ss-ease-pop: cubic-bezier(0.3, 1.4, 0.4, 1); /* わずかに弾む (小型 UI 用) */
+}
+
+/* 下から浮き上がる (画面中央のモーダル / 右下の通知) */
+@keyframes ss-rise-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    scale: 0.97;
+  }
+}
+
+/* アンカー直下に降りてくる (メニュー / パレット / バナー) */
+@keyframes ss-drop-in {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+    scale: 0.98;
+  }
+}
+
+/* その場で拡大 (クリック位置に出るポップオーバー) */
+@keyframes ss-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
+/* 暗幕のフェード (子のアニメと独立させるため background-color のみ) */
+@keyframes ss-backdrop-in {
+  from {
+    background-color: transparent;
+  }
+}
+
+/* details 展開時の中身 */
+@keyframes ss-disclose {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+
+/* ボタンは全 UI 共通で hover の色変化を補間し、押下で軽く沈める */
+button {
+  transition:
+    background-color var(--ss-dur-1) ease-out,
+    color var(--ss-dur-1) ease-out,
+    border-color var(--ss-dur-1) ease-out,
+    box-shadow var(--ss-dur-1) ease-out,
+    opacity var(--ss-dur-1) ease-out,
+    scale var(--ss-dur-1) ease-out;
+}
+
+button:not(:disabled):active {
+  scale: 0.97;
+}
+
+/* 入力欄はフォーカスリング / エラー枠の出入りを補間 */
+input,
+textarea,
+select {
+  transition:
+    border-color var(--ss-dur-1) ease-out,
+    box-shadow var(--ss-dur-1) ease-out,
+    background-color var(--ss-dur-1) ease-out;
+}
+
+/* details 展開時に中身がすっと現れる (AI 候補 / 関連ファイル等) */
+details[open] > :not(summary) {
+  animation: ss-disclose var(--ss-dur-2) var(--ss-ease-out);
+}
+
+/* タブの hover / active 切替を滑らかに (ui-motion) */
+.dv-tab {
+  transition:
+    background-color var(--ss-dur-1) ease-out,
+    color var(--ss-dur-1) ease-out,
+    border-color var(--ss-dur-1) ease-out;
+}
+
 /* PR-X: パネルタブを CUDO 配色で色分け (data-testid = panel id 経由) */
-.dv-tab[data-testid='graph-1'] {
+.dv-tab[data-testid^='graph-'] {
   border-top: 3px solid var(--ss-accent-blue) !important;
 }
-.dv-tab[data-testid='inspector-1'] {
+.dv-tab[data-testid^='inspector-'] {
   border-top: 3px solid var(--ss-accent-orange) !important;
 }
-.dv-tab[data-testid='outline-1'] {
+.dv-tab[data-testid^='outline-'] {
   border-top: 3px solid var(--ss-accent-purple) !important;
 }
-.dv-tab[data-testid='synopsis-1'] {
+.dv-tab[data-testid^='synopsis-'] {
   border-top: 3px solid var(--ss-accent-purple) !important;
 }
-.dv-tab[data-testid='script-1'] {
+.dv-tab[data-testid^='script-'] {
   border-top: 3px solid var(--ss-accent-green) !important;
 }
-.dv-tab[data-testid='timeline-1'] {
+.dv-tab[data-testid^='timeline-'] {
   border-top: 3px solid var(--ss-accent-green) !important;
 }
-.dv-tab[data-testid='glossary-1'] {
+.dv-tab[data-testid^='glossary-'] {
   border-top: 3px solid var(--ss-accent-yellow) !important;
 }
-.dv-tab[data-testid='stats-1'] {
+.dv-tab[data-testid^='stats-'] {
   border-top: 3px solid var(--ss-accent-sky) !important;
 }
-.dv-tab[data-testid='console-1'] {
+.dv-tab[data-testid^='console-'] {
   border-top: 3px solid var(--ss-accent-vermillion) !important;
 }
-.dv-tab[data-testid='ai-1'] {
+.dv-tab[data-testid^='ai-'] {
   border-top: 3px solid var(--ss-accent-blue) !important;
 }
-.dv-tab[data-testid='settings-1'] {
+.dv-tab[data-testid^='settings-'] {
   border-top: 3px solid var(--ss-text-muted) !important;
 }
-.dv-tab[data-testid='bench-1'] {
+.dv-tab[data-testid^='bench-'] {
   border-top: 3px solid var(--ss-text-faint) !important;
 }
-.dv-tab[data-testid='era-timeline-1'] {
+.dv-tab[data-testid^='era-timeline-'] {
   border-top: 3px solid var(--ss-accent-orange) !important;
 }
 
@@ -162,17 +260,63 @@ button {
   --dv-activegroup-hiddenpanel-tab-color: var(--ss-text-muted);
   --dv-inactivegroup-visiblepanel-tab-color: var(--ss-text-muted);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--ss-text-faint);
-  --dv-tab-divider-color: var(--ss-border-soft);
-  --dv-separator-border: var(--ss-border-soft);
+  /* P1 dogfood: 境界が薄くグループの切れ目が読めなかった → 1 段濃い border に */
+  --dv-tab-divider-color: var(--ss-border);
+  --dv-separator-border: var(--ss-border);
   --dv-paneview-active-outline-color: var(--ss-accent-blue);
+  --dv-tabs-and-actions-container-height: 34px;
+  --dv-active-sash-color: var(--ss-accent-blue);
+  --dv-active-sash-transition-delay: 0s;
 }
 
 .workspace .dv-groupview {
-  box-shadow: inset 0 0 0 1px var(--ss-border-soft);
+  box-shadow: inset 0 0 0 1px var(--ss-border);
 }
 
 .workspace .dv-tabs-and-actions-container {
-  border-bottom: 1px solid var(--ss-border-soft);
+  border-bottom: 2px solid var(--ss-border);
+  box-sizing: border-box;
+  background: #e7ebf0;
+}
+
+/* 一枚ずつ輪郭を付ける。選択は色に加えて太字と下線でも区別する。 */
+.workspace .dv-tab {
+  box-sizing: border-box;
+  border-right: 1px solid #b7c1cd;
+  border-left: 1px solid transparent;
+  min-width: 90px;
+}
+
+.workspace .dv-tab.dv-inactive-tab {
+  background: #edf0f4;
+  color: #526071;
+}
+
+.workspace .dv-tab.dv-active-tab {
+  background: #fff;
+  color: #152c42;
+  font-weight: 700;
+  border-inline-color: #b7c1cd;
+  box-shadow: inset 0 -3px 0 var(--ss-accent-blue);
+}
+
+.workspace .dv-tab:hover {
+  background: #e6f3fb;
+}
+
+.workspace .dv-tab .dv-default-tab-content {
+  padding-inline: 10px;
+}
+
+/* アクティブなグループはタブバー下線をアクセント色にして「今どこにいるか」を示す
+   (P1 dogfood: ハンバーガーメニューがあるタブ上部のボーダーを目立たせる要望)。 */
+.workspace .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
+  border-bottom-color: var(--ss-accent-blue);
+}
+
+/* グループ間の sash (リサイズ境界) にも薄く色を乗せて切れ目を見せる */
+.workspace .dv-sash-container > .dv-sash {
+  background: var(--ss-border-soft);
 }
 
 .workspace .dv-default-tab-action {
@@ -255,6 +399,9 @@ button {
   border: 1px solid var(--ss-border);
   border-radius: 4px;
   box-shadow: 0 12px 30px rgba(20, 24, 31, 0.18);
+  /* ボタン右上から降りてくる (ui-motion) */
+  animation: ss-drop-in var(--ss-dur-2) var(--ss-ease-pop);
+  transform-origin: top right;
 }
 
 .workspace-panel-menu button {
@@ -336,6 +483,7 @@ button {
 
 /* Keep local loading feedback small and non-blocking. */
 .ss-loading-overlay {
+  animation: ss-rise-in var(--ss-dur-2) var(--ss-ease-out);
   position: absolute;
   bottom: 10px;
   right: 8px;
@@ -365,6 +513,11 @@ button {
   background: var(--ss-bg-soft);
   color: var(--ss-text-muted);
   border: 1px solid var(--ss-border-soft);
+  /* busy → ok / error の状態フリップを補間 (ui-motion) */
+  transition:
+    background-color var(--ss-dur-2) ease-out,
+    color var(--ss-dur-2) ease-out,
+    border-color var(--ss-dur-2) ease-out;
 }
 
 .ss-status-pill[data-state='busy'] {
@@ -386,6 +539,7 @@ button {
 }
 
 .ss-save-async-toast {
+  animation: ss-rise-in var(--ss-dur-2) var(--ss-ease-out);
   position: fixed;
   right: 16px;
   bottom: 16px;
@@ -503,17 +657,29 @@ button {
   font-size: 13px;
   color: var(--ss-text);
   pointer-events: auto;
-  animation: ss-toast-in 0.18s ease-out;
+  animation: ss-toast-in var(--ss-dur-3) var(--ss-ease-pop);
 }
 
 @keyframes ss-toast-in {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    translate: 24px 0;
+    scale: 0.97;
   }
+}
+
+/* 退場: Toast service が leaving を立て、アニメ完了後に DOM から除去する。
+   時間は Toast.ts の LEAVE_MS と同期させること。 */
+.ss-toast--leaving {
+  animation: ss-toast-out var(--ss-dur-2) ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes ss-toast-out {
   to {
-    opacity: 1;
-    transform: translateX(0);
+    opacity: 0;
+    translate: 24px 0;
+    scale: 0.97;
   }
 }
 
@@ -591,6 +757,92 @@ button {
   align-items: center;
   justify-content: center;
   z-index: 1500;
+  animation: ss-backdrop-in var(--ss-dur-2) ease-out;
+}
+
+/* 入場 (ui-motion): backdrop 直下の唯一の子 = ダイアログ本体に一律適用。
+   ModalBase 経由の全 overlay と raw backdrop (palette / 検索 / popover) を
+   1 箇所でカバーする。閉じは即時 (待たせない)。 */
+.ss-modal-backdrop > * {
+  animation: ss-rise-in var(--ss-dur-3) var(--ss-ease-out);
+}
+
+/* マウス位置ポップオーバー版モーダル (P1 dogfood: 関係/接続の編集を画面中央でなく
+   クリックした場所に出す)。backdrop は click-outside-close 用に残し、暗幕だけ消す。 */
+.ss-modal-backdrop--popover {
+  background: transparent;
+  display: block;
+}
+
+/* ポップオーバーはクリック位置 (左上角) からその場で開く */
+.ss-modal-backdrop--popover > * {
+  animation: ss-pop-in var(--ss-dur-2) var(--ss-ease-pop);
+  transform-origin: top left;
+}
+
+.ss-modal--popover {
+  position: fixed;
+  margin: 0;
+  width: 420px;
+  max-width: calc(100vw - 16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* 描画クラッシュ時の受け皿 (ErrorBoundary fallback)。全画面を占有し白画面を防ぐ。 */
+.ss-crash-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--ss-bg-soft, #f5f7fa);
+  z-index: 3000;
+}
+
+.ss-crash-card {
+  max-width: 640px;
+  width: 100%;
+  padding: 24px 28px;
+  background: var(--ss-bg, #ffffff);
+  border: 1px solid var(--ss-border, #d4d7dc);
+  border-top: 4px solid var(--ss-accent-vermillion, #d55e00);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.ss-crash-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--ss-accent-vermillion, #d55e00);
+}
+
+.ss-crash-lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ss-text, #1a1d24);
+}
+
+.ss-crash-detail {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0 0 16px;
+  padding: 12px;
+  background: var(--ss-bg-subtle, #fafbfd);
+  border: 1px solid var(--ss-border-soft, #e6e8ec);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ss-text-muted, #5a6068);
+}
+
+.ss-crash-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .ss-modal {
@@ -753,6 +1005,10 @@ button {
   cursor: pointer;
 }
 
+.lens-edge-label-group--clickable rect {
+  transition: filter var(--ss-dur-1) ease-out;
+}
+
 .lens-edge-label-group--clickable:hover rect {
   filter: drop-shadow(0 0 2px var(--ss-accent-blue));
 }
@@ -799,6 +1055,13 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* 上端アンカーなので中央モーダルの rise ではなく上から降りる (ui-motion)。
+   translate 個別プロパティなので上の translateX(-50%) とは衝突しない。 */
+.ss-modal-backdrop > .ss-cmd-palette {
+  animation: ss-drop-in var(--ss-dur-2) var(--ss-ease-out);
+  transform-origin: 50% 0;
 }
 
 .ss-cmd-palette-input {
@@ -1880,6 +2143,50 @@ button {
   font-size: 12px;
 }
 
+.panel-script-parse-error {
+  padding: 8px 12px;
+  background: var(--ss-bg-error, #fae0d2);
+  border-bottom: 2px solid var(--ss-accent-vermillion, #d55e00);
+  color: var(--ss-text, #1a1d24);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.panel-script-parse-error strong {
+  color: var(--ss-accent-vermillion, #d55e00);
+}
+
+.panel-script-parse-error code {
+  color: var(--ss-text-muted, #5a6068);
+  word-break: break-word;
+}
+
+/* シーン未選択時の空状態 (押しても効かないボタン群の代わりに導線を示す) */
+.panel-script-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.panel-script-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ss-text, #1a1d24);
+}
+
+.panel-script-empty-lead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ss-text-muted, #5a6068);
+}
+
 .panel-script-toolbar-label {
   margin-right: 4px;
   font-size: 11px;
@@ -2176,6 +2483,16 @@ button {
 }
 
 /* Workspace shell */
+.workspace-opening {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text-muted);
+}
+
 .workspace {
   display: flex;
   flex-direction: column;
@@ -2188,7 +2505,7 @@ button {
   justify-content: flex-start;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   background: #1f2937;
   color: #fff;
   font-size: 13px;
@@ -2196,6 +2513,86 @@ button {
 
 .workspace-title {
   font-weight: 600;
+  max-width: min(26vw, 320px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-header > button,
+.workspace-history button {
+  min-height: 28px;
+}
+
+.workspace-tools {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+  z-index: 120;
+}
+
+.workspace-tools > summary {
+  padding: 5px 10px;
+  border: 1px solid #738195;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.workspace-tools[open] > summary,
+.workspace-tools > summary:hover {
+  background: #35465b;
+}
+
+.workspace-tools-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  min-width: 230px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  padding: 6px;
+  background: var(--ss-bg);
+  border: 1px solid #b7c1cd;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #152c4233;
+}
+
+.workspace-tools-menu button {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--ss-text);
+  background: transparent;
+  border: 0;
+}
+
+.workspace-tools-menu button:hover:not(:disabled) {
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+}
+
+.workspace-tools-menu .workspace-close {
+  margin-top: 5px;
+  border-top: 1px solid var(--ss-border);
+  border-radius: 0;
+}
+
+@media (max-width: 900px) {
+  .workspace-header {
+    gap: 4px;
+  }
+
+  .workspace-title {
+    max-width: 160px;
+  }
+
+  .workspace .dv-tab {
+    min-width: 72px;
+  }
 }
 
 .workspace-close {
@@ -2240,6 +2637,17 @@ button {
   border: 1px solid #e3e3e7;
   border-radius: 6px;
   padding: 16px 18px;
+  /* 起動画面: カードが上から順にすっと現れる (ui-motion)。
+     backwards で delay 中は from 状態 (透明) を維持する */
+  animation: ss-rise-in var(--ss-dur-3) var(--ss-ease-out) backwards;
+}
+
+.picker-card:nth-of-type(2) {
+  animation-delay: 40ms;
+}
+
+.picker-card:nth-of-type(3) {
+  animation-delay: 80ms;
 }
 
 .picker-card h2 {
@@ -2839,6 +3247,7 @@ button {
 
 /* ===== Onboarding banner (PR-N) ===== */
 .ss-onboarding {
+  animation: ss-drop-in var(--ss-dur-3) var(--ss-ease-out);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4191,6 +4600,15 @@ button {
   transition: opacity 0.15s ease-out;
 }
 
+/* 選択 / 接続ホバーで inline 属性 (stroke / stroke-width) が切り替わるのを補間し、
+   リングが「パッと付く」のでなく「キュッと締まる」ようにする (ui-motion) */
+.lens-node circle {
+  transition:
+    stroke var(--ss-dur-1) ease-out,
+    stroke-width var(--ss-dur-1) ease-out,
+    r var(--ss-dur-2) var(--ss-ease-out);
+}
+
 .lens-node:active {
   cursor: grabbing;
 }
@@ -4206,6 +4624,32 @@ button {
 
 .lens-edge {
   transition: opacity 0.15s ease-out;
+}
+
+.lens-edge-hit {
+  cursor: pointer;
+}
+
+/* クイック作成ポップオーバーのテンプレ選択ボタン列 */
+.ss-quick-create-templates {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ss-quick-create-templates button {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  background: var(--ss-bg);
+  cursor: pointer;
+}
+
+.ss-quick-create-templates button.active {
+  border-color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  color: var(--ss-accent-blue);
 }
 
 .lens-edge-label {
@@ -5207,6 +5651,15 @@ button {
 .plot-board-edge line {
   stroke: #4b5563;
   stroke-width: 1.8;
+  /* P1 dogfood: 「接続」線の見た目をグラフ全体で点線に統一 */
+  stroke-dasharray: 4 3;
+}
+
+.plot-board-edge-hit {
+  cursor: pointer;
+  /* 当たり判定線は透明のまま (親の stroke 指定を打ち消す) */
+  stroke: transparent !important;
+  stroke-dasharray: none;
 }
 
 .plot-board-edge-label {
@@ -5253,6 +5706,15 @@ button {
   border-left-width: 5px;
   border-radius: 7px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.11);
+  /* hover / 接続ターゲット切替を補間 (ui-motion)。foreignObject 内なので
+     translate による持ち上げはクリップの恐れがあり shadow / border のみ動かす */
+  transition:
+    box-shadow var(--ss-dur-1) ease-out,
+    border-color var(--ss-dur-1) ease-out;
+}
+
+.plot-board-card:hover {
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.17);
 }
 
 .plot-board-card[data-kind='thread'] {
@@ -6189,7 +6651,7 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.15s;
+  transition: width var(--ss-dur-2) var(--ss-ease-out);
 }
 
 .ss-script-rail--collapsed {
@@ -7304,13 +7766,25 @@ button {
   border-color: var(--ss-accent-blue);
 }
 
-/* アクセシビリティ: 動きに敏感なユーザー向けに継続アニメ (spinner / 保存バー /
-   pulse 等) を無効化する。hover 等の短いトランジションは維持する。 */
+/* アクセシビリティ: 動きに敏感なユーザー向けに keyframe アニメ (入場アニメ /
+   spinner / 保存バー / pulse 等) を無効化する。hover 等の短いトランジションは
+   維持する。delay も 0 にしないと stagger 入場 (picker-card) が
+   「一瞬透明のまま」になるので併せて潰す。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* === AI panel P1 (Ollama/確認画面/コスト表示) === */
+
+/* 送信前のコスト見積り 1 行 (入力 約 N tokens / 概算 $ / 無料 (ローカル)) */
+.ss-ai-cost {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
 }

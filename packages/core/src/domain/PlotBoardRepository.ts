@@ -160,6 +160,7 @@ function parseNode(value: YamlValue): PlotBoardNode | undefined {
       : undefined;
   return {
     ...node,
+    ...(value['bodyFormat'] === 'plain' ? { bodyFormat: 'plain' as const } : {}),
     ...(threadIds.length > 0 ? { threadIds } : {}),
     ...(anchors ? { anchors } : {}),
     ...(viewMode !== undefined ? { viewMode } : {}),
@@ -255,6 +256,7 @@ function nodeToYaml(node: PlotBoardNode): { [key: string]: YamlValue } {
     if (Object.keys(anchors).length > 0) out['anchors'] = anchors;
   }
   if (node.viewMode !== undefined) out['viewMode'] = node.viewMode;
+  if (node.bodyFormat !== undefined) out['bodyFormat'] = node.bodyFormat;
   if (node.status !== undefined && node.status !== '') out['status'] = node.status;
   if (node.color !== undefined && node.color !== '') out['color'] = node.color;
   if (node.width !== undefined) out['width'] = node.width;

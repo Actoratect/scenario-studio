@@ -2,6 +2,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  createUniqueId,
   For,
   Match,
   onCleanup,
@@ -20,6 +21,7 @@ import {
   type NodeId,
   type ScenarioNode,
   type ThumbnailRect,
+  type TextMapFieldSchema,
   type ValidationIssue,
 } from '@scenario-studio/core';
 import {
@@ -36,6 +38,7 @@ import { SelectionContext } from '../services/SelectionContext';
 import { EraContext } from '../services/EraContext';
 import { FieldAiActions } from '../services/FieldAiActions';
 import { Toast } from '../services/Toast';
+import { TrashService } from '../services/TrashService';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { VariantsService } from '../services/VariantsService';
 import { BulkVariantOverlay } from '../global/BulkVariantOverlay';
@@ -48,6 +51,9 @@ import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
 import { SceneSelection } from '../services/SceneSelection';
 import { PanelFocus } from '../services/PanelFocus';
 import { PanelPinService } from '../services/PanelPinService';
+import { TextMapEditor } from './TextMapEditor';
+import { fieldIsVisible, hasFieldContent } from './inspector-fields';
+import './InspectorPanel.css';
 
 type ProjectContext = NonNullable<ReturnType<typeof ProjectService.currentProject>>;
 
@@ -189,14 +195,8 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     return out;
   });
 
-  /** PR-AC: long 系 (multiline_string / markdown) かどうか。Inspector 下段に分ける判定用。 */
-  function isLongField(f: FieldSchema): boolean {
-    return f.type === 'multiline_string' || f.type === 'markdown';
-  }
-
-  /** template.fields を group ごとに集約 (PR-O)。順序は宣言順を維持。
-   *  PR-AC: filter で「上段 (compact)」/「下段 (long)」を分ける。 */
-  function buildGroups(predicate: (f: FieldSchema) => boolean): readonly {
+  /** フィールドの長さにかかわらず意味のまとまりを保つ。 */
+  function buildGroups(): readonly {
     title: string;
     fields: readonly FieldSchema[];
   }[] {
@@ -205,7 +205,6 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const order: string[] = [];
     const buckets = new Map<string, FieldSchema[]>();
     for (const f of t.fields) {
-      if (!predicate(f)) continue;
       const g = f.group ?? '_';
       if (!buckets.has(g)) {
         buckets.set(g, []);
@@ -218,8 +217,20 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
       fields: buckets.get(g) ?? [],
     }));
   }
-  const compactGroups = createMemo(() => buildGroups((f) => !isLongField(f)));
-  const longGroups = createMemo(() => buildGroups(isLongField));
+  const groups = createMemo(buildGroups);
+  const [section, setSection] = createSignal('設定');
+  const [showEmpty, setShowEmpty] = createSignal(false);
+  const [showPortrait, setShowPortrait] = createSignal(false);
+  const isCharacter = () => template()?.id === 'template.character';
+  const sectionFor = (title: string): string =>
+    title === '台詞' ? '台詞' : ['用語', 'メモ'].includes(title) ? '補足' : '設定';
+  const visibleGroups = createMemo(() =>
+    groups().filter((group) => !isCharacter() || sectionFor(group.title) === section()),
+  );
+  createEffect(() => {
+    panelNodeId();
+    setShowPortrait(false);
+  });
 
   function onFieldBlur(): void {
     const id = panelNodeId();
@@ -327,8 +338,24 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
     const n = node();
     const ctx = ProjectService.currentProject();
     if (!n || !ctx) return;
-    if (!window.confirm(`ノード "${n.slug}" を削除しますか? (元に戻せません)`)) return;
+    if (
+      !window.confirm(
+        `ノード "${n.slug}" を削除しますか?\n(🩺 プロジェクト ヘルスの「最近削除した項目」から復元できます)`,
+      )
+    )
+      return;
     try {
+      // 物理削除の前に .editor/trash へ退避 (ソフトデリート)
+      const label =
+        typeof n.fields['display_name'] === 'string' && n.fields['display_name'] !== ''
+          ? (n.fields['display_name'] as string)
+          : n.slug;
+      await TrashService.stash(
+        ctx.adapter,
+        ctx.handle,
+        ctx.nodeRepository.pathFor(n),
+        `ノード: ${label}`,
+      );
       await ctx.nodeRepository.delete(n.id);
       const nextMap = new Map(ctx.project.nodes);
       nextMap.delete(n.id);
@@ -420,78 +447,89 @@ export const InspectorPanel: Component<GroupPanelPartInitParameters> = (params) 
         </header>
         <div class="panel-inspector-scroll">
           <div class="panel-inspector-body">
-            {/* 上段: 2 列 (左 = 立ち絵 + サムネ位置 / 右 = compact フィールド) */}
-            <div class="panel-inspector-two-col">
+            <div class="inspector-navigation">
+              <Show when={isCharacter()}>
+                <div class="inspector-section-tabs" role="tablist" aria-label="キャラクター情報">
+                  <For each={['設定', '台詞', '補足']}>
+                    {(tab) => (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={section() === tab}
+                        classList={{ active: section() === tab }}
+                        onClick={() => setSection(tab)}
+                      >
+                        {tab}
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Show>
+              <label class="inspector-empty-toggle">
+                <input
+                  type="checkbox"
+                  checked={showEmpty()}
+                  onChange={(event) => setShowEmpty(event.currentTarget.checked)}
+                />
+                空欄も表示
+              </label>
+            </div>
+            <Show when={!isCharacter() || section() === '設定'}>
               <div
-                class="panel-inspector-portrait-col"
-                classList={{ 'panel-inspector-portrait-col--drop': isDragOver() }}
+                class="inspector-image-summary"
                 onDragOver={onThumbDragOver}
                 onDragLeave={onThumbDragLeave}
                 onDrop={onThumbDrop}
+                classList={{ 'panel-inspector-portrait-col--drop': isDragOver() }}
               >
-                <PortraitCropper
-                  node={node()!}
-                  width={184}
-                  onChange={(rect) => void saveThumbnailRect(rect)}
-                  onUpload={(file) => void uploadThumbnail(file)}
-                />
-                <div class="panel-inspector-portrait-actions">
+                <NodeThumbnail node={node()!} size={40} />
+                <span>{node()!.thumbnail ? '立ち絵・サムネイル' : '画像は未設定'}</span>
+                <button type="button" onClick={onPickFile}>
+                  画像を選択
+                </button>
+                <Show when={node()!.thumbnail}>
                   <button
                     type="button"
-                    class="panel-inspector-thumb-button"
-                    onClick={onPickFile}
-                    title="ファイル選択ダイアログ"
+                    aria-expanded={showPortrait()}
+                    onClick={() => setShowPortrait(!showPortrait())}
                   >
-                    📁 画像を選択
+                    {showPortrait() ? '画像を閉じる' : '画像を調整'}
                   </button>
+                </Show>
+              </div>
+              <Show when={showPortrait() && node()!.thumbnail}>
+                <div class="inspector-portrait-editor">
+                  <PortraitCropper
+                    node={node()!}
+                    width={184}
+                    onChange={(rect) => void saveThumbnailRect(rect)}
+                    onUpload={(file) => void uploadThumbnail(file)}
+                  />
                 </div>
-              </div>
-              <div class="panel-inspector-compact-col">
-                <For each={compactGroups()}>
-                  {(group) => (
-                    <FieldGroup
-                      title={group.title}
-                      templateId={template()!.id}
-                      fields={group.fields}
-                      resolvedFields={resolvedFields()}
-                      node={node()!}
-                      issues={issues()}
-                      project={ProjectService.currentProject()!}
-                      refOptions={refOptions()}
-                      isVariantMode={!EraContext.isBase()}
-                      overrideMap={overrideMap()}
-                      onInput={setField}
-                      onRemoveOverride={removeOverride}
-                      onBlur={onFieldBlur}
-                    />
-                  )}
-                </For>
-              </div>
-            </div>
-            {/* 下段: 1 列 (long 系: multiline / markdown) */}
-            <Show when={longGroups().length > 0}>
-              <div class="panel-inspector-long-col">
-                <For each={longGroups()}>
-                  {(group) => (
-                    <FieldGroup
-                      title={group.title}
-                      templateId={template()!.id}
-                      fields={group.fields}
-                      resolvedFields={resolvedFields()}
-                      node={node()!}
-                      issues={issues()}
-                      project={ProjectService.currentProject()!}
-                      refOptions={refOptions()}
-                      isVariantMode={!EraContext.isBase()}
-                      overrideMap={overrideMap()}
-                      onInput={setField}
-                      onRemoveOverride={removeOverride}
-                      onBlur={onFieldBlur}
-                    />
-                  )}
-                </For>
-              </div>
+              </Show>
             </Show>
+            <div class="inspector-field-groups">
+              <For each={visibleGroups()}>
+                {(group) => (
+                  <FieldGroup
+                    title={group.title}
+                    templateId={template()!.id}
+                    fields={group.fields}
+                    resolvedFields={resolvedFields()}
+                    node={node()!}
+                    issues={issues()}
+                    project={ProjectService.currentProject()!}
+                    refOptions={refOptions()}
+                    isVariantMode={!EraContext.isBase()}
+                    overrideMap={overrideMap()}
+                    showEmpty={showEmpty()}
+                    onInput={setField}
+                    onRemoveOverride={removeOverride}
+                    onBlur={onFieldBlur}
+                  />
+                )}
+              </For>
+            </div>
             {/* PR (ux-overhaul): 登場した章 / シーン (cast 自動集計) */}
             <AppearancesSection node={node()!} />
           </div>
@@ -652,12 +690,33 @@ interface FieldGroupProps {
   refOptions: readonly NodeRefOption[];
   isVariantMode: boolean;
   overrideMap: ReadonlySet<string>;
+  showEmpty: boolean;
   onInput: (fieldId: string, v: FieldValue) => void;
   onRemoveOverride: (fieldId: string) => void;
   onBlur: () => void;
 }
 
 const FieldGroup: Component<FieldGroupProps> = (props) => {
+  const [revealed, setRevealed] = createSignal<ReadonlySet<string>>(new Set());
+  const nodeIdentity = createMemo(() => props.node.id);
+  createEffect(() => {
+    nodeIdentity();
+    setRevealed(new Set<string>());
+  });
+  const visibleFields = createMemo(() =>
+    props.fields.filter(
+      (field) =>
+        props.showEmpty ||
+        fieldIsVisible(field, props.resolvedFields[field.id], revealed()) ||
+        props.issues.some((issue) => issue.fieldId === field.id),
+    ),
+  );
+  const hiddenFields = createMemo(() =>
+    props.fields.filter((field) => !visibleFields().includes(field)),
+  );
+  const filledCount = createMemo(
+    () => props.fields.filter((field) => hasFieldContent(props.resolvedFields[field.id])).length,
+  );
   const collapsed = (): boolean => isCollapsed(props.templateId, props.title);
   const overrideCount = createMemo(
     () => props.fields.filter((f) => props.overrideMap.has(f.id)).length,
@@ -670,15 +729,19 @@ const FieldGroup: Component<FieldGroupProps> = (props) => {
   );
   return (
     <section class="panel-inspector-group" classList={{ collapsed: collapsed() }}>
-      <header
+      <button
+        type="button"
         class="panel-inspector-group-header"
+        aria-expanded={!collapsed()}
         onClick={() => toggleCollapsed(props.templateId, props.title)}
       >
         <span class="panel-inspector-group-toggle" aria-hidden="true">
           {collapsed() ? '▶' : '▼'}
         </span>
         <span class="panel-inspector-group-title">{props.title}</span>
-        <span class="panel-inspector-group-count">{props.fields.length}</span>
+        <span class="panel-inspector-group-count">
+          {filledCount()} / {props.fields.length}
+        </span>
         <Show when={errorCount() > 0}>
           <span class="panel-inspector-group-badge error" title={`${errorCount()} 件のエラー`}>
             ⛔ {errorCount()}
@@ -692,17 +755,15 @@ const FieldGroup: Component<FieldGroupProps> = (props) => {
             ◆ {overrideCount()}
           </span>
         </Show>
-      </header>
+      </button>
       <Show when={!collapsed()}>
         <div class="panel-inspector-group-body">
-          <For each={props.fields}>
+          <For each={visibleFields()}>
             {(field) => {
               // PR-AI: per-field の値 / issue / override を createMemo で
               // 包み、Era 切替や他 field 編集による親再評価で DOM が
               // 不必要に patch されないようにする (fine-grained reactivity)。
-              const value = createMemo(
-                () => props.resolvedFields[field.id] ?? props.node.fields[field.id],
-              );
+              const value = createMemo(() => props.resolvedFields[field.id]);
               const issue = createMemo(() => props.issues.find((i) => i.fieldId === field.id));
               const hasOverride = createMemo(() => props.overrideMap.has(field.id));
               return (
@@ -722,6 +783,23 @@ const FieldGroup: Component<FieldGroupProps> = (props) => {
               );
             }}
           </For>
+          <Show when={hiddenFields().length > 0}>
+            <select
+              class="inspector-add-field"
+              aria-label={`${props.title}の項目を追加`}
+              value=""
+              onChange={(event) => {
+                const fieldId = event.currentTarget.value;
+                if (fieldId) setRevealed(new Set([...revealed(), fieldId]));
+                event.currentTarget.value = '';
+              }}
+            >
+              <option value="">＋ 項目を追加 ({hiddenFields().length})</option>
+              <For each={hiddenFields()}>
+                {(field) => <option value={field.id}>{field.label}</option>}
+              </For>
+            </select>
+          </Show>
         </div>
       </Show>
     </section>
@@ -746,12 +824,24 @@ interface FieldRowProps {
 }
 
 const FieldRow: Component<FieldRowProps> = (props) => {
+  const inputId = createUniqueId();
   const base = createMemo(() => ({
-    fieldId: props.field.id,
+    fieldId: `inspector-${inputId}-${props.field.id}`,
     label: props.field.label,
     description: props.field.description,
-    error: props.issue?.severity === 'error' ? props.issue.message : undefined,
+    error: props.issue?.message,
   }));
+  const allowedRefOptions = createMemo(() => {
+    const field = props.field;
+    if (field.type !== 'node_ref' && field.type !== 'text_map') return props.refOptions;
+    return props.refOptions.filter((option) => {
+      const target = props.project.project.nodes.get(option.id as NodeId);
+      return (
+        (!field.referencesTemplateId || target?.templateId === field.referencesTemplateId) &&
+        (field.type !== 'text_map' || option.id !== props.node.id)
+      );
+    });
+  });
 
   /** PR-AR: テキスト系フィールドの右クリック AI コンテキスト。 */
   function openTextAiMenu(e: MouseEvent): void {
@@ -817,8 +907,8 @@ const FieldRow: Component<FieldRowProps> = (props) => {
               type="button"
               class="panel-inspector-variant-bulk"
               onClick={() => {
-                const nodeId = SelectionContext.selectedNodeId();
-                if (!nodeId || props.value === undefined) return;
+                const nodeId = props.node.id;
+                if (props.value === undefined) return;
                 BulkVariantOverlay.show({
                   nodeId,
                   fieldId: props.field.id,
@@ -835,7 +925,36 @@ const FieldRow: Component<FieldRowProps> = (props) => {
         </div>
       </Show>
       <Switch>
+        <Match when={props.field.type === 'text_map'}>
+          <TextMapEditor
+            field={props.field as TextMapFieldSchema}
+            inputId={base().fieldId}
+            value={props.value}
+            options={allowedRefOptions()}
+            onInput={props.onInput}
+            onBlur={props.onBlur}
+          />
+          <Show when={props.issue}>
+            <p class="ssf-error" role="alert">
+              {props.issue?.message}
+            </p>
+          </Show>
+        </Match>
         <Match when={props.field.type === 'string' || props.field.type === 'media_ref'}>
+          <Show when={props.field.type === 'string' && props.field.input === 'color'}>
+            <input
+              type="color"
+              class="inspector-color-swatch"
+              aria-label={`${props.field.label}を選択`}
+              value={
+                typeof props.value === 'string' && /^#[0-9a-f]{6}$/i.test(props.value)
+                  ? props.value
+                  : '#ffffff'
+              }
+              onInput={(event) => props.onInput(event.currentTarget.value)}
+              onChange={() => props.onBlur()}
+            />
+          </Show>
           <TextInput
             {...base()}
             value={typeof props.value === 'string' ? props.value : undefined}
@@ -899,7 +1018,7 @@ const FieldRow: Component<FieldRowProps> = (props) => {
           <NodeRefPicker
             {...base()}
             value={typeof props.value === 'string' ? props.value : undefined}
-            options={props.refOptions}
+            options={allowedRefOptions()}
             onInput={(v) => props.onInput(v ?? null)}
             onBlur={props.onBlur}
           />

@@ -5,6 +5,7 @@ import { PanelFocus } from '../services/PanelFocus';
 import { ProjectService } from '../services/ProjectService';
 import { SelectionContext } from '../services/SelectionContext';
 import { Toast } from '../services/Toast';
+import { ModalBase } from './ModalBase';
 
 // ノード ID 一覧 overlay (PR-Y)。Cmd+I で起動。
 // 全ノードの「内部 ID (ULID) / slug / display_name / dev_name (脚本参照名)」を
@@ -80,6 +81,8 @@ const IdListOverlayUi: Component = () => {
   }
 
   function onKey(e: KeyboardEvent): void {
+    // IME 変換取消の Esc を拾って overlay ごと閉じるのを防ぐ (isComposing = keyCode 229)。
+    if (e.isComposing) return;
     if (e.key === 'Escape') {
       IdListOverlay.hide();
       e.preventDefault();
@@ -95,94 +98,96 @@ const IdListOverlayUi: Component = () => {
   });
 
   return (
-    <div class="ss-modal-backdrop" onClick={() => IdListOverlay.hide()}>
-      <div class="ss-modal ss-modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>ID 一覧 — 全ノード</h3>
-        <p class="ss-modal-caption">
-          脚本の <code>who:</code> で参照する <strong>ID</strong> 列、内部識別子の{' '}
-          <strong>NodeId</strong> 列、表示名 列。クリックで Inspector に jump。
-        </p>
-        <input
-          ref={inputRef}
-          type="text"
-          class="ss-cmd-palette-input"
-          placeholder="フィルタ — slug / 名前 / ID で絞り込み"
-          value={filter()}
-          onInput={(e) => setFilter(e.currentTarget.value)}
-        />
-        <Show when={rows().length === 0}>
-          <p class="ss-cmd-palette-empty">該当なし</p>
-        </Show>
-        <Show when={rows().length > 0}>
-          <table class="ss-id-table">
-            <thead>
-              <tr>
-                <th>テンプレ</th>
-                <th>名前</th>
-                <th>ID (脚本)</th>
-                <th>NodeId (内部)</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <For each={rows()}>
-                {(r) => (
-                  <tr>
-                    <td>
-                      <span class="ss-id-table-template">{r.templateLabel}</span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="ss-id-table-jump"
-                        onClick={() => jumpToNode(r.node)}
-                      >
-                        {r.display}
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="ss-id-table-copy"
-                        onClick={() => void copy(r.devName)}
-                        title={`「${r.devName}」をコピー`}
-                      >
-                        <code>{r.devName}</code>
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="ss-id-table-copy ss-id-table-copy--mono"
-                        onClick={() => void copy(r.node.id)}
-                        title="NodeId (ULID) をコピー"
-                      >
-                        <code>{r.node.id}</code>
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        class="ss-id-table-inspector"
-                        onClick={() => jumpToNode(r.node)}
-                      >
-                        →
-                      </button>
-                    </td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
-        </Show>
-        <div class="ss-modal-actions">
-          <span class="ss-modal-spacer" />
-          <button type="button" data-variant="primary" onClick={() => IdListOverlay.hide()}>
-            閉じる
-          </button>
-        </div>
+    <ModalBase
+      onClose={() => IdListOverlay.hide()}
+      dialogClass="ss-modal ss-modal--wide"
+      labelledBy="ss-id-list-title"
+    >
+      <h3 id="ss-id-list-title">ID 一覧 — 全ノード</h3>
+      <p class="ss-modal-caption">
+        脚本の <code>who:</code> で参照する <strong>ID</strong> 列、内部識別子の{' '}
+        <strong>NodeId</strong> 列、表示名 列。クリックで Inspector に jump。
+      </p>
+      <input
+        ref={inputRef}
+        type="text"
+        class="ss-cmd-palette-input"
+        placeholder="フィルタ — slug / 名前 / ID で絞り込み"
+        value={filter()}
+        onInput={(e) => setFilter(e.currentTarget.value)}
+      />
+      <Show when={rows().length === 0}>
+        <p class="ss-cmd-palette-empty">該当なし</p>
+      </Show>
+      <Show when={rows().length > 0}>
+        <table class="ss-id-table">
+          <thead>
+            <tr>
+              <th>テンプレ</th>
+              <th>名前</th>
+              <th>ID (脚本)</th>
+              <th>NodeId (内部)</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <For each={rows()}>
+              {(r) => (
+                <tr>
+                  <td>
+                    <span class="ss-id-table-template">{r.templateLabel}</span>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="ss-id-table-jump"
+                      onClick={() => jumpToNode(r.node)}
+                    >
+                      {r.display}
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="ss-id-table-copy"
+                      onClick={() => void copy(r.devName)}
+                      title={`「${r.devName}」をコピー`}
+                    >
+                      <code>{r.devName}</code>
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="ss-id-table-copy ss-id-table-copy--mono"
+                      onClick={() => void copy(r.node.id)}
+                      title="NodeId (ULID) をコピー"
+                    >
+                      <code>{r.node.id}</code>
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="ss-id-table-inspector"
+                      onClick={() => jumpToNode(r.node)}
+                    >
+                      →
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
+      <div class="ss-modal-actions">
+        <span class="ss-modal-spacer" />
+        <button type="button" data-variant="primary" onClick={() => IdListOverlay.hide()}>
+          閉じる
+        </button>
       </div>
-    </div>
+    </ModalBase>
   );
 };
 

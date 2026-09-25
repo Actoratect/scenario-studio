@@ -7,9 +7,11 @@ import {
   type YamlValue,
 } from '@scenario-studio/core';
 import { DirtyTracker } from '../services/DirtyTracker';
+import { ConflictDetector } from '../services/ConflictDetector';
 import { bumpScriptLintVersion } from '../services/LintService';
 import { ProjectService } from '../services/ProjectService';
 import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
+import { SceneMutationService } from '../services/SceneMutationService';
 import { Toast } from '../services/Toast';
 import { StableTextInput, StableTextarea } from '../global/StableTextControl';
 
@@ -87,6 +89,23 @@ function isMapping(v: unknown): v is { [k: string]: YamlValue } {
 const scenePlotStaging = new Map<string, ParsedScene>();
 const sceneCastTextStaging = new Map<string, string>();
 const chapterPlotStaging = new Map<string, ChapterPlotData>();
+let stagingProject: object | undefined;
+
+function ensureStagingProject(): void {
+  const project = ProjectService.currentProject()?.history;
+  if (project === stagingProject) return;
+  scenePlotStaging.clear();
+  sceneCastTextStaging.clear();
+  chapterPlotStaging.clear();
+  stagingProject = project;
+}
+
+// シーン脚本ファイルは ScriptPanel (key = path) と共有するが、こちらが編集するのは
+// plot/title/cast のみ。DirtyTracker のキーを分けて両方の saveFn を生存させ (後勝ちで
+// 消えないように)、保存時は disk を読み直して自分の domain だけ上書きする。
+function plotDirtyKey(path: string): string {
+  return `${path}\u0000plot`;
+}
 
 function extractScenePlot(parsed: ParsedScene): ScenePlotData {
   const plot = isMapping(parsed.meta['plot'])
@@ -111,6 +130,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   };
 
   const sceneSource = createMemo(() => {
+    ensureStagingProject();
     const sel = props.selected;
     if (!sel || sel.kind !== 'scene') return undefined;
     const path = scenePath(sel.chapterSlug, sel.sceneSlug);
@@ -151,9 +171,11 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
       if (staged) return staged;
       const ctx = ProjectService.currentProject();
       if (!ctx) return undefined;
-      if (!(await ctx.adapter.exists(ctx.handle, src.path))) return undefined;
-      const text = await ctx.adapter.read(ctx.handle, src.path);
       try {
+        if (!(await ctx.adapter.exists(ctx.handle, src.path))) return undefined;
+        const text = await ctx.adapter.read(ctx.handle, src.path);
+        // 競合検知の baseline を登録 (ScriptPanel と共有の snapshot store)。
+        ConflictDetector.recordSnapshot(ctx.handle, src.path, text);
         return parseSceneYaml(text);
       } catch (e) {
         Toast.error(`シーン読込に失敗: ${e instanceof Error ? e.message : String(e)}`);
@@ -166,7 +188,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   const scenePlot = createMemo<ScenePlotData | undefined>(() => {
     void plotRevision();
     if (props.selected?.kind !== 'scene') return undefined;
-    const p = parsed.latest;
+    const p = parsed.loading ? undefined : parsed();
     const src = sceneSource();
     if (!p || !src) return undefined;
     const data = extractScenePlot(p);
@@ -177,6 +199,7 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   });
 
   const chapterPlot = createMemo<ChapterPlotData | undefined>(() => {
+    ensureStagingProject();
     void plotRevision();
     const sel = props.selected;
     if (!sel || sel.kind !== 'chapter') return undefined;
@@ -192,7 +215,8 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   function updateScenePlot(patch: Partial<ScenePlotData>): void {
     const cur = parsed();
     const src = sceneSource();
-    if (!cur || !src) return;
+    const ctx = ProjectService.currentProject();
+    if (!cur || !src || !ctx || parsed.loading || SceneMutationService.isLocked(src.path)) return;
     const oldPlotRaw = isMapping(cur.meta['plot'])
       ? (cur.meta['plot'] as { [k: string]: YamlValue })
       : {};
@@ -228,26 +252,60 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
     bumpPlotRevision();
     const selectedSnapshot = src; // closure 用に snapshot
     DirtyTracker.mark({
-      key: src.path,
+      key: plotDirtyKey(src.path),
       label: src.label ?? sceneLabel(src.chapterSlug, src.sceneSlug),
       saveFn: async () => {
-        const ctx = ProjectService.currentProject();
-        if (!ctx) return;
-        const latest = scenePlotStaging.get(selectedSnapshot.path) ?? nextParsed;
+        const latest = nextParsed;
+        // 上書き前に外部変更を確認。温存を選んだら書かずに 'skipped' を返し dirty を残す。
+        const ok = await ConflictDetector.checkBeforeWrite(
+          ctx.adapter,
+          ctx.handle,
+          selectedSnapshot.path,
+        );
+        if (!ok) {
+          Toast.info(
+            `保存スキップ: ${selectedSnapshot.label ?? selectedSnapshot.sceneSlug} (外部変更を温存)`,
+            4000,
+          );
+          return 'skipped';
+        }
         const latestPlot = isMapping(latest.meta['plot'])
           ? (latest.meta['plot'] as { [k: string]: YamlValue })
           : {};
-        const yaml = serializeSceneYaml(latest);
+        // 書込直前に disk を読み直し、plot/title/cast だけ上書き (blocks 等は disk 側
+        // = ScriptPanel の未保存編集や外部変更を保持する)。マージ不能時のみ full write。
+        let out: ParsedScene = latest;
+        if (await ctx.adapter.exists(ctx.handle, selectedSnapshot.path)) {
+          try {
+            const disk = parseSceneYaml(await ctx.adapter.read(ctx.handle, selectedSnapshot.path));
+            out = {
+              ...disk,
+              meta: { ...disk.meta, plot: latestPlot },
+              title: latest.title,
+              cast: latest.cast,
+            };
+          } catch {
+            out = latest;
+          }
+        }
+        const yaml = serializeSceneYaml(out);
         await ctx.adapter.write(ctx.handle, selectedSnapshot.path, yaml);
-        scenePlotStaging.delete(selectedSnapshot.path);
-        sceneCastTextStaging.delete(selectedSnapshot.path);
+        ConflictDetector.recordSnapshot(ctx.handle, selectedSnapshot.path, yaml);
+        if (scenePlotStaging.get(selectedSnapshot.path) === latest) {
+          scenePlotStaging.delete(selectedSnapshot.path);
+          sceneCastTextStaging.delete(selectedSnapshot.path);
+        }
         bumpScriptLintVersion();
         SceneAppearanceIndex.invalidate();
         // PR (ux-overhaul-3): 保存後に in-memory の chapter.scene.title を新しい
         // plot.title に同期。これでプロットタブの card / Outline 等で即座に反映される。
         const newTitle =
           typeof latestPlot['title'] === 'string' ? (latestPlot['title'] as string) : undefined;
-        if (newTitle !== undefined) {
+        if (
+          newTitle !== undefined &&
+          ProjectService.currentProject()?.history === ctx.history &&
+          !scenePlotStaging.has(selectedSnapshot.path)
+        ) {
           updateSceneTitleInProject(
             selectedSnapshot.chapterSlug,
             selectedSnapshot.sceneSlug,
@@ -259,8 +317,10 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
   }
 
   function updateChapterPlot(patch: Partial<ChapterPlotData>): void {
+    const ctx = ProjectService.currentProject();
     const sel = props.selected;
-    if (!sel || sel.kind !== 'chapter') return;
+    if (!ctx || !sel || sel.kind !== 'chapter') return;
+    if (SceneMutationService.isLocked(`Scenarios/${sel.chapterSlug}/_index.yaml`)) return;
     const current = chapterPlot();
     if (!current) return;
     const next = { ...current, ...patch };
@@ -270,16 +330,17 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
       key: `Scenarios/${sel.chapterSlug}/_index.yaml`,
       label: next.title,
       saveFn: async () => {
-        const ctx = ProjectService.currentProject();
-        if (!ctx) return;
-        const latest = chapterPlotStaging.get(sel.chapterSlug) ?? next;
+        const latest = next;
         await ctx.scenarioRepository.updateChapter({
           chapterSlug: sel.chapterSlug,
           title: latest.title,
           summary: latest.plot,
         });
-        chapterPlotStaging.delete(sel.chapterSlug);
-        updateChapterInProject(sel.chapterSlug, latest);
+        if (chapterPlotStaging.get(sel.chapterSlug) === latest) {
+          chapterPlotStaging.delete(sel.chapterSlug);
+          if (ProjectService.currentProject()?.history === ctx.history)
+            updateChapterInProject(sel.chapterSlug, latest);
+        }
       },
     });
   }
@@ -437,9 +498,18 @@ export const PlotDetailRail: Component<PlotDetailRailProps> = (props) => {
                             onClick={() => {
                               const src = sceneSource();
                               if (!src) return;
+                              // 未保存編集があるときだけ破棄確認 (無警告の破棄ボタンだった)
+                              if (
+                                DirtyTracker.dirty().has(plotDirtyKey(src.path)) &&
+                                !window.confirm(
+                                  `未保存のプロット編集 (${src.label ?? src.sceneSlug}) を破棄して再読込しますか?`,
+                                )
+                              ) {
+                                return;
+                              }
                               scenePlotStaging.delete(src.path);
                               sceneCastTextStaging.delete(src.path);
-                              DirtyTracker.clear(src.path);
+                              DirtyTracker.clear(plotDirtyKey(src.path));
                               void refetch();
                             }}
                             title="ファイルから再読込 (未保存変更は破棄)"

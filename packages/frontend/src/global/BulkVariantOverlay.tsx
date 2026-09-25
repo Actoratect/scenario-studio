@@ -4,6 +4,7 @@ import type { EraId, FieldValue, NodeId } from '@scenario-studio/core';
 import { ProjectService } from '../services/ProjectService';
 import { Toast } from '../services/Toast';
 import { VariantsService } from '../services/VariantsService';
+import { ModalBase } from './ModalBase';
 
 // PR-AP: Variant override の bulk 適用 overlay。
 // Inspector の variant 行から「他の Era にも同じ値を適用…」で起動。
@@ -83,59 +84,54 @@ const BulkVariantUi: Component = () => {
   }
 
   return (
-    <div class="ss-modal-backdrop" onClick={() => BulkVariantOverlay.hide()}>
-      <div class="ss-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>他の Era にも適用</h3>
-        <p class="ss-modal-caption">
-          フィールド <code>{req().fieldLabel}</code> の現在の override 値を、 選択した別 Era にも
-          variant override として書き込みます。
-        </p>
-        <pre class="ss-bulk-variant-value">{previewValue(req().value)}</pre>
-        <div class="ss-bulk-variant-actions-row">
-          <button type="button" onClick={selectAll}>
-            全選択
-          </button>
-          <button type="button" onClick={selectNone}>
-            全解除
-          </button>
-          <span class="ss-bulk-variant-count">{selected().size} 件選択中</span>
-        </div>
-        <div class="ss-bulk-variant-list">
-          <For
-            each={candidates()}
-            fallback={<p class="ss-modal-caption">他に時間軸がありません</p>}
-          >
-            {(era) => (
-              <label class="ss-bulk-variant-row">
-                <input
-                  type="checkbox"
-                  checked={selected().has(era.id)}
-                  onChange={() => toggle(era.id)}
-                />
-                <span class="ss-bulk-variant-label">{era.label}</span>
-                <code class="ss-bulk-variant-id">{era.id}</code>
-              </label>
-            )}
-          </For>
-        </div>
-        <div class="ss-modal-actions">
-          <button type="button" disabled={busy()} onClick={() => BulkVariantOverlay.hide()}>
-            キャンセル
-          </button>
-          <span class="ss-modal-spacer" />
-          <button
-            type="button"
-            data-variant="primary"
-            disabled={busy() || selected().size === 0}
-            onClick={() => void apply()}
-          >
-            <Show when={busy()} fallback={<>{selected().size} Era に適用</>}>
-              適用中…
-            </Show>
-          </button>
-        </div>
+    <ModalBase onClose={() => BulkVariantOverlay.hide()} labelledBy="ss-bulk-variant-title">
+      <h3 id="ss-bulk-variant-title">他の Era にも適用</h3>
+      <p class="ss-modal-caption">
+        フィールド <code>{req().fieldLabel}</code> の現在の override 値を、 選択した別 Era にも
+        variant override として書き込みます。
+      </p>
+      <pre class="ss-bulk-variant-value">{previewValue(req().value)}</pre>
+      <div class="ss-bulk-variant-actions-row">
+        <button type="button" onClick={selectAll}>
+          全選択
+        </button>
+        <button type="button" onClick={selectNone}>
+          全解除
+        </button>
+        <span class="ss-bulk-variant-count">{selected().size} 件選択中</span>
       </div>
-    </div>
+      <div class="ss-bulk-variant-list">
+        <For each={candidates()} fallback={<p class="ss-modal-caption">他に時間軸がありません</p>}>
+          {(era) => (
+            <label class="ss-bulk-variant-row">
+              <input
+                type="checkbox"
+                checked={selected().has(era.id)}
+                onChange={() => toggle(era.id)}
+              />
+              <span class="ss-bulk-variant-label">{era.label}</span>
+              <code class="ss-bulk-variant-id">{era.id}</code>
+            </label>
+          )}
+        </For>
+      </div>
+      <div class="ss-modal-actions">
+        <button type="button" disabled={busy()} onClick={() => BulkVariantOverlay.hide()}>
+          キャンセル
+        </button>
+        <span class="ss-modal-spacer" />
+        <button
+          type="button"
+          data-variant="primary"
+          disabled={busy() || selected().size === 0}
+          onClick={() => void apply()}
+        >
+          <Show when={busy()} fallback={<>{selected().size} Era に適用</>}>
+            適用中…
+          </Show>
+        </button>
+      </div>
+    </ModalBase>
   );
 };
 

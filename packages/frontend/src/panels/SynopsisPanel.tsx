@@ -1,15 +1,16 @@
-import { createEffect, createMemo, createSignal, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
-import { marked } from 'marked';
 import { Spinner } from '@scenario-studio/ui-kit';
 import { ProjectService } from '../services/ProjectService';
 import { Toast } from '../services/Toast';
+import { DirtyTracker } from '../services/DirtyTracker';
+import { ConflictDetector } from '../services/ConflictDetector';
+import { renderSafeMarkdown } from '../services/SafeMarkdown';
 
 // プロジェクト全体の synopsis (Scenarios/synopsis.md) を編集する panel。
 // PR-I: Markdown プレビュー (split view) を追加。marked で Markdown→HTML、
-// CSP で外部 script を弾いているのと、SynopsisPanel は ProjectModel 内のテキストのみ
-// 扱うため XSS 経路は限定的。それでも future-proof のため許可タグを最小化。
+// プレビューは埋め込み HTML をエスケープし、リンクの URL スキームも制限する。
 // 詳細: ../../../../Documentation/ScenarioEditor/06_scenario-layers.md §3.1,
 //       ../../../../Documentation/ScenarioEditor/16_security.md §2.4 (sanitize)
 
@@ -20,12 +21,14 @@ async function loadAndMergeImages(
   handle: import('@scenario-studio/core').ProjectHandle,
   paths: readonly string[],
   setCache: (fn: (prev: ReadonlyMap<string, string>) => ReadonlyMap<string, string>) => void,
+  isCurrent: (path: string) => boolean,
 ): Promise<void> {
   const results = await Promise.all(
     paths.map(async (p) => {
       try {
-        if (!(await adapter.exists(handle, p))) return undefined;
-        const bytes = await adapter.readBytes(handle, p);
+        const projectPath = p.startsWith('Scenarios/') ? p : `Scenarios/${p}`;
+        if (!(await adapter.exists(handle, projectPath))) return undefined;
+        const bytes = await adapter.readBytes(handle, projectPath);
         const ext = p.split('.').pop()?.toLowerCase() ?? '';
         const mime =
           ext === 'svg'
@@ -50,18 +53,18 @@ async function loadAndMergeImages(
     const next = new Map(prev);
     let any = false;
     for (const r of results) {
-      if (r && !next.has(r.path)) {
+      if (r && isCurrent(r.path) && !next.has(r.path)) {
         next.set(r.path, r.url);
         any = true;
+      } else if (r) {
+        URL.revokeObjectURL(r.url);
       }
     }
     return any ? next : prev;
   });
 }
 
-// marked の安全側設定: GFM ON、HTML 通すが <script> 等は CSP で禁止。
-marked.setOptions({ gfm: true, breaks: true });
-
+const SYNOPSIS_PATH = 'Scenarios/synopsis.md';
 const IMAGE_DIR = 'Scenarios/synopsis-images';
 const SUPPORTED_IMAGE_TYPES = new Set([
   'image/png',
@@ -79,7 +82,7 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
-export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) => {
+export const SynopsisPanel: Component<GroupPanelPartInitParameters> = () => {
   const [text, setText] = createSignal<string>('');
   const [saving, setSaving] = createSignal(false);
   const [uploading, setUploading] = createSignal(false);
@@ -87,7 +90,8 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
   // PR-AH: Markdown 中の `synopsis-images/foo.png` 等を blob: URL に解決した cache。
   // key = path (Markdown が書いた相対パス)、value = blob URL
   const [imgCache, setImgCache] = createSignal<ReadonlyMap<string, string>>(new Map());
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+  const loadingImages = new Set<string>();
   let textareaRef: HTMLTextAreaElement | undefined;
   let fileInputRef: HTMLInputElement | undefined;
 
@@ -95,44 +99,37 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     setText(ctx.project.scenario.projectSynopsis);
+    ConflictDetector.recordSnapshot(
+      ctx.handle,
+      SYNOPSIS_PATH,
+      ctx.project.scenario.projectSynopsis,
+    );
   });
 
   function scheduleSave(value: string): void {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      saveTimer = undefined;
-      void flush(value);
-    }, 500);
-  }
-
-  async function flush(value: string): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
-    setSaving(true);
-    try {
-      await ctx.scenarioRepository.saveSynopsis(value);
-      const next = { ...ctx.project.scenario, projectSynopsis: value };
-      Object.assign(ctx.project, { scenario: next });
-    } catch (e) {
-      console.error('synopsis save failed', e);
-      Toast.error(`Synopsis 保存に失敗: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSaving(false);
-    }
+    Object.assign(ctx.project, { scenario: { ...ctx.project.scenario, projectSynopsis: value } });
+    DirtyTracker.mark({
+      key: SYNOPSIS_PATH,
+      label: 'あらすじ',
+      saveFn: async () => {
+        setSaving(true);
+        try {
+          if (!(await ConflictDetector.checkBeforeWrite(ctx.adapter, ctx.handle, SYNOPSIS_PATH)))
+            return 'skipped';
+          await ctx.scenarioRepository.saveSynopsis(value);
+          ConflictDetector.recordSnapshot(ctx.handle, SYNOPSIS_PATH, value);
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   }
 
   const html = createMemo<string>(() => {
     try {
-      const raw = marked.parse(text(), { async: false }) as string;
-      // PR-AH: <img src="synopsis-images/foo.png"> を blob: URL に置換。
-      //        絶対 URL (http / data / blob) はそのまま。
-      const cache = imgCache();
-      return raw.replace(/<img\s+([^>]*?)src="([^"]+)"([^>]*)>/g, (full, pre, src, post) => {
-        if (/^(https?:|data:|blob:|\/)/.test(src)) return full;
-        const blob = cache.get(src);
-        if (!blob) return full; // load 中 — alt だけ見える
-        return `<img ${pre}src="${blob}"${post}>`;
-      });
+      return renderSafeMarkdown(text(), imgCache());
     } catch {
       return '<p><em>Markdown パース失敗</em></p>';
     }
@@ -174,9 +171,26 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
     }
     if (changed) setImgCache(next);
     // 新規 path を非同期 load (resolved 後に setImgCache で merge)
-    const toLoad = wanted.filter((p) => !next.has(p));
+    const toLoad = wanted.filter((p) => !next.has(p) && !loadingImages.has(p));
     if (toLoad.length === 0) return;
-    void loadAndMergeImages(ctx.adapter, ctx.handle, toLoad, setImgCache);
+    for (const path of toLoad) loadingImages.add(path);
+    void loadAndMergeImages(
+      ctx.adapter,
+      ctx.handle,
+      toLoad,
+      setImgCache,
+      (path) =>
+        !disposed &&
+        ProjectService.currentProject()?.history === ctx.history &&
+        referencedImagePaths().includes(path),
+    ).finally(() => {
+      for (const path of toLoad) loadingImages.delete(path);
+    });
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    for (const url of imgCache().values()) URL.revokeObjectURL(url);
   });
 
   /** PR-AH: file picker から画像を Scenarios/synopsis-images/ に保存し、Markdown を挿入 */
@@ -199,6 +213,7 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       await ctx.adapter.writeBytes(ctx.handle, path, buf);
+      if (disposed || ProjectService.currentProject()?.history !== ctx.history) return;
       // 相対パス (synopsis-images/...) で挿入
       const relative = path.replace(/^Scenarios\//, '');
       insertAtCursor(`![${base}](${relative})`);
@@ -257,9 +272,7 @@ export const SynopsisPanel: Component<GroupPanelPartInitParameters> = (params) =
         onChange={onFileChange}
       />
       <div class="panel-synopsis-meta">
-        <span>
-          Project Synopsis · <code>{params.api.id}</code>
-        </span>
+        <span>あらすじ</span>
         <Show when={saving() || uploading()}>
           <span class="panel-synopsis-saving">
             <Spinner /> {uploading() ? '画像アップロード中…' : '保存中…'}

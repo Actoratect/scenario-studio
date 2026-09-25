@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePlotFlowLens } from './plot-flow-lens.js';
+import { computePlotFlowLens, plotFlowRowLayout } from './plot-flow-lens.js';
 import { chapterId, sceneId, type Chapter } from '../domain/scenario.js';
 import type { ScriptScene } from '../lint/types.js';
 
@@ -36,7 +36,23 @@ describe('computePlotFlowLens', () => {
     // 2 implicit edges (s01->s02, s02->s03)
     const implicitEdges = result.payload.edges.filter((e) => e.kind === 'implicit');
     expect(implicitEdges.length).toBe(2);
+    // 暗黙 next のラベルは既定で空 (P1: 「次へ」の並びはノイズだったため廃止)
+    expect(implicitEdges.every((e) => e.label === '')).toBe(true);
     expect(result.unreachable.length).toBe(0);
+  });
+
+  it('plotFlowRowLayout places each chapter on its own row, scenes left-to-right', () => {
+    const chapters = [
+      ch('ch01', [
+        { slug: 's01', title: 'A' },
+        { slug: 's02', title: 'B' },
+      ]),
+      ch('ch02', [{ slug: 's01', title: 'C' }]),
+    ];
+    const layout = plotFlowRowLayout(chapters, { originX: 0, originY: 0, xGap: 100, yGap: 200 });
+    expect(layout.get('plot.ch01.s01' as never)).toEqual({ x: 0, y: 0 });
+    expect(layout.get('plot.ch01.s02' as never)).toEqual({ x: 100, y: 0 });
+    expect(layout.get('plot.ch02.s01' as never)).toEqual({ x: 0, y: 200 });
   });
 
   it('parses choice goto into explicit edges', () => {

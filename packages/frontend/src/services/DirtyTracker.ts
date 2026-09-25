@@ -10,16 +10,50 @@ import { createSignal } from 'solid-js';
 // NodeId に紐づかないファイルも追跡できるようにするため)。SaveScheduler は manual mode に
 // 切り替えて、こちらの flushAll() と並走する。
 
+/**
+ * saveFn の戻り値。'skipped' は「意図的に書き込まなかった」(競合で外部変更を温存した等)
+ * ことを示し、flushAll は dirty を解除せず残す。void / undefined は成功扱い。
+ */
+export type SaveResult = void | 'skipped';
+
 export interface DirtyEntry {
   /** 一意キー (ファイル相対パス推奨)。 */
   key: string;
   /** UI 表示用 (Toast やバッジ用)。 */
   label: string;
-  /** flush 時に呼ぶ。失敗したら throw する。 */
-  saveFn: () => Promise<void> | void;
+  /** flush 時に呼ぶ。失敗したら throw、書かずに終えたら 'skipped' を返す。 */
+  saveFn: () => Promise<SaveResult> | SaveResult;
 }
 
 const [dirty, setDirty] = createSignal<ReadonlyMap<string, DirtyEntry>>(new Map());
+const inflight = new Map<string, { entry: DirtyEntry; promise: Promise<SaveResult> }>();
+
+async function saveEntry(entry: DirtyEntry): Promise<SaveResult> {
+  // 脚本とプロットは異なる dirty key でも同じファイルにマージ保存する。
+  const fileKey = entry.key.split('\u0000')[0] ?? entry.key;
+  const running = inflight.get(fileKey);
+  if (running?.entry === entry) return running.promise;
+  if (running) {
+    // 同じファイルの前の保存完了を待つ。異なる版を並列に書くと古い版が後勝ちする。
+    try {
+      await running.promise;
+    } catch {
+      // 新しい版の保存は再試行として続ける。
+    }
+    return saveEntry(entry);
+  }
+  if (dirty().get(entry.key) !== entry) return 'skipped';
+  const promise = Promise.resolve().then(entry.saveFn);
+  const operation = { entry, promise };
+  inflight.set(fileKey, operation);
+  try {
+    const result = await promise;
+    if (result !== 'skipped' && dirty().get(entry.key) === entry) DirtyTracker.clear(entry.key);
+    return result;
+  } finally {
+    if (inflight.get(fileKey) === operation) inflight.delete(fileKey);
+  }
+}
 
 export const DirtyTracker = {
   dirty,
@@ -35,7 +69,7 @@ export const DirtyTracker = {
   /** key の編集を記録。saveFn は最新版で上書き (毎回最新 closure を渡すこと)。 */
   mark(entry: DirtyEntry): void {
     const next = new Map(dirty());
-    next.set(entry.key, entry);
+    next.set(entry.key, { ...entry });
     setDirty(next);
   },
 
@@ -47,27 +81,39 @@ export const DirtyTracker = {
     setDirty(next);
   },
 
-  /** 全 dirty を順に flush。途中失敗した key は dirty に残す。 */
-  async flushAll(): Promise<{ saved: number; failed: number; errors: string[] }> {
-    const entries = [...dirty().values()];
+  /** 全 dirty を順に flush。失敗 / skip した key は dirty に残す (次の保存で再試行可)。 */
+  async flushAll(keys?: readonly string[]): Promise<{
+    saved: number;
+    failed: number;
+    skipped: number;
+    errors: string[];
+  }> {
+    const selected = keys ? new Set(keys) : undefined;
+    const entries = [...dirty().values()].filter((entry) => !selected || selected.has(entry.key));
     let saved = 0;
     let failed = 0;
+    let skipped = 0;
     const errors: string[] = [];
     for (const entry of entries) {
       try {
-        await entry.saveFn();
-        DirtyTracker.clear(entry.key);
+        const result = await saveEntry(entry);
+        if (result === 'skipped') {
+          // 意図的に書かなかった (競合温存等)。dirty のまま残す。
+          skipped++;
+          continue;
+        }
         saved++;
       } catch (e) {
         failed++;
         errors.push(`${entry.label}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    return { saved, failed, errors };
+    return { saved, failed, skipped, errors };
   },
 
   /** プロジェクト close 時の reset。 */
   reset(): void {
     setDirty(new Map());
+    inflight.clear();
   },
 };

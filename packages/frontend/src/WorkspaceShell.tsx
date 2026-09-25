@@ -1,4 +1,4 @@
-import { lazy, onCleanup, onMount, Show } from 'solid-js';
+import { createSignal, lazy, onCleanup, onMount, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { createDockview } from 'dockview-core';
 import type {
@@ -9,6 +9,8 @@ import type {
   IGroupHeaderProps,
   IHeaderActionsRenderer,
 } from 'dockview-core';
+import { ContextMenu } from '@scenario-studio/ui-kit';
+import type { ContextMenuEntry } from '@scenario-studio/ui-kit';
 import { SolidPanelView } from './dockview/SolidPanelView';
 import { AiPanel } from './panels/AiPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
@@ -45,6 +47,10 @@ import { ProjectHealth } from './services/ProjectHealth';
 import { ProjectService } from './services/ProjectService';
 import { disposeSaveScheduler, useSaveScheduler } from './services/save-scheduler-binding';
 import { Toast } from './services/Toast';
+import { GraphPositions } from './graph/graph-positions';
+import { GraphComments } from './graph/graph-comments';
+import { PlotFlowEdges } from './graph/plot-flow-edges';
+import { RelationsService } from './services/RelationsService';
 
 // プロジェクトが open されている時の Dockview ベースのワークスペース。
 // PoC-A の App.tsx 中身を抽出 + ScriptPanel / BenchmarkPanel を lazy() に分割
@@ -283,7 +289,8 @@ const LAYOUT_VERSION_KEY = 'scenario-studio:dockview-layout-version';
 // パネル構成や既定レイアウトを変えたらこの版数を上げる。版数が一致しない古い保存
 // レイアウトは破棄して既定で開き直すため、アプリ更新後にレイアウトが崩れたまま
 // 復元される問題を防ぐ。
-const LAYOUT_VERSION = 2;
+// v3: P1 dogfood — 上段 [グラフ | インスペクタ | アウトライン] / 下段 [ツール群 | 脚本] に変更
+const LAYOUT_VERSION = 3;
 
 function loadSavedLayout(): unknown | undefined {
   if (typeof localStorage === 'undefined') return undefined;
@@ -325,29 +332,77 @@ function clearSavedLayout(): void {
 export const WorkspaceShell: Component = () => {
   let host: HTMLDivElement | undefined;
   let api: DockviewApi | undefined;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let toolsMenu: HTMLDetailsElement | undefined;
+  const [maximized, setMaximized] = createSignal(false);
+
+  function toggleFocus(): void {
+    if (!api) return;
+    if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
+    else if (api.activePanel) api.maximizeGroup(api.activePanel);
+  }
+
+  function dismissTools(e: PointerEvent | KeyboardEvent): void {
+    if (!toolsMenu?.open) return;
+    if (e instanceof KeyboardEvent) {
+      if (e.key === 'Escape') {
+        toolsMenu.open = false;
+        toolsMenu.querySelector('summary')?.focus();
+      }
+    } else if (e.target instanceof Node && !toolsMenu.contains(e.target)) {
+      toolsMenu.open = false;
+    }
+  }
 
   // 起動時に SaveScheduler を初期化 (lazy 生成だが、close 時に dispose したいので参照を持つ)
   useSaveScheduler();
 
-  /** Cmd+S / 保存ボタンから呼ぶ。Node 編集 + ファイル編集の両方を flush する。 */
-  async function saveAllDirty(): Promise<void> {
+  function pendingCount(): number {
+    return (
+      DirtyTracker.count() +
+      useSaveScheduler().pendingCount +
+      [PlotBoardService, GraphPositions, GraphComments, PlotFlowEdges, RelationsService].filter(
+        (service) => service.hasPending(),
+      ).length
+    );
+  }
+
+  /**
+   * Cmd+S / 保存ボタンから呼ぶ。Node 編集 + ファイル編集 + プロットボードを flush する。
+   * ノード保存も await してから結果を報告する (旧実装は fire-and-forget で、書込前に
+   * 「保存しました」と出し、失敗・競合スキップも成功件数に含めていた)。
+   */
+  async function saveAllDirty(): Promise<{ saved: number; failed: number; skipped: number }> {
     const sched = useSaveScheduler();
-    const nodeCount = sched.pendingCount;
-    sched.flushAll();
-    const [plotBoardResult, fileResult] = await Promise.all([
-      PlotBoardService.flushPending(),
+    const [nodeResult, fileResult, ...graphResults] = await Promise.all([
+      sched.flushAllAsync(),
       DirtyTracker.flushAll(),
+      ...[PlotBoardService, GraphPositions, GraphComments, PlotFlowEdges, RelationsService].map(
+        (service) => service.flushPending(),
+      ),
     ]);
-    const totalSaved = nodeCount + fileResult.saved + plotBoardResult.saved;
-    const totalFailed = fileResult.failed + plotBoardResult.failed;
+    const totalSaved =
+      nodeResult.saved + fileResult.saved + graphResults.reduce((n, r) => n + r.saved, 0);
+    const totalFailed =
+      nodeResult.failed + fileResult.failed + graphResults.reduce((n, r) => n + r.failed, 0);
+    // 競合で温存された (外部変更を上書きしなかった) 件数。未保存のまま残っている。
+    const totalSkipped = nodeResult.skipped + fileResult.skipped;
     if (totalFailed > 0) {
-      const detail = fileResult.errors.length > 0 ? ` (${fileResult.errors.join(' / ')})` : '';
-      Toast.error(`保存失敗: ${totalFailed} 件${detail}`);
+      const errors = [...nodeResult.errors, ...fileResult.errors];
+      const detail = errors.length > 0 ? ` (${errors.join(' / ')})` : '';
+      const skip = totalSkipped > 0 ? ` / スキップ ${totalSkipped} 件` : '';
+      Toast.error(`保存失敗: ${totalFailed} 件${detail}${skip}`);
+    } else if (totalSkipped > 0) {
+      Toast.warning(
+        `保存 ${totalSaved} 件 / スキップ ${totalSkipped} 件 — 外部変更を温存したため未保存のまま残っています`,
+        6000,
+      );
     } else if (totalSaved > 0) {
       Toast.success(`保存しました (${totalSaved} 件)`, 1500);
     } else {
       Toast.info('変更はありません', 1200);
     }
+    return { saved: totalSaved, failed: totalFailed, skipped: totalSkipped };
   }
 
   function isEditableTarget(target: EventTarget | null): boolean {
@@ -421,13 +476,38 @@ export const WorkspaceShell: Component = () => {
       if (isEditableTarget(e.target)) return;
       if (!GlobalHistoryService.canUndo()) return;
       e.preventDefault();
-      void GlobalHistoryService.undo();
+      void undoWithNotice('undo');
     } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
       if (isEditableTarget(e.target)) return;
       if (!GlobalHistoryService.canRedo()) return;
       e.preventDefault();
-      void GlobalHistoryService.redo();
+      void undoWithNotice('redo');
     }
+  }
+
+  /**
+   * Undo/Redo を実行し「何を取り消したか」を Toast で通知する。
+   * 非表示パネル (背面タブのプロットボード等) の変更が無言で巻き戻る問題への対処。
+   */
+  async function undoWithNotice(direction: 'undo' | 'redo'): Promise<void> {
+    const applied =
+      direction === 'undo' ? await GlobalHistoryService.undo() : await GlobalHistoryService.redo();
+    const verb = direction === 'undo' ? '元に戻す' : 'やり直す';
+    if (!applied) {
+      Toast.info(
+        direction === 'undo' ? '取り消せる操作がありません' : 'やり直せる操作がありません',
+        1500,
+      );
+      return;
+    }
+    const label =
+      applied.label ??
+      (applied.domain === 'project'
+        ? 'ノードの編集'
+        : applied.domain === 'script'
+          ? '脚本の編集'
+          : 'プロットボードの変更');
+    Toast.info(`${verb}: ${label}`, 1800);
   }
 
   function nextPanelId(name: PanelName): string {
@@ -439,8 +519,8 @@ export const WorkspaceShell: Component = () => {
     return `${name}-${Date.now().toString(36)}`;
   }
 
-  function addWorkspacePanel(name: PanelName, referencePanel?: IDockviewPanel): void {
-    if (!api) return;
+  function addWorkspacePanel(name: PanelName, referencePanel?: IDockviewPanel): string | undefined {
+    if (!api) return undefined;
     const id = nextPanelId(name);
     if (referencePanel) {
       api.addPanel({
@@ -452,6 +532,7 @@ export const WorkspaceShell: Component = () => {
     } else {
       api.addPanel({ id, component: name, title: panelTitle(name) });
     }
+    return id;
   }
 
   function closeWorkspacePanel(panel: IDockviewPanel): void {
@@ -459,7 +540,8 @@ export const WorkspaceShell: Component = () => {
     panel.api.close();
   }
 
-  // タブ名を右クリックで閉じる。タブが多くてハンバーガーメニューが見切れる時の代替手段。
+  // タブ右クリックでコンテキストメニューを表示 (07_window-system.md §4.4)。
+  // 旧実装は警告なしの即クローズで、誤右クリックでタブ配置が壊れていた。
   // dockview の既定タブは data-testid にパネル id を入れているのでそれで解決する。
   function onTabContextMenu(e: MouseEvent): void {
     if (!api) return;
@@ -469,9 +551,46 @@ export const WorkspaceShell: Component = () => {
     const panel = api.getPanel(id);
     if (!panel) return;
     e.preventDefault();
+    const name = panelNameOf(panel);
     const title = panel.title ?? id;
-    closeWorkspacePanel(panel);
-    Toast.info(`「${title}」タブを閉じました`, 1800);
+    const entries: ContextMenuEntry[] = [];
+    if (name === 'script' || name === 'inspector') {
+      const pinned =
+        name === 'script'
+          ? PanelPinService.isScriptPinned(panel.id)
+          : PanelPinService.isInspectorPinned(panel.id);
+      entries.push({
+        id: 'pin',
+        label: pinned ? 'ピン止めを解除' : 'ピン止め (選択に追従しない)',
+        icon: '📌',
+        onSelect: () => togglePanelPin(panel),
+      });
+    }
+    if (name) {
+      entries.push({
+        id: 'duplicate',
+        label: '同じ種類のパネルを追加',
+        icon: '➕',
+        onSelect: () => void addWorkspacePanel(name, panel),
+      });
+    }
+    if (entries.length > 0) entries.push({ kind: 'separator' });
+    entries.push({
+      id: 'close-others',
+      label: 'このグループの他のタブを閉じる',
+      onSelect: () => {
+        const others = api ? api.panels.filter((p) => p.group === panel.group && p !== panel) : [];
+        for (const p of others) closeWorkspacePanel(p);
+        if (others.length > 0) Toast.info(`${others.length} 個のタブを閉じました`, 1800);
+      },
+    });
+    entries.push({
+      id: 'close',
+      label: `「${title}」を閉じる`,
+      variant: 'danger',
+      onSelect: () => closeWorkspacePanel(panel),
+    });
+    ContextMenu.show(e, entries, `タブ: ${title}`);
   }
 
   function togglePanelPin(panel: IDockviewPanel): void {
@@ -497,6 +616,10 @@ export const WorkspaceShell: Component = () => {
     }
   }
 
+  /**
+   * 既定は全高の3列。中央の作業をタブで切り替え、補助パネルは必要時に追加する。
+   * 保存済みレイアウトは維持し、新規起動と明示的な初期化にだけ適用する。
+   */
   function buildDefaultLayout(a: DockviewApi): void {
     a.addPanel({ id: 'graph-1', component: 'graph', title: panelTitle('graph') });
     a.addPanel({
@@ -509,62 +632,21 @@ export const WorkspaceShell: Component = () => {
       id: 'outline-1',
       component: 'outline',
       title: panelTitle('outline'),
-      position: { referencePanel: 'graph-1', direction: 'below' },
+      position: { referencePanel: 'graph-1', direction: 'left' },
     });
-    a.addPanel({
-      id: 'synopsis-1',
-      component: 'synopsis',
-      title: panelTitle('synopsis'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'script-1',
-      component: 'script',
-      title: panelTitle('script'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'bench-1',
-      component: 'bench',
-      title: panelTitle('bench'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'console-1',
-      component: 'console',
-      title: panelTitle('console'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'ai-1',
-      component: 'ai',
-      title: panelTitle('ai'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'settings-1',
-      component: 'settings',
-      title: panelTitle('settings'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'timeline-1',
-      component: 'timeline',
-      title: panelTitle('timeline'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'stats-1',
-      component: 'stats',
-      title: panelTitle('stats'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
-    a.addPanel({
-      id: 'era-timeline-1',
-      component: 'era-timeline',
-      title: panelTitle('era-timeline'),
-      position: { referencePanel: 'outline-1', direction: 'within' },
-    });
+    const toolTabs: readonly PanelName[] = ['script', 'synopsis', 'timeline'];
+    for (const name of toolTabs) {
+      a.addPanel({
+        id: `${name}-1`,
+        component: name,
+        title: panelTitle(name),
+        position: { referencePanel: 'graph-1', direction: 'within' },
+      });
+    }
+    const w = host?.clientWidth ?? 1440;
+    a.getPanel('outline-1')?.api.setSize({ width: Math.round(Math.min(260, w * 0.2)) });
+    a.getPanel('inspector-1')?.api.setSize({ width: Math.round(Math.min(430, w * 0.3)) });
+    a.getPanel('graph-1')?.api.setActive();
   }
 
   /** PR-AG: Dock layout を default に戻す (workspace ヘッダから) */
@@ -577,12 +659,41 @@ export const WorkspaceShell: Component = () => {
     Toast.success('レイアウトを初期化しました');
   }
 
+  /**
+   * 「プロジェクトを閉じる」の安全フロー。
+   * 旧実装は「OK = 破棄して閉じる」が既定 (Enter) という危険なデフォルトで、
+   * 件数算出も PlotBoard を数え漏らして beforeunload と食い違っていた。
+   * 新フロー: OK = 保存して閉じる (安全側が既定)。保存に失敗 / スキップが残った
+   * 場合は破棄してよいか改めて確認する。
+   */
+  async function closeProjectSafely(): Promise<void> {
+    const dirty = pendingCount();
+    if (dirty > 0) {
+      if (
+        window.confirm(
+          `未保存の変更が ${dirty} 件あります。保存してから閉じますか?\n\n[OK] 保存して閉じる\n[キャンセル] 保存しない`,
+        )
+      ) {
+        const result = await saveAllDirty();
+        const remain = Math.max(result.failed + result.skipped, pendingCount());
+        if (
+          remain > 0 &&
+          !window.confirm(
+            `${remain} 件が保存できていません (失敗 ${result.failed} / 競合スキップ ${result.skipped})。破棄して閉じますか?`,
+          )
+        ) {
+          return;
+        }
+      } else if (!window.confirm('保存せずに閉じますか? (未保存の変更は失われます)')) {
+        return;
+      }
+    }
+    ProjectService.close();
+  }
+
   /** ブラウザ閉じ・タブリロード時の未保存ガード (PR: ux-overhaul)。 */
   function onBeforeUnload(e: BeforeUnloadEvent): void {
-    const dirty =
-      DirtyTracker.count() +
-      useSaveScheduler().pendingCount +
-      (PlotBoardService.hasPending() ? 1 : 0);
+    const dirty = pendingCount();
     if (dirty > 0) {
       e.preventDefault();
       e.returnValue = '';
@@ -592,6 +703,8 @@ export const WorkspaceShell: Component = () => {
   onMount(() => {
     window.addEventListener('keydown', onKeydown);
     window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('pointerdown', dismissTools);
+    document.addEventListener('keydown', dismissTools);
     if (!host) return;
     api = createDockview(host, {
       className: 'dockview-theme-light',
@@ -618,7 +731,12 @@ export const WorkspaceShell: Component = () => {
         return new SolidPanelView(PANEL_REGISTRY[options.name]);
       },
     });
-    PanelFocus.register(api);
+    // component 種別で解決できるよう opener を渡す。ジャンプ先タブを閉じていても
+    // 同種パネルへ解決 or 新規追加して自己修復する (無音失敗の解消)。
+    PanelFocus.register(api, (component) =>
+      isPanelName(component) ? addWorkspacePanel(component) : undefined,
+    );
+    api.onDidMaximizedGroupChange(() => setMaximized(api?.hasMaximizedGroup() ?? false));
 
     // PR-AG: 保存済 layout があればそれを復元、無ければ default を構築
     const saved = loadSavedLayout();
@@ -629,12 +747,12 @@ export const WorkspaceShell: Component = () => {
         restored = api.panels.length > 0;
       } catch (e) {
         console.warn('saved layout restore failed, falling back to default', e);
+        api.clear();
       }
     }
     if (!restored) buildDefaultLayout(api);
 
     // 以後の任意 layout 変化を localStorage に保存 (debounced)
-    let saveTimer: ReturnType<typeof setTimeout> | undefined;
     const persist = (): void => {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
@@ -655,7 +773,11 @@ export const WorkspaceShell: Component = () => {
   onCleanup(() => {
     window.removeEventListener('keydown', onKeydown);
     window.removeEventListener('beforeunload', onBeforeUnload);
+    document.removeEventListener('pointerdown', dismissTools);
+    document.removeEventListener('keydown', dismissTools);
     host?.removeEventListener('contextmenu', onTabContextMenu);
+    if (saveTimer) clearTimeout(saveTimer);
+    if (api) saveLayout(api.toJSON());
     disposeSaveScheduler();
     PanelFocus.unregister();
     api?.dispose();
@@ -671,17 +793,14 @@ export const WorkspaceShell: Component = () => {
         <button
           class="workspace-save"
           classList={{
-            'workspace-save--dirty':
-              DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0,
+            'workspace-save--dirty': pendingCount() > 0,
           }}
           onClick={() => void saveAllDirty()}
           title="変更を保存 (Cmd+S)"
         >
           💾 保存
-          <Show when={DirtyTracker.count() > 0 || useSaveScheduler().pendingCount > 0}>
-            <span class="workspace-save-count">
-              {DirtyTracker.count() + useSaveScheduler().pendingCount}
-            </span>
+          <Show when={pendingCount() > 0}>
+            <span class="workspace-save-count">{pendingCount()}</span>
           </Show>
         </button>
         <SaveStatusBadge />
@@ -689,7 +808,7 @@ export const WorkspaceShell: Component = () => {
           <button
             class="workspace-export workspace-history-btn"
             disabled={!GlobalHistoryService.canUndo()}
-            onClick={() => void GlobalHistoryService.undo()}
+            onClick={() => void undoWithNotice('undo')}
             title="全体を戻す (Ctrl+Z)"
           >
             ↶ 戻る
@@ -697,115 +816,120 @@ export const WorkspaceShell: Component = () => {
           <button
             class="workspace-export workspace-history-btn"
             disabled={!GlobalHistoryService.canRedo()}
-            onClick={() => void GlobalHistoryService.redo()}
+            onClick={() => void undoWithNotice('redo')}
             title="全体を進める (Ctrl+Y / Ctrl+Shift+Z)"
           >
             ↷ 進む
           </button>
         </span>
         <button
-          class="workspace-export workspace-health"
-          classList={{
-            'workspace-health--has-error': ProjectHealth.snapshot().counts.error > 0,
-            'workspace-health--has-warning':
-              ProjectHealth.snapshot().counts.error === 0 &&
-              ProjectHealth.snapshot().counts.warning > 0,
-          }}
-          onClick={() => ProjectHealthOverlay.show()}
-          title="プロジェクト ヘルス (Lint / 不足項目 / 章別 進捗)"
-        >
-          🩺
-          <Show
-            when={
-              ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning > 0
-            }
-          >
-            <span class="workspace-health-badge">
-              {ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning}
-            </span>
-          </Show>
-        </button>
-        <button
           class="workspace-export"
-          onClick={() => LocalAgentHandoffOverlay.show()}
-          title="ローカル AI に依頼 (Cmd+Shift+H)"
+          onClick={toggleFocus}
+          aria-pressed={maximized()}
+          title="選択中の作業パネルを広げる / 元の配置に戻す"
         >
-          🤝
-        </button>
-        <button
-          class="workspace-export"
-          onClick={() => ShortcutsOverlay.show()}
-          title="ショートカット一覧 (Cmd+/)"
-        >
-          ⌨
-        </button>
-        <button
-          class="workspace-export"
-          onClick={() => AboutOverlay.show()}
-          title="このアプリについて / Help"
-        >
-          ?
-        </button>
-        <button
-          class="workspace-export"
-          onClick={() => UnityReadinessOverlay.show()}
-          title="Unity Readiness — Phase 2 出力前のチェック"
-        >
-          🎮
-        </button>
-        <button
-          class="workspace-export"
-          onClick={() => AiPatchQueueOverlay.show()}
-          title="AI Patch Queue (Cmd+Shift+Q)"
-        >
-          📝 Patch
-          {AiPatchQueue.pendingCount() > 0 ? ` (${AiPatchQueue.pendingCount()})` : ''}
+          {maximized() ? '▣ 配置に戻る' : '⛶ 集中表示'}
         </button>
         <button
           class="workspace-export"
           onClick={() => ExportDialog.show()}
-          title="脚本を text / Markdown に書き出し (Cmd+E)"
+          title="脚本を書き出し (Ctrl+E / Cmd+E)"
         >
-          ⤓ Export
+          ⤓ 書き出し
         </button>
-        <button
-          class="workspace-export workspace-font-scale"
-          onClick={() => FontScaleService.cycle()}
-          title={`フォントサイズ切替 (現在: ${FontScaleService.scale()})`}
-        >
-          A{' '}
-          {FontScaleService.scale() === 'small'
-            ? '−'
-            : FontScaleService.scale() === 'medium'
-              ? '·'
-              : FontScaleService.scale() === 'large'
-                ? '+'
-                : '++'}
-        </button>
-        <button
-          class="workspace-export"
-          onClick={resetLayout}
-          title="Dockview レイアウトを初期状態に戻す"
-        >
-          ⟳
-        </button>
-        <button
-          class="workspace-close"
-          onClick={() => {
-            const dirty = DirtyTracker.count() + useSaveScheduler().pendingCount;
-            if (
-              dirty > 0 &&
-              !window.confirm(
-                `未保存の変更が ${dirty} 件あります。保存せずに閉じますか? (Cmd+S で保存)`,
-              )
-            ) {
-              return;
-            }
-            ProjectService.close();
-          }}
-        >
-          プロジェクトを閉じる
-        </button>
+        <details class="workspace-tools" ref={toolsMenu}>
+          <summary>ツール・表示</summary>
+          <div
+            class="workspace-tools-menu"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest('button') && toolsMenu) toolsMenu.open = false;
+            }}
+          >
+            <button
+              class="workspace-export workspace-health"
+              classList={{
+                'workspace-health--has-error': ProjectHealth.snapshot().counts.error > 0,
+                'workspace-health--has-warning':
+                  ProjectHealth.snapshot().counts.error === 0 &&
+                  ProjectHealth.snapshot().counts.warning > 0,
+              }}
+              onClick={() => ProjectHealthOverlay.show()}
+              title="プロジェクト ヘルス (Lint / 不足項目 / 章別 進捗)"
+            >
+              🩺 プロジェクトの状態
+              <Show
+                when={
+                  ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning >
+                  0
+                }
+              >
+                <span class="workspace-health-badge">
+                  {ProjectHealth.snapshot().counts.error + ProjectHealth.snapshot().counts.warning}
+                </span>
+              </Show>
+            </button>
+            <button
+              class="workspace-export"
+              onClick={() => LocalAgentHandoffOverlay.show()}
+              title="ローカル AI に依頼 (Cmd+Shift+H)"
+            >
+              🤝 ローカル AI に依頼
+            </button>
+            <button
+              class="workspace-export"
+              onClick={() => ShortcutsOverlay.show()}
+              title="ショートカット一覧 (Cmd+/)"
+            >
+              ⌨ ショートカット一覧
+            </button>
+            <button
+              class="workspace-export"
+              onClick={() => AboutOverlay.show()}
+              title="このアプリについて / Help"
+            >
+              ? ヘルプ・アプリ情報
+            </button>
+            <button
+              class="workspace-export"
+              onClick={() => UnityReadinessOverlay.show()}
+              title="Unity Readiness — Phase 2 出力前のチェック"
+            >
+              🎮 Unity 出力の事前確認
+            </button>
+            <button
+              class="workspace-export"
+              onClick={() => AiPatchQueueOverlay.show()}
+              title="AI Patch Queue (Cmd+Shift+Q)"
+            >
+              📝 Patch
+              {AiPatchQueue.pendingCount() > 0 ? ` (${AiPatchQueue.pendingCount()})` : ''}
+            </button>
+            <button
+              class="workspace-export workspace-font-scale"
+              onClick={() => FontScaleService.cycle()}
+              title={`フォントサイズ切替 (現在: ${FontScaleService.scale()})`}
+            >
+              文字サイズ A{' '}
+              {FontScaleService.scale() === 'small'
+                ? '−'
+                : FontScaleService.scale() === 'medium'
+                  ? '·'
+                  : FontScaleService.scale() === 'large'
+                    ? '+'
+                    : '++'}
+            </button>
+            <button
+              class="workspace-export"
+              onClick={resetLayout}
+              title="Dockview レイアウトを初期状態に戻す"
+            >
+              ⟳ レイアウトを初期化
+            </button>
+            <button class="workspace-close" onClick={() => void closeProjectSafely()}>
+              プロジェクトを閉じる
+            </button>
+          </div>
+        </details>
       </header>
       <OnboardingBanner />
       <div class="app-shell" ref={host} />

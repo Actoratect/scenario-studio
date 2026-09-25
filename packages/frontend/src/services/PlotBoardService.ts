@@ -13,29 +13,50 @@ import {
 import { createSignal } from 'solid-js';
 import { GlobalHistoryService } from './GlobalHistoryService';
 import { ProjectService, type OpenProjectContext } from './ProjectService';
-import { SaveStatus } from './SaveStatus';
+import { GraphPersistence } from '../graph/graph-persistence';
+import { plotBody } from '../graph/plot-board-model';
 import { Toast } from './Toast';
 
 type SaveMode = 'immediate' | 'debounced' | 'none';
 type BoardState = { projectKey: string; board: PlotBoard };
 
-let persistTimer: ReturnType<typeof setTimeout> | undefined;
-let pendingPersist: { ctx: OpenProjectContext; board: PlotBoard } | undefined;
+const persistence = new GraphPersistence();
+let lastTextEdit: { nodeId: PlotBoardNodeId; revision: number; at: number } | undefined;
 const [localBoard, setLocalBoard] = createSignal<BoardState | undefined>(undefined);
 let historyProjectKey: string | undefined;
 let applyingHistory = false;
 const undoBoards: PlotBoard[] = [];
 const redoBoards: PlotBoard[] = [];
+const normalizedBoards = new WeakSet<PlotBoard>();
 
 function projectKey(ctx: OpenProjectContext): string {
   return ctx.handle.id;
 }
 
 function currentBoardFrom(ctx: OpenProjectContext): PlotBoard {
-  return ctx.project.plotBoards.find((b) => b.id === MAIN_PLOT_BOARD_ID) ?? createMainPlotBoard();
+  const board =
+    ctx.project.plotBoards.find((b) => b.id === MAIN_PLOT_BOARD_ID) ?? createMainPlotBoard();
+  if (normalizedBoards.has(board)) return board;
+  const normalized = {
+    ...board,
+    nodes: board.nodes.map((node) => ({
+      ...node,
+      body: plotBody(node),
+      bodyFormat: 'plain' as const,
+    })),
+  };
+  normalizedBoards.add(normalized);
+  Object.assign(ctx.project, {
+    plotBoards: [
+      normalized,
+      ...ctx.project.plotBoards.filter((other) => other.id !== normalized.id),
+    ],
+  });
+  return normalized;
 }
 
 function replaceBoardInProject(ctx: OpenProjectContext, board: PlotBoard): void {
+  normalizedBoards.add(board);
   const others = ctx.project.plotBoards.filter((b) => b.id !== board.id);
   Object.assign(ctx.project, { plotBoards: [board, ...others] });
   setLocalBoard({ projectKey: projectKey(ctx), board });
@@ -44,47 +65,18 @@ function replaceBoardInProject(ctx: OpenProjectContext, board: PlotBoard): void 
 function schedulePersist(ctx: OpenProjectContext, board: PlotBoard, mode: SaveMode): void {
   if (mode === 'none') return;
   const snapshot = cloneBoard(board);
-  pendingPersist = { ctx, board: snapshot };
-  if (persistTimer) clearTimeout(persistTimer);
-  if (mode === 'immediate') {
-    persistTimer = undefined;
-    pendingPersist = undefined;
-    void persist(ctx, snapshot);
-    return;
-  }
-  // debounce 待ち開始を保存ステータスに反映 (バッジに「保存待機」を出す)。
-  SaveStatus.markPending();
-  persistTimer = setTimeout(() => {
-    persistTimer = undefined;
-    pendingPersist = undefined;
-    // 発火までに別プロジェクトへ切り替わっていたら旧 ctx へは書かない
-    // (切替/close 経路の reset() が保留分を先に flush 済み)。
-    const current = ProjectService.currentProject();
-    if (current && projectKey(current) === projectKey(ctx)) {
-      void persist(ctx, snapshot);
-    }
-  }, 1200);
+  persistence.schedule(
+    projectKey(ctx),
+    () => ctx.plotBoardRepository.saveMain(snapshot),
+    mode === 'immediate',
+  );
 }
 
-async function persist(ctx: OpenProjectContext, board: PlotBoard): Promise<boolean> {
-  const token = SaveStatus.beginSave();
-  try {
-    await ctx.plotBoardRepository.saveMain(board);
-    SaveStatus.endSave(token);
-    return true;
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    SaveStatus.failSave(token, message);
-    Toast.error(`プロットボードの保存に失敗しました: ${message}`, 7000);
-    return false;
-  }
-}
-
-function updateBoard(next: PlotBoard, mode: SaveMode): void {
+function updateBoard(next: PlotBoard, mode: SaveMode, merge = false): void {
   const ctx = ProjectService.currentProject();
   if (!ctx) return;
   const before = currentBoardFrom(ctx);
-  if (mode !== 'none') recordHistory(ctx, before);
+  if (mode !== 'none' && !merge) recordHistory(ctx, before);
   replaceBoardInProject(ctx, next);
   schedulePersist(ctx, next, mode);
 }
@@ -122,7 +114,7 @@ function recordHistory(ctx: OpenProjectContext, before: PlotBoard): void {
   // 上限トリムは GlobalHistoryService の単一スタックに委譲する。plotBoard マーカーが
   // トリムされると onTrimOldest が呼ばれ undoBoards も同期で削るため、本数が常に一致し
   // 孤立スナップショットが残らない (旧: 独立 200 トリムで desync していた)。
-  GlobalHistoryService.recordPlotBoard();
+  GlobalHistoryService.recordPlotBoard('プロットボードの変更');
 }
 
 function canUseHistory(stack: readonly PlotBoard[]): boolean {
@@ -184,23 +176,37 @@ export const PlotBoardService = {
     return cached?.projectKey === projectKey(ctx) ? cached.board : currentBoardFrom(ctx);
   },
 
-  addNode(kind: PlotBoardNodeKind, position: PlotBoardPosition): void {
+  addNode(kind: PlotBoardNodeKind, position: PlotBoardPosition): PlotBoardNodeId | undefined {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     const board = currentBoardFrom(ctx);
-    const node = createPlotBoardNode({
-      kind,
-      title: defaultTitle(kind),
-      body: defaultTitle(kind),
-      position,
-      viewMode: 'summary',
-    });
+    const node = {
+      ...createPlotBoardNode({
+        kind,
+        title: defaultTitle(kind),
+        body: '',
+        position,
+        viewMode: 'summary',
+      }),
+      bodyFormat: 'plain' as const,
+    };
     updateBoard({ ...board, nodes: [...board.nodes, node] }, 'immediate');
+    return node.id;
   },
 
   updateNode(nodeId: PlotBoardNodeId, patch: Partial<Omit<PlotBoardNode, 'id'>>): void {
     const next = withNode(nodeId, patch);
-    if (next) updateBoard(next, 'debounced');
+    if (!next) return;
+    const textOnly = Object.keys(patch).every((key) => key === 'title' || key === 'body');
+    const merge =
+      textOnly &&
+      lastTextEdit?.nodeId === nodeId &&
+      lastTextEdit.revision === GlobalHistoryService.revision() &&
+      Date.now() - lastTextEdit.at < 1200;
+    updateBoard(next, 'debounced', merge);
+    lastTextEdit = textOnly
+      ? { nodeId, revision: GlobalHistoryService.revision(), at: Date.now() }
+      : undefined;
   },
 
   moveNode(nodeId: PlotBoardNodeId, position: PlotBoardPosition): void {
@@ -227,6 +233,7 @@ export const PlotBoardService = {
         node.id === nodeId ? { ...node, position: { x: target.x, y: target.y } } : node,
       ),
     });
+    if (position.x === from.x && position.y === from.y) return;
     recordHistory(ctx, moveNodeTo(from));
     const next = moveNodeTo(position);
     replaceBoardInProject(ctx, next);
@@ -235,46 +242,82 @@ export const PlotBoardService = {
 
   commitNode(nodeId: PlotBoardNodeId): void {
     void nodeId;
+    lastTextEdit = undefined;
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     schedulePersist(ctx, currentBoardFrom(ctx), 'immediate');
   },
 
-  /** debounce 待ちの保存を即時に flush し、結果を待って件数で返す。 */
-  async flushPending(): Promise<{ saved: number; failed: number }> {
-    if (persistTimer) {
-      clearTimeout(persistTimer);
-      persistTimer = undefined;
-    }
-    const pending = pendingPersist;
-    pendingPersist = undefined;
-    if (!pending) return { saved: 0, failed: 0 };
-    const ok = await persist(pending.ctx, pending.board);
-    return ok ? { saved: 1, failed: 0 } : { saved: 0, failed: 1 };
-  },
+  flushPending: () => persistence.flushPending(),
 
-  /** debounce 待ちの未保存変更があるか (beforeunload / close ガード用)。 */
-  hasPending(): boolean {
-    return pendingPersist !== undefined;
-  },
+  hasPending: () => persistence.hasPending(),
 
-  /**
-   * プロジェクト切替/close 時にモジュール状態をリセットする。
-   * 保留中の保存は (旧 ctx へ) best-effort で flush してから破棄し、
-   * 残った debounce タイマーが新プロジェクトへ書き込むのを防ぐ。
-   */
   reset(): void {
-    if (persistTimer) {
-      clearTimeout(persistTimer);
-      persistTimer = undefined;
-    }
-    const pending = pendingPersist;
-    pendingPersist = undefined;
-    if (pending) void persist(pending.ctx, pending.board);
+    persistence.discardPending();
+    lastTextEdit = undefined;
     setLocalBoard(undefined);
     undoBoards.length = 0;
     redoBoards.length = 0;
     historyProjectKey = undefined;
+  },
+
+  duplicateNode(nodeId: PlotBoardNodeId): PlotBoardNodeId | undefined {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const board = currentBoardFrom(ctx);
+    const source = board.nodes.find((node) => node.id === nodeId);
+    if (!source) return;
+    const node = {
+      ...source,
+      ...createPlotBoardNode({
+        ...source,
+        position: { x: source.position.x + 32, y: source.position.y + 32 },
+      }),
+    };
+    updateBoard({ ...board, nodes: [...board.nodes, node] }, 'immediate');
+    return node.id;
+  },
+
+  /** シーンの改名・章移動に追従。旧slugだけの参照は他章と曖昧な場合は温存する。 */
+  remapSceneReferences(
+    previous: { chapterSlug: string; sceneSlug: string },
+    next?: { chapterSlug: string; sceneSlug: string },
+  ): void {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const oldKey = `${previous.chapterSlug}/${previous.sceneSlug}`;
+    const newKey = next ? `${next.chapterSlug}/${next.sceneSlug}` : undefined;
+    const ambiguous = ctx.project.scenario.chapters.some((chapter) =>
+      chapter.scenes.some(
+        (scene) =>
+          scene.slug === previous.sceneSlug &&
+          `${chapter.slug}/${scene.slug}` !== oldKey &&
+          `${chapter.slug}/${scene.slug}` !== newKey,
+      ),
+    );
+    const remap = (board: PlotBoard): PlotBoard => ({
+      ...board,
+      nodes: board.nodes.map((node) => {
+        const scenes = node.anchors?.scenes;
+        if (!scenes) return node;
+        const mapped = scenes.flatMap((scene) =>
+          scene === oldKey || (!ambiguous && scene === previous.sceneSlug)
+            ? newKey
+              ? [newKey]
+              : []
+            : [scene],
+        );
+        return { ...node, anchors: { ...node.anchors, scenes: [...new Set(mapped)] } };
+      }),
+    });
+    const before = currentBoardFrom(ctx);
+    const updated = remap(before);
+    if (JSON.stringify(before) === JSON.stringify(updated)) return;
+    for (let index = 0; index < undoBoards.length; index += 1)
+      undoBoards[index] = remap(undoBoards[index]!);
+    for (let index = 0; index < redoBoards.length; index += 1)
+      redoBoards[index] = remap(redoBoards[index]!);
+    updateBoard(updated, 'immediate', true);
   },
 
   removeNode(nodeId: PlotBoardNodeId): void {
@@ -285,7 +328,13 @@ export const PlotBoardService = {
     updateBoard(
       {
         ...board,
-        nodes: board.nodes.filter((node) => node.id !== nodeId),
+        nodes: board.nodes
+          .filter((node) => node.id !== nodeId)
+          .map((node) =>
+            node.threadIds?.includes(nodeId)
+              ? { ...node, threadIds: node.threadIds.filter((id) => id !== nodeId) }
+              : node,
+          ),
         edges: board.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       },
       'immediate',
@@ -299,6 +348,11 @@ export const PlotBoardService = {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     const board = currentBoardFrom(ctx);
+    if (
+      !board.nodes.some((node) => node.id === source) ||
+      !board.nodes.some((node) => node.id === target)
+    )
+      return;
     const exists = board.edges.some((edge) => edge.source === source && edge.target === target);
     if (exists) return;
     const edge = createPlotBoardEdge({ source, target, type: 'next' });
@@ -312,10 +366,11 @@ export const PlotBoardService = {
     let changed = false;
     const edges = board.edges.map((edge) => {
       if (edge.id !== edgeId) return edge;
-      changed = true;
       const type =
         patch.type !== undefined && patch.type.trim() !== '' ? patch.type.trim() : edge.type;
       const label = patch.label !== undefined ? patch.label.trim() : edge.label;
+      if (edge.type === type && (edge.label ?? '') === (label ?? '')) return edge;
+      changed = true;
       return {
         ...edge,
         type,
@@ -329,6 +384,7 @@ export const PlotBoardService = {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
     const board = currentBoardFrom(ctx);
+    if (!board.edges.some((edge) => edge.id === edgeId)) return;
     updateBoard({ ...board, edges: board.edges.filter((edge) => edge.id !== edgeId) }, 'immediate');
   },
 };

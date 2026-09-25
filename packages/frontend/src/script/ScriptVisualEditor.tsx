@@ -56,6 +56,10 @@ export interface ScriptVisualEditorProps {
   onAppendBlock: (kind: ScriptBlock['kind']) => void;
   /** 指定 index に新規ブロックを挿入 (途中挿入)。kind 別の default は親が組み立てる。 */
   onInsertBlock: (index: number, kind: ScriptBlock['kind']) => void;
+  /** Ctrl+D: idx のブロックを複製して直下に挿入。 */
+  onDuplicateBlock: (idx: number) => void;
+  /** Ctrl+Enter: idx の直下に同種の空ブロックを挿入 (line/action は話者を引き継ぐ)。 */
+  onInsertNextBlock: (idx: number) => void;
 }
 
 /**
@@ -128,9 +132,22 @@ function keepPointerFromStealingFocus(e: MouseEvent): void {
 }
 
 export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) => {
+  let blocksRef: HTMLDivElement | undefined;
+
+  // キーボード操作 (Ctrl+Enter 挿入 / Ctrl+D 複製 / Alt+↑↓ 移動) の後に、
+  // 操作対象のカードへフォーカスを移して執筆リズムを切らさない。
+  // Solid の更新は同期だが、念のため microtask 後に DOM を引く。
+  function focusCard(idx: number): void {
+    queueMicrotask(() => {
+      const cards = blocksRef?.querySelectorAll<HTMLElement>('.ss-script-card');
+      const field = cards?.[idx]?.querySelector<HTMLElement>('textarea, input, select');
+      field?.focus();
+    });
+  }
+
   return (
     <div class="ss-script-visual">
-      <div class="ss-script-visual-blocks">
+      <div class="ss-script-visual-blocks" ref={blocksRef}>
         <Show
           when={props.parsed.blocks.length > 0}
           fallback={
@@ -155,6 +172,20 @@ export const ScriptVisualEditor: Component<ScriptVisualEditorProps> = (props) =>
                   onChange={(next) => props.onChangeBlock(i, next)}
                   onDelete={() => props.onDeleteBlock(i)}
                   onMove={(delta) => props.onMoveBlock(i, delta)}
+                  onInsertNext={() => {
+                    props.onInsertNextBlock(i);
+                    focusCard(i + 1);
+                  }}
+                  onDuplicate={() => {
+                    props.onDuplicateBlock(i);
+                    focusCard(i + 1);
+                  }}
+                  onMoveKeyboard={(delta) => {
+                    const to = i + delta;
+                    if (to < 0 || to >= props.parsed.blocks.length) return;
+                    props.onMoveBlock(i, delta);
+                    focusCard(to);
+                  }}
                 />
                 <InsertBar index={i + 1} onInsert={(k) => props.onInsertBlock(i + 1, k)} />
               </>
@@ -244,10 +275,37 @@ interface ScriptBlockCardProps {
   onChange: (next: ScriptBlock) => void;
   onDelete: () => void;
   onMove: (delta: -1 | 1) => void;
+  /** Ctrl+Enter (キーボード): 直下に同種ブロックを挿入してフォーカス移動。 */
+  onInsertNext: () => void;
+  /** Ctrl+D (キーボード): このブロックを複製。 */
+  onDuplicate: () => void;
+  /** Alt+↑/↓ (キーボード): 移動 + フォーカス追従。ボタンの onMove とは別配線。 */
+  onMoveKeyboard: (delta: -1 | 1) => void;
 }
 
 const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   const meta = createMemo(() => KIND_META[props.block.kind]);
+
+  // カード内の textarea / input / select から浮上してくる keydown を拾う。
+  // IME 変換確定の Enter を誤爆しないよう isComposing をガード (keyCode 229)。
+  function onCardKeyDown(e: KeyboardEvent): void {
+    if (e.isComposing) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key === 'Enter') {
+      e.preventDefault();
+      props.onInsertNext();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'd') {
+      e.preventDefault(); // ブラウザのブックマーク登録を抑止
+      props.onDuplicate();
+      return;
+    }
+    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      props.onMoveKeyboard(e.key === 'ArrowUp' ? -1 : 1);
+    }
+  }
   const characters = createMemo(() => {
     const ctx = ProjectService.currentProject();
     if (!ctx) return [];
@@ -271,7 +329,12 @@ const ScriptBlockCard: Component<ScriptBlockCardProps> = (props) => {
   }
 
   return (
-    <div class="ss-script-card" data-kind={props.block.kind} data-color={meta().color}>
+    <div
+      class="ss-script-card"
+      data-kind={props.block.kind}
+      data-color={meta().color}
+      onKeyDown={onCardKeyDown}
+    >
       <div class="ss-script-card-gutter">
         <span class="ss-script-card-icon" title={meta().label}>
           {meta().icon}

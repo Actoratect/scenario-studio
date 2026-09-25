@@ -1,6 +1,10 @@
 import { createRelation, type Relation, type RelationId, type NodeId } from '@scenario-studio/core';
 import { ProjectService } from './ProjectService';
 import { Toast } from './Toast';
+import { GraphPersistence } from '../graph/graph-persistence';
+import { GlobalHistoryService } from './GlobalHistoryService';
+
+const persistence = new GraphPersistence();
 
 // 明示 Relations の CRUD と project model 同期 (PR-E)。
 // 1 関係 = source→target 方向の自由テキスト 1 本 (text)。グラフでは矢印 1 本。
@@ -11,12 +15,26 @@ import { Toast } from './Toast';
 async function persist(next: readonly Relation[]): Promise<void> {
   const ctx = ProjectService.currentProject();
   if (!ctx) return;
-  await ctx.relationsRepository.save(next);
-  Object.assign(ctx.project, { relations: next });
-  ProjectService.touch();
+  const before = ctx.project.relations;
+  const apply = (relations: readonly Relation[]): void => {
+    Object.assign(ctx.project, { relations });
+    if (ProjectService.currentProject()?.handle.id === ctx.handle.id) ProjectService.touch();
+    persistence.schedule(ctx.handle.id, () => ctx.relationsRepository.save(relations), true);
+  };
+  apply(next);
+  GlobalHistoryService.recordGraph(
+    '関係を変更',
+    () => apply(before),
+    () => apply(next),
+  );
+  const result = await persistence.flushPending();
+  if (result.failed > 0) throw new Error('保存に失敗しました。保存ボタンで再試行できます。');
 }
 
 export const RelationsService = {
+  flushPending: () => persistence.flushPending(),
+  hasPending: () => persistence.hasPending(),
+  discardPending: () => persistence.discardPending(),
   /** source→target の関係を 1 本追加。text が空なら何もしない。 */
   async add(input: {
     source: NodeId;
@@ -27,6 +45,12 @@ export const RelationsService = {
     if (!ctx) return undefined;
     const text = input.text.trim();
     if (text === '') return undefined;
+    if (
+      input.source === input.target ||
+      !ctx.project.nodes.has(input.source) ||
+      !ctx.project.nodes.has(input.target)
+    )
+      return undefined;
     const rel = createRelation({ source: input.source, target: input.target, text });
     try {
       await persist([...ctx.project.relations, rel]);
@@ -44,6 +68,8 @@ export const RelationsService = {
     if (!ctx) return;
     const text = patch.text.trim();
     if (text === '') return;
+    if (!ctx.project.relations.some((relation) => relation.id === id && relation.text !== text))
+      return;
     const next = ctx.project.relations.map((r) => (r.id === id ? { ...r, text } : r));
     try {
       await persist(next);
@@ -56,6 +82,7 @@ export const RelationsService = {
   async remove(id: RelationId): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
+    if (!ctx.project.relations.some((relation) => relation.id === id)) return;
     const next = ctx.project.relations.filter((r) => r.id !== id);
     try {
       await persist(next);

@@ -26,6 +26,21 @@ describe('FsPlotBoardRepository', () => {
     expect(await repo.loadMain()).toBeUndefined();
   });
 
+  it('表題と同じ文で始まる本文もplain形式で欠落なく往復する', async () => {
+    const node = {
+      ...createPlotBoardNode({
+        kind: 'memo',
+        title: '合流',
+        body: '合流\n二人が出会う。',
+        position: { x: 0, y: 0 },
+      }),
+      bodyFormat: 'plain' as const,
+    };
+    const board = { ...createMainPlotBoard(), nodes: [node] };
+    await repo.saveMain(board);
+    expect((await repo.loadMain())?.nodes[0]).toEqual(node);
+  });
+
   it('saveMain() then loadMain() round-trips a board', async () => {
     const thread = createPlotBoardNode({
       kind: 'thread',
