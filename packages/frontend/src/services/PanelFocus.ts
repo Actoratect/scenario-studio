@@ -36,6 +36,7 @@ export const PanelFocus = {
     if (!api) return false;
     const panel = api.getPanel(panelId);
     if (panel) {
+      if (api.hasMaximizedGroup() && !panel.group.api.isMaximized()) api.exitMaximizedGroup();
       panel.api.setActive();
       return true;
     }
@@ -48,6 +49,7 @@ export const PanelFocus = {
     const same = api.panels.filter((p) => p.view.contentComponent === component);
     const existing = same[same.length - 1];
     if (existing) {
+      if (api.hasMaximizedGroup() && !existing.group.api.isMaximized()) api.exitMaximizedGroup();
       existing.api.setActive();
       return true;
     }
@@ -55,6 +57,7 @@ export const PanelFocus = {
     if (!id) return false;
     const created = api.getPanel(id);
     if (!created) return false;
+    if (api.hasMaximizedGroup() && !created.group.api.isMaximized()) api.exitMaximizedGroup();
     created.api.setActive();
     return true;
   },

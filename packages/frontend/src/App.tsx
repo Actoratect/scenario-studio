@@ -57,7 +57,17 @@ export const App: Component = () => {
   return (
     <>
       <ErrorBoundary fallback={CrashFallback}>
-        <Show when={ProjectService.currentProject()} fallback={<ProjectPicker />}>
+        <Show
+          when={ProjectService.currentProject()}
+          fallback={
+            <Show when={ProjectService.opening()} fallback={<ProjectPicker />}>
+              <div class="workspace-opening" role="status" aria-live="polite" aria-busy="true">
+                <span class="ss-spinner ss-spinner-lg" aria-hidden="true" />
+                <p>プロジェクトを読み込んでいます…</p>
+              </div>
+            </Show>
+          }
+        >
           <WorkspaceShell />
         </Show>
       </ErrorBoundary>
