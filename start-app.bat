@@ -1,38 +1,54 @@
 @echo off
-rem ============================================================
-rem  Scenario Studio 起動用バッチ (開発サーバ)
-rem  ダブルクリックで dev サーバを起動し、ブラウザを自動で開く。
-rem  初回 (node_modules 不在) は依存インストールも自動で行う。
-rem  ※ Chrome / Edge 推奨 (フォルダ書込みに File System Access API を使うため)
-rem ============================================================
-chcp 65001 >nul
+setlocal EnableExtensions
+rem Keep this file ASCII-only so cmd.exe can parse it on every Windows code page.
 cd /d "%~dp0"
 
 echo.
-echo  Scenario Studio を起動します...
-echo  (初回は依存解決で少し時間がかかる場合があります)
-echo  ブラウザが自動で開かない場合は http://localhost:5173/ を開いてください。
+echo  Starting Scenario Studio...
+echo  If the browser does not open, visit http://127.0.0.1:5173/
 echo.
 
-rem 初回セットアップ: node_modules が無ければ依存をインストールする
-if exist "node_modules\" goto deps_ready
-echo  初回セットアップ: 依存パッケージをインストールします。数分かかることがあります...
+where.exe node >nul 2>&1
+if errorlevel 1 goto node_missing
+
+rem Install workspace dependencies on the first launch.
+if exist "packages\frontend\node_modules\.bin\vite.cmd" goto deps_ready
+where.exe corepack >nul 2>&1
+if errorlevel 1 goto corepack_missing
+echo  Installing dependencies for the first launch...
 echo.
 call corepack pnpm install
 if errorlevel 1 goto install_failed
+
 :deps_ready
-
-rem corepack は Node 同梱。packageManager (pnpm) を自動で用意する。
-call corepack pnpm -F frontend exec vite --open
-
-echo.
-echo  dev サーバが終了しました。
-pause
+pushd "packages\frontend"
+node "node_modules\vite\bin\vite.js" --open
+set "launch_result=%errorlevel%"
+popd
+if not "%launch_result%"=="0" goto launch_failed
+if errorlevel 1 goto launch_failed
 exit /b 0
+
+:node_missing
+echo.
+echo  ERROR: Node.js was not found. Install Node.js 20 or newer and try again.
+goto failed
+
+:corepack_missing
+echo.
+echo  ERROR: Corepack was not found. Install a Node.js version that includes Corepack.
+goto failed
 
 :install_failed
 echo.
-echo  依存パッケージのインストールに失敗しました。
-echo  Node.js v20 以上が入っているか、ネットワーク接続を確認して再実行してください。
+echo  ERROR: Dependency installation failed. Check the messages above and try again.
+goto failed
+
+:launch_failed
+echo.
+echo  ERROR: Scenario Studio could not start. Check the messages above.
+
+:failed
+echo.
 pause
 exit /b 1
