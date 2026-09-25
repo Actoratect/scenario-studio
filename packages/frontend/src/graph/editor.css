@@ -1,0 +1,146 @@
+.plot-board-toolbar {
+  flex-wrap: wrap;
+  min-height: 38px;
+  padding: 6px 10px;
+}
+.plot-board-toolbar select {
+  max-width: 125px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 5px;
+  padding: 4px;
+}
+.plot-board-card--selected {
+  outline: 2px solid var(--ss-accent-blue);
+  outline-offset: -2px;
+}
+.plot-board-card .plot-board-card-body {
+  max-height: none;
+  min-height: 0;
+}
+.plot-board-card-header {
+  flex-shrink: 0;
+}
+.plot-board-drag-grip {
+  font-size: 18px;
+  color: var(--ss-text-muted);
+  padding: 0 3px;
+}
+.plot-board-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--ss-text-muted);
+  border-top: 1px solid var(--ss-border-soft);
+  background: var(--ss-bg-soft);
+}
+.plot-board-connect {
+  margin-left: auto;
+  border: 1px solid var(--ss-accent-blue);
+  color: var(--ss-accent-blue);
+  background: var(--ss-bg);
+  border-radius: 5px;
+  padding: 2px 7px;
+  cursor: crosshair;
+}
+.plot-board-inspector {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  width: min(260px, 42%);
+  max-height: calc(100% - 72px);
+  overflow: auto;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px #0002;
+  z-index: 2;
+  font-size: 12px;
+}
+.plot-board-inspector header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plot-board-inspector header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.plot-board-inspector label {
+  display: grid;
+  gap: 4px;
+}
+.plot-board-inspector select,
+.plot-board-inspector button {
+  max-width: 100%;
+  color: var(--ss-text);
+  background: var(--ss-bg-soft);
+  border: 1px solid var(--ss-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.plot-board-inspector fieldset {
+  border: 1px solid var(--ss-border-soft);
+  padding: 7px;
+  display: grid;
+  gap: 5px;
+}
+.plot-board-inspector .plot-board-thread-option {
+  display: flex;
+  align-items: center;
+}
+.plot-board-anchor {
+  display: flex;
+  gap: 4px;
+}
+.plot-board-anchor button:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--ss-accent-blue);
+}
+.plot-board-inspector-actions {
+  display: flex;
+  gap: 6px;
+}
+.lens-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.lens-view-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+}
+.lens-view-controls button {
+  padding: 5px 8px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  border: 1px solid var(--ss-border);
+  border-radius: 5px;
+}
+.lens-comment-header {
+  height: 18px;
+  flex-shrink: 0;
+  cursor: grab;
+  background: #b48c3c33;
+}
+.lens-comment-body {
+  pointer-events: auto;
+}

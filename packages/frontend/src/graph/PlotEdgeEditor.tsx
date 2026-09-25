@@ -1,4 +1,4 @@
-import { createEffect, createSignal, Show } from 'solid-js';
+import { createEffect, createSignal, For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { StableTextInput } from '../global/StableTextControl';
 import { clampPopoverPosition } from './RelationTypePicker';
@@ -9,6 +9,7 @@ import { clampPopoverPosition } from './RelationTypePicker';
 
 export interface PlotEdgeEditorProps {
   open: boolean;
+  editType?: boolean;
   /** 現在の種類/ラベル。表示は label を優先し、無ければ type をフォールバック。 */
   initial?: { type: string; label?: string | undefined } | undefined;
   /** "始点 → 終点" のキャプション。 */
@@ -23,24 +24,36 @@ export interface PlotEdgeEditorProps {
   at?: { x: number; y: number } | undefined;
   onClose: () => void;
   /** ラベルを確定。空文字なら種類 (type) 表示 / ラベル無しに戻る。 */
-  onSubmit: (label: string) => void;
+  onSubmit: (label: string, type?: string) => void;
   onDelete: () => void;
 }
 
 export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
   const [text, setText] = createSignal('');
+  const [edgeType, setEdgeType] = createSignal('next');
+  const types = [
+    ['next', '次へ'],
+    ['causes', '原因'],
+    ['foreshadows', '伏線'],
+    ['resolves', '回収'],
+    ['blocks', '障害'],
+    ['contrasts', '対比'],
+    ['belongs_to', '所属'],
+    ['realized_in', '実現先'],
+  ];
   let dialogRef: HTMLDivElement | undefined;
 
   createEffect(() => {
     if (props.open) {
-      setText(props.initial?.label || props.initial?.type || '');
+      setText(props.initial?.label ?? '');
+      setEdgeType(props.initial?.type || 'next');
       // ポップアップと同時に入力可能にする (autofocus 属性は動的挿入では効かない)
       queueMicrotask(() => dialogRef?.querySelector('input')?.focus());
     }
   });
 
   function submit(): void {
-    props.onSubmit(text().trim());
+    props.onSubmit(text().trim(), props.editType ? edgeType() : undefined);
     props.onClose();
   }
 
@@ -67,13 +80,27 @@ export const PlotEdgeEditor: Component<PlotEdgeEditorProps> = (props) => {
           <Show when={props.caption}>{(c) => <p class="ss-modal-caption">{c()}</p>}</Show>
 
           <div class="ss-modal-section">
+            <Show when={props.editType}>
+              <label>
+                <strong>接続の意味</strong>
+                <select
+                  value={edgeType()}
+                  onChange={(event) => setEdgeType(event.currentTarget.value)}
+                >
+                  <For each={types}>{(entry) => <option value={entry[0]}>{entry[1]}</option>}</For>
+                  <Show when={!types.some((entry) => entry[0] === edgeType())}>
+                    <option value={edgeType()}>{edgeType()}</option>
+                  </Show>
+                </select>
+              </label>
+            </Show>
             <label>
-              <strong>種類 / ラベル</strong>
+              <strong>ラベル</strong>
               <StableTextInput
                 value={text()}
                 onInput={setText}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') submit();
+                  if (e.key === 'Enter' && !e.isComposing) submit();
                 }}
                 placeholder={props.placeholder ?? '例: 伏線 / 対立 / きっかけ'}
                 autofocus

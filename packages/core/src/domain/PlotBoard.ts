@@ -28,6 +28,8 @@ export interface PlotBoardNode {
   kind: PlotBoardNodeKind;
   title: string;
   body: string;
+  /** 旧版は本文先頭に表題を含む。plain は表題と独立した本文。 */
+  bodyFormat?: 'plain' | undefined;
   position: PlotBoardPosition;
   threadIds?: readonly PlotBoardNodeId[] | undefined;
   anchors?: PlotBoardAnchors | undefined;
