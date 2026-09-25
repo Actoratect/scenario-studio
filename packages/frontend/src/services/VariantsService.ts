@@ -1,9 +1,10 @@
 import type { EraId, FieldValue, NodeId, NodeVariant, ScenarioNode } from '@scenario-studio/core';
 import { ProjectService } from './ProjectService';
 import { Toast } from './Toast';
+import { useSaveScheduler } from './save-scheduler-binding';
 
 // Era Variant の編集 (PR-L)。
-// ScenarioNode.variants 配列を直接書き換えて NodeRepository.save する。
+// ScenarioNode.variants 配列を更新し、ベースの編集と同じ明示保存経路へ積む。
 // NodeFieldStore (Yjs) は base.fields のみ扱うので、variant 編集はこの service が担当。
 // 詳細: ../../../../Documentation/ScenarioEditor/03_data-model.md §1.2,
 //       ../../../../Documentation/ScenarioEditor/05_timeline.md
@@ -11,12 +12,14 @@ import { Toast } from './Toast';
 async function persistNode(node: ScenarioNode): Promise<void> {
   const ctx = ProjectService.currentProject();
   if (!ctx) return;
-  await ctx.nodeRepository.save(node);
+  // ディスク書き込みを待ってから反映すると、連続入力が古い状態を読み、
+  // 遅い保存の完了順に入力が巻き戻る。まず同期的に最新値を公開する。
   // ProjectModel.nodes Map を更新 → Inspector / Graph の reactive 更新を促す
   const next = new Map(ctx.project.nodes);
   next.set(node.id, node);
   Object.assign(ctx.project, { nodes: next });
   ProjectService.touch();
+  useSaveScheduler().schedule(node.id);
 }
 
 function findOrCreateVariant(node: ScenarioNode, eraId: EraId): NodeVariant {

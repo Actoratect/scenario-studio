@@ -1,7 +1,23 @@
 # Scenario Studio — 使い方ガイド
 
+> **対象**: Scenario Studio ブラウザ開発版 (Chrome / Edge)
+> **更新日**: 2026-09-26
+> マスターデータ・ローカライズ・AI は仕様保留です。下記のAI機能説明は既存実装の参考情報です。スマホ版は別途 [`23_scenario_studio_mini.md`](./ScenarioEditor/23_scenario_studio_mini.md) を参照。
+
 このドキュメントは「Scenario Studio を実際に書く側 / レビューする側」が読むためのガイドです。
-技術設計は `Documentation/ScenarioEditor/` の 00-22 章を参照してください。
+技術設計は `Documentation/ScenarioEditor/` の 00-25 章を参照してください。
+
+## 更新履歴 (このガイドに反映済の変更)
+
+| 版    | 日付       | 主な変更                                                                 |
+|------|------------|---------------------------------------------------------------------------|
+| 開発版 | 2026-09-26 | グラフ/プロットカード編集、キャラの任意項目・台詞、タブ/作業面整理、保存・下書き保護 |
+| 0.1.0 | 2026-05-08 | Phase 1 + post-MVP A〜AY を反映。本ガイド初版                               |
+|      |            | - UX-1〜6, 8 (🩺 Health / Script Rail / Plot Flow / 🎮 Unity / Review HTML / 📝 Patch / 🤝 Handoff) |
+|      |            | - キャラ「描写」群を再構成 (`tagline` / `personality` / `keywords` / `dialogue_sample` / `possessions`) + 「メモ」群追加 |
+|      |            | - `gender` / `tone` / Relation `type` を自由入力化 (旧 enum はプリセット扱い) |
+|      |            | - PortraitCropper のドラッグ反映バグ修正 + 「サムネ登録: 📐 全身 / 🙂 顔」改名 |
+|      |            | - Mini (スマホ版) の計画を追加 — 同データ運用                              |
 
 ---
 
@@ -35,8 +51,8 @@ pnpm -F frontend dev
 - **「フォルダを選択」** — 既存プロジェクトを開く。
 - **「新規プロジェクト」** — 空フォルダから作成。
 
-> Chrome / Edge は File System Access API でフォルダ直書き、Firefox / Safari は OPFS フォールバック。
-> 本番運用は Chrome / Edge 推奨です。
+> Chrome / Edge は File System Access API でフォルダに直接保存します。
+> Firefox / Safari 向けの起動画面からの編集は未対応です。
 
 ### 配布版
 
@@ -50,18 +66,19 @@ pnpm -F frontend dev
 ## 3. 画面の見方 (パネル早見)
 
 Workspace は **Dockview** で自由にレイアウトできます。各パネルは drag でフロート / 分割可。
-ヘッダ右の **⟳** で初期 layout に戻ります。
+**ツール・表示 → レイアウトを初期化** で初期配置に戻ります。新しい初期配置は、左がアウトライン、中央がグラフ・脚本・あらすじ・プロットのタブ、右がインスペクタです。既存の保存済み配置は維持されます。
+
+選択したパネルを **集中表示** で広げられます。**配置に戻る** で元の配置へ戻ります。タブ右のメニューから補助パネルを追加できます。選択中のタブは太字と下線、各タブとパネルの境界は枠線で示します。
 
 | パネル | 何をする |
 |---|---|
-| 🕸 **グラフ** | キャラ / 場所 / 派閥 の関係性を見る・編集する。Lens 切替で 🗺 **Plot Flow** (シーン遷移) も表示 |
+| 🕸 **グラフ** | 関係図 / シーン遷移 / プロットボードを切り替えて編集 |
 | 📝 **インスペクタ** | 選択中ノード (キャラ / 場所 / アイテム) のフィールド編集 |
 | 📚 **アウトライン** | 章 / シーン構造を drag 並べ替え |
 | 📖 **あらすじ** | プロジェクト全体の Markdown synopsis (画像も埋め込める) |
 | 🎬 **脚本** | scene script を block 単位 (line / aside / stage / sfx / bgm / choice) で編集 |
 | 🧪 **ベンチ** | 大規模グラフのレンダリング検証 (開発用) |
 | ⚠ **コンソール** | Lint issue 一覧。クリックで該当ノード / シーンへジャンプ |
-| 📘 **用語集** | 正式表記 / 別表記 / 禁止表記 を CRUD |
 | 🤖 **AI** | プロバイダ選択・unlock |
 | ⚙ **設定** | プロジェクト設定 / Era CRUD |
 | 🗂 **プロット** | シーン timeline (drag-reorder) |
@@ -71,15 +88,19 @@ Workspace は **Dockview** で自由にレイアウトできます。各パネ�
 ### Workspace ヘッダ (常駐)
 
 ```
-[Project名] [Era Slider] [SaveBadge] [⌨] [🩺] [?] [📝 Patch] [🎮] [⤓ Export] [⟳] [プロジェクトを閉じる]
+[Project名] [時間軸] [保存・保存状態] [戻る・進む] [集中表示] [書き出し] [ツール・表示]
 ```
 
 | ボタン | 機能 |
 |---|---|
+| 集中表示 / 配置に戻る | 選択パネルを広げる / 元の配置へ復帰 |
+| ツール・表示 | ヘルプ、状態確認、文字サイズ、レイアウト初期化、プロジェクトを閉じるなど |
 | 🩺 | **Project Health** — Lint Top / 不足アセット / 章別進捗 (起動 10 秒で「次に直すべき」が分かる) |
 | 📝 Patch | **AI Patch Queue** — AI / 用語スキャナの修正候補を承認 / 却下 |
 | 🎮 | **Unity Readiness** — Unity 出力前のチェック (サムネ / 音声 / metadata 不足) |
 | ⤓ Export | scene / chapter / project を text / Markdown / **Review HTML** で書き出し |
+
+状態確認・AI・Unityなどの補助操作は「ツール・表示」にまとめています。
 
 ---
 
@@ -117,6 +138,11 @@ Workspace は **Dockview** で自由にレイアウトできます。各パネ�
 
 - **🕸 Relationship** — キャラ間の関係性 (デフォルト)。 `Shift+drag` で関係作成
 - **🗺 Plot Flow** — シーン間遷移 (next / choice goto)。⚠ バッジ = 到達不能 / 解決失敗
+- **プロットボード** — スレッド・出来事・メモ・問い・シーン参照をカードで作成。上部の種類選択と「＋ カード」で追加し、表題・本文を直接編集できます。
+
+プロットカードの上部をドラッグすると移動、**接続 →** から別カードへドラッグすると接続できます。線のラベルをクリックして種類や説明を変更します。選択カードの詳細から種類・複数スレッドへの所属・シーン/キャラ/場所への参照を編集し、参照先を開けます。複製・削除と **戻る / 進む** も利用できます。
+
+**全体表示** はすべてのカードが収まる倍率へ調整します。プロットボードにフォーカスがあるときは `F` でも全体表示、`Delete` で選択カードを削除できます。入力欄での文字編集を優先します。
 
 2 段目の filter 行:
 
@@ -131,6 +157,26 @@ Workspace は **Dockview** で自由にレイアウトできます。各パネ�
 - BulkVariantOverlay で対象 Era を checkbox 選択 → 1 回で全 Era に書込
 
 > **コツ**: Era は「設定の差分管理」用。base に共通項目、Era は差分のみ。
+
+### 4.5 キャラ資料と台詞を入力する
+
+アウトラインや関係図でキャラを選び、インスペクタの **設定 / 台詞 / 補足** を切り替えます。
+
+- **設定**: 名前・呼び名・よみがな、学年・部活・登場場所、一人称や敵の呼び方、人物像・プロフィール・経緯・秘密、見た目など。各グループの **項目を追加** から必要な欄を選びます。既存の入力値は表示され、**空欄も表示** で全項目を開けます。
+- **台詞**: 場面を選んで追加し、1行に1つの台詞を入力します。場面名は自由追加も可能です。「仲間が倒れた時」は相手キャラを選んで個別に登録します。未登録の場面/相手の入力欄は並びません。
+- **補足**: メモなどの補足資料。画像は設定タブの小さな画像欄から登録し、**画像を調整** でトリミングを開きます。
+
+台詞と秘密のフラグは設定資料として編集・保存します。ランダム台詞の再生やフラグ判定はゲーム側の仕様です。既存の `birth_year` (年齢)、`appearance`、`dialogue_sample` などの保存キーは維持しています。
+
+場面別台詞は `dialogue_by_scene`、相手別台詞は `dialogue_on_ally_down` に「キー → 改行文字列」で保存します。相手は名前ではなくNodeIdを使い、改名しても紐付けを保ちます。時代差分で削除した項目は `null` を保持し、継承による復活を防ぎます。
+
+### 4.6 保存と編集中の下書き
+
+キャラ・時代差分・脚本・あらすじ・章/シーンのプロットを編集したら **保存 (Ctrl/Cmd+S)** で確定します。グラフのカード・接続・位置・メモは遅延保存も行い、保存ボタンでもまとめて確定できます。保存に失敗した変更は未保存表示に残り、再試行できます。
+
+脚本のYAMLが入力途中で一時的に不正でも、同じプロジェクト内でシーンやタブを切り替えて戻ると下書きを復元します。不正なYAMLは保存時にエラーを表示します。この下書きはメモリ上の保持であり、ブラウザ再読込・終了後の復元は保証しません。
+
+シーンの改名・移動・削除は関連する未保存編集を先に保存し、失敗時は操作を中断します。「プロジェクトを閉じる」では保存を確認し、破棄を選んだ未着手のグラフ保存も取り消します。
 
 ---
 
@@ -377,20 +423,48 @@ id: 0101KQRB45DV3ZPN2GG4YZS32J0D       # ULID — 既存と衝突しない値
 templateId: template.character
 slug: aerith                            # ファイル名と一致
 fields:
+  # 基本情報
   display_name: エアリス・ゲインズブール    # 表示用 (UI / Export で使用)
   reading: えありす・げいんずぶーる         # 読み仮名
   dev_name: Aerith                       # script の who で参照する英字内部名
-  gender: female                         # enum: male / female / nonbinary / unknown
-  tone: casual                           # enum: casual / polite / formal / rough / archaic
-  first_person: わたし                    # 一人称 (口調確認用)
+  gender: female                         # 自由入力 (例: male / female / 中性 / 不明)
   birth_year: -2                         # 物語時系列の相対年 (整数可)
   height: 163                            # 数値 (cm)
-  appearance: ピンクのリボンで髪を結った...  # multiline 可
-  personality: 太陽のように朗らかで...       # multiline 可
+
+  # 話し方
+  first_person: わたし                    # 一人称 (口調確認用)
+  tone: casual                           # 自由入力 (例: casual / 丁寧 / 武人風 / 古風)
+
+  # 描写 (新)
+  tagline: 古代種最後の生き残り、太陽のような少女   # 一言でいえば...
+  personality: 太陽のように朗らかで芯が強い。星の声を聞く力を持つ。
+  keywords: 朗らか、星の声、好奇心、芯が強い、健気
+  dialogue_sample: |
+    「わたし、覚えてるよ」
+    「行こ、クラウド。星が呼んでる」
+  possessions: |
+    ・古代種の杖
+    ・教会の白い花
+
+  # 関係
   faction: 0101KQRB45CY0ZGV70XMJEPFY5NK  # node_ref → factions/<slug>.yaml の id
+
+  # メモ (自由記入)
+  memo: 取材メモ / TODO / 仮置きアイデアなど
+
+  # 補足 (旧データ互換)
+  appearance: ピンクのリボンで髪を結った...  # 旧版で使っていた外見欄。データがあれば
+                                          # Inspector に「外見 (旧)」として表示される
 thumbnail: Media/aerith.png              # 任意。キャラサムネ画像パス (相対)
-thumbnailRect: { x: 10, y: 0, w: 100, h: 100 }  # 任意。立ち絵から丸サムネを切り抜く矩形
+thumbnailRect: { x: 0.1, y: 0, size: 0.6 }  # 任意。立ち絵から丸サムネを切り抜く矩形 (0..1 normalized)
 ```
+
+> **0.1.0 で変わった点**:
+> - `gender` / `tone` は **自由入力** (旧 enum 値も互換)
+> - 「描写」は `tagline` / `personality` / `keywords` / `dialogue_sample` / `possessions` の 5 項目に再構成
+> - `memo` 群を新設 — 自由記入欄
+> - `appearance` は旧データ保護のため「補足」群に残置 (新規入力は `tagline` 推奨)
+> - `thumbnailRect` は `{ x, y, size }` (0..1 normalized) — 旧 `{ x, y, w, h }` 表記のドキュメント例は誤りでした
 
 #### `Nodes/locations/<slug>.yaml`
 
@@ -494,9 +568,13 @@ relations:
   - id: rel.01KQRB45JB...                # 任意の一意 ID
     source: 0101...                       # node id (character)
     target: 0101...                       # node id
-    type: friend                          # friend / enemy / family / mentor / love / rival / etc.
+    type: friend                          # 自由入力。プリセット = parent / child / friend / enemy / member_of
     label: 幼馴染                          # 任意。表示用ラベル
 ```
+
+> **0.1.0 で変わった点**: `type` は **自由入力** (任意文字列)。
+> プリセット 5 種は UI のクイック選択用に残置、独自タイプ (例: `師弟` / `ライバル` / `契約関係`) も保存可能。
+> 未知の type は `getRelationType` で symmetric (= 双方向対称) として扱われる。
 
 ### 8.4 Script block 種別 (scene の `script` 配列)
 
@@ -526,7 +604,9 @@ relations:
 |---|---|---|
 | 「新キャラ ◯◯ を追加して」 | `Nodes/characters/<slug>.yaml` 新規 | display_name / dev_name / slug を埋める。faction は既存 id を参照 (なければ後付け) |
 | 「◯章 △番目に新シーン」 | `Scenarios/<ch>/<scene>.scn.yaml` 新規 + `_scene_index.yaml` 更新 | scene 中で参照する who は dev_name / slug いずれか実在 |
-| 「キャラ A の口調を変えて」 | `Nodes/characters/A.yaml` の `tone` / `first_person` | 過去 scene の line も整合性チェック (Lint が拾う) |
+| 「キャラ A の口調を変えて」 | `Nodes/characters/A.yaml` の `tone` (自由入力) / `first_person` / `dialogue_sample` | 過去 scene の line も整合性チェック (Lint が拾う) |
+| 「キャラ A にメモを残しておく」 | `Nodes/characters/A.yaml` の `memo` フィールドに追記 | 自由記入欄。Lint / Export では参照されない |
+| 「キャラ A の所持品を追加」 | `Nodes/characters/A.yaml` の `possessions` を多行で更新 | `・` 始まり箇条書きが見やすい |
 | 「用語『◯◯』の表記揺れを禁止に」 | `Glossary/terms.yaml` の forbidden に追加 | 既存 scene 内の forbidden 表記は Patch Queue で一括修正可 |
 | 「Era B 時点ではキャラ A は子供」 | `Nodes/characters/A.yaml` の `variants:` に era.B のオーバーライドを追加 | base はそのまま、差分のみ書く |
 | 「シーンに分岐を追加」 | `<scene>.scn.yaml` の script に `kind: choice` ブロック追加 | 各 option の then 先 scene が実在することを確認 |
@@ -576,6 +656,8 @@ relations:
 - **タブを最大化しない癖**: ScriptPanel だけ全画面にしても Rail がコンテキストを補ってくれます。Inspector を毎回切り替える必要は減ります。
 - **Era は base 共通 + 差分**: 全項目を Era に書かない。base に書ける情報は base に。
 - **YAML を直接いじっていい**: アプリ起動中でも、外部エディタで `.scn.yaml` を直接編集 → 保存すると ConflictDetector が検知し、上書きを止めて prompt します。
+- **キャラの「描写」は 5 項目を分担して埋める**: `tagline` (一言要約) → `personality` (性格詳細) → `keywords` (タグ) → `dialogue_sample` (口調確認のサンプルセリフ) → `possessions` (持ち物)。AI に渡すとき各項目が分かれていると prompt の質が上がります。
+- **「メモ」群は仕様確定前のアイデア置き場**: 取材メモ / 仮置きアイデア / TODO は `memo` フィールドに。Lint / Export では参照されないので汚しても OK。
 
 ### 直すとき
 
@@ -598,6 +680,8 @@ relations:
 - **AI が動かない**: AI panel が unlock 状態か確認。ロック中だと Patch Queue / 右クリック AI も「lock」表示。
 - **Layout が崩れた**: ヘッダ ⟳ で初期化。
 - **文字化け**: YAML / Markdown は UTF-8 前提。外部エディタで保存する際は BOM なし UTF-8 で。
+- **立ち絵の crop 枠が動かない / 前のキャラの画像が残る**: 0.1.0 で修正済 (PR #74)。古いビルドを使っているなら最新を pull してください。
+- **キャラ Inspector で「外見 (旧)」群が表示される**: 0.1.0 以前に書いた `appearance` フィールドが残っているケース。新規入力は「描写」群の `tagline` 推奨。データを移したあとは YAML から `appearance` を削除すれば「補足」群は消えます。
 
 ---
 

@@ -22,18 +22,23 @@ export const NodeThumbnail: Component<NodeThumbnailProps> = (props) => {
   // source は createResource の falsy 不発火を避けるため常に object 返却。
   // source の同一性はサムネに効く id/thumbnail/rect のみで決め、display_name 等の
   // 無関係なフィールド更新で resolveCroppedUrl が無駄に再実行されるのを防ぐ。
-  const source = createMemo(() => ({
-    id: props.node.id,
-    thumbnail: props.node.thumbnail ?? '',
-    rectKey: props.node.thumbnailRect
-      ? `${props.node.thumbnailRect.x}::${props.node.thumbnailRect.y}::${props.node.thumbnailRect.size}`
-      : '',
-  }));
+  const source = createMemo(
+    () => ({
+      node: props.node,
+      id: props.node.id,
+      thumbnail: props.node.thumbnail ?? '',
+      rectKey: props.node.thumbnailRect
+        ? `${props.node.thumbnailRect.x}::${props.node.thumbnailRect.y}::${props.node.thumbnailRect.size}`
+        : '',
+    }),
+    undefined,
+    { equals: (a, b) => a.id === b.id && a.thumbnail === b.thumbnail && a.rectKey === b.rectKey },
+  );
   const [url] = createResource(
-    source,
+    () => source(),
     async (src) => {
       if (!src.thumbnail) return undefined;
-      return ThumbnailService.resolveCroppedUrl(props.node);
+      return ThumbnailService.resolveCroppedUrl(src.node);
     },
     { initialValue: undefined },
   );

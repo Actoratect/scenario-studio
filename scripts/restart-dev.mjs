@@ -1,65 +1,82 @@
 #!/usr/bin/env node
-// dev server を「楽に再起動」するためのワンコマンド。
-// 既存の vite プロセス (5173 を listen している node) を kill してから dev を起動する。
-// 使い方: `npm run restart` (どのフォルダからでも可、ルート package.json から呼ばれる)
-
-import { spawn, execSync } from 'node:child_process';
+// このワークスペースの Vite listener だけを停止し、開発サーバを起動する。
+import { spawn, execFileSync } from 'node:child_process';
 import { platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { isWorkspaceVite } from './dev-processes.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const isWin = platform() === 'win32';
 
-function killOnPort(port) {
-  try {
-    if (isWin) {
-      const out = execSync(`netstat -ano -p tcp | findstr :${port}`, {
+function listeners() {
+  if (isWin) {
+    const script = [
+      '$ErrorActionPreference = "Stop"',
+      '$ids = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -ge 5173 -and $_.LocalPort -le 5180 } | Select-Object -ExpandProperty OwningProcess -Unique)',
+      '@(Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in $ids } | Select-Object ProcessId, CommandLine) | ConvertTo-Json -Compress',
+    ].join('\n');
+    const raw = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      {
         encoding: 'utf8',
-      });
-      const pids = new Set();
-      for (const line of out.split(/\r?\n/)) {
-        const m = line.trim().match(/\s(\d+)$/);
-        if (m && m[1] !== '0') pids.add(m[1]);
-      }
-      for (const pid of pids) {
-        try {
-          execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
-          console.log(`[restart] killed PID ${pid} (port ${port})`);
-        } catch {
-          /* already gone */
-        }
-      }
-    } else {
-      const out = execSync(`lsof -ti :${port}`, { encoding: 'utf8' });
-      for (const pid of out.split(/\s+/).filter(Boolean)) {
-        try {
-          execSync(`kill -9 ${pid}`);
-          console.log(`[restart] killed PID ${pid} (port ${port})`);
-        } catch {
-          /* already gone */
-        }
-      }
-    }
-  } catch {
-    // listen している process が無いだけなので無視
+        windowsHide: true,
+      },
+    ).trim();
+    const result = raw ? JSON.parse(raw) : [];
+    return (Array.isArray(result) ? result : [result]).map((p) => ({
+      pid: Number(p.ProcessId),
+      command: p.CommandLine ?? '',
+    }));
   }
+  let output;
+  try {
+    output = execFileSync('lsof', ['-nP', '-sTCP:LISTEN', '-tiTCP:5173-5180'], {
+      encoding: 'utf8',
+    });
+  } catch (error) {
+    if (error.status === 1) return [];
+    throw error;
+  }
+  return [...new Set(output.split(/\s+/).filter(Boolean))].map((pid) => ({
+    pid: Number(pid),
+    command: execFileSync('ps', ['-p', pid, '-o', 'command='], { encoding: 'utf8' }),
+  }));
 }
 
-console.log('[restart] vite dev (port 5173-5180) を停止しています...');
-for (let port = 5173; port <= 5180; port++) {
-  killOnPort(port);
+try {
+  for (const { pid, command } of listeners()) {
+    if (!Number.isSafeInteger(pid) || pid <= 0 || !isWorkspaceVite(command, root)) continue;
+    try {
+      process.kill(pid);
+      console.log(`[restart] stopped workspace Vite (PID ${pid})`);
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+  }
+} catch (error) {
+  console.error(`[restart] Could not inspect/stop the workspace server: ${error.message}`);
+  process.exit(1);
 }
 
-console.log('[restart] vite dev を起動します...');
-const child = spawn('npm', ['--prefix', 'packages/frontend', 'run', 'dev'], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: true,
-});
-
-process.on('SIGINT', () => child.kill('SIGINT'));
-process.on('SIGTERM', () => child.kill('SIGTERM'));
-
-child.on('exit', (code) => process.exit(code ?? 0));
+if (!process.argv.includes('--stop-only')) {
+  const child = spawn(
+    process.execPath,
+    [resolve(root, 'packages/frontend/node_modules/vite/bin/vite.js'), '--open'],
+    {
+      cwd: resolve(root, 'packages/frontend'),
+      stdio: 'inherit',
+      windowsHide: true,
+    },
+  );
+  process.on('SIGINT', () => child.kill('SIGINT'));
+  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  child.on('error', (error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+  child.on('exit', (code) => {
+    process.exitCode = code ?? 0;
+  });
+}

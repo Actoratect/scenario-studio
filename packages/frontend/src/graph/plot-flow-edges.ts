@@ -1,4 +1,6 @@
-import { createSignal } from 'solid-js';
+import { createSignal, untrack } from 'solid-js';
+import { GraphPersistence } from './graph-persistence';
+import { GlobalHistoryService } from '../services/GlobalHistoryService';
 import {
   parseYaml,
   sanitizeYamlTree,
@@ -31,7 +33,8 @@ const [labelOverrides, setLabelOverrides] = createSignal<ReadonlyMap<string, str
 
 let activeAdapter: FileSystemAdapter | undefined;
 let activeHandle: ProjectHandle | undefined;
-let persistTimer: ReturnType<typeof setTimeout> | undefined;
+const persistence = new GraphPersistence();
+let loadVersion = 0;
 let seq = 0;
 
 function isMapping(v: unknown): v is { [key: string]: YamlValue } {
@@ -76,31 +79,45 @@ function schedulePersist(): void {
   const handle = activeHandle;
   const custom = customEdges();
   const labels = labelOverrides();
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = undefined;
+  persistence.schedule(handle.id, async () => {
     const labelsObj: Record<string, YamlValue> = {};
     for (const [k, v] of labels) labelsObj[k] = v;
-    void adapter
-      .write(
-        handle,
-        FILE,
-        stringifyYaml(
-          sanitizeYamlTree({
-            schemaVersion: 1,
-            kind: 'plot_flow_edges',
-            custom: custom.map((e) => ({
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              label: e.label,
-            })),
-            labels: labelsObj,
-          }),
-        ),
-      )
-      .catch((e: unknown) => console.warn('[PlotFlowEdges] persist failed', e));
-  }, 1000);
+    await adapter.write(
+      handle,
+      FILE,
+      stringifyYaml(
+        sanitizeYamlTree({
+          schemaVersion: 1,
+          kind: 'plot_flow_edges',
+          custom: custom.map((e) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            label: e.label,
+          })),
+          labels: labelsObj,
+        }),
+      ),
+    );
+  });
+}
+
+function change(update: () => void): void {
+  const before = { custom: customEdges(), labels: labelOverrides() };
+  loadVersion += 1;
+  update();
+  const after = { custom: customEdges(), labels: labelOverrides() };
+  const restore = (state: typeof before): void => {
+    setCustomEdges(state.custom);
+    setLabelOverrides(state.labels);
+    schedulePersist();
+  };
+  GlobalHistoryService.recordGraph(
+    'プロットフローの接続を変更',
+    () => untrack(() => restore(before)),
+    () => untrack(() => restore(after)),
+  );
+  schedulePersist();
 }
 
 export const PlotFlowEdges = {
@@ -108,14 +125,16 @@ export const PlotFlowEdges = {
   labelOverrides,
 
   /** プロジェクト切替時に呼ぶ。保存済みエッジを読み込む。 */
-  switchProject(adapter: FileSystemAdapter, handle: ProjectHandle): void {
+  async switchProject(adapter: FileSystemAdapter, handle: ProjectHandle): Promise<void> {
+    await persistence.flushPending();
+    const version = ++loadVersion;
     activeAdapter = adapter;
     activeHandle = handle;
     setCustomEdges([]);
     setLabelOverrides(new Map());
-    void readFile(adapter, handle)
+    await readFile(adapter, handle)
       .then((loaded) => {
-        if (activeHandle?.id !== handle.id) return;
+        if (loadVersion !== version) return;
         setCustomEdges(loaded.custom);
         setLabelOverrides(loaded.labels);
       })
@@ -124,43 +143,54 @@ export const PlotFlowEdges = {
 
   /** ユーザ定義の接続を追加 (章またぎ可)。 */
   add(source: NodeId, target: NodeId, label: string): void {
+    if (
+      source === target ||
+      customEdges().some(
+        (edge) => edge.source === source && edge.target === target && edge.label === label.trim(),
+      )
+    )
+      return;
     seq += 1;
     const edge: PlotFlowCustomEdge = {
       id: `pfc:${Date.now().toString(36)}-${seq.toString(36)}`,
       source,
       target,
-      label,
+      label: label.trim(),
     };
-    setCustomEdges([...customEdges(), edge]);
-    schedulePersist();
+    const next = [...customEdges(), edge];
+    change(() => setCustomEdges(next));
   },
 
   updateLabel(id: string, label: string): void {
-    setCustomEdges(customEdges().map((e) => (e.id === id ? { ...e, label } : e)));
-    schedulePersist();
+    if (!customEdges().some((e) => e.id === id && e.label !== label)) return;
+    const next = customEdges().map((e) => (e.id === id ? { ...e, label } : e));
+    change(() => setCustomEdges(next));
   },
 
   remove(id: string): void {
-    setCustomEdges(customEdges().filter((e) => e.id !== id));
-    schedulePersist();
+    if (!customEdges().some((e) => e.id === id)) return;
+    const next = customEdges().filter((e) => e.id !== id);
+    change(() => setCustomEdges(next));
   },
 
   /** 構造由来エッジ (暗黙 next / choice) のラベルを上書き。空文字で解除。 */
   setOverride(edgeId: string, label: string): void {
+    if ((labelOverrides().get(edgeId) ?? '') === label) return;
     const next = new Map(labelOverrides());
     if (label === '') next.delete(edgeId);
     else next.set(edgeId, label);
-    setLabelOverrides(next);
-    schedulePersist();
+    change(() => setLabelOverrides(next));
   },
 
   /** プロジェクトを閉じた時のクリーンアップ。 */
   clear(): void {
-    if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = undefined;
+    persistence.discardPending();
+    loadVersion += 1;
     activeAdapter = undefined;
     activeHandle = undefined;
     setCustomEdges([]);
     setLabelOverrides(new Map());
   },
+  flushPending: () => persistence.flushPending(),
+  hasPending: () => persistence.hasPending(),
 };

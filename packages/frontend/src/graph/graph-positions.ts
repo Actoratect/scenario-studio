@@ -1,4 +1,6 @@
-import { createSignal } from 'solid-js';
+import { createSignal, untrack } from 'solid-js';
+import { GraphPersistence } from './graph-persistence';
+import { GlobalHistoryService } from '../services/GlobalHistoryService';
 import {
   parseYaml,
   sanitizeYamlTree,
@@ -25,7 +27,8 @@ const [positions, setPositions] = createSignal<ReadonlyMap<NodeId, NodePosition>
 const [activeProjectId, setActiveProjectId] = createSignal<string | undefined>(undefined);
 let activeAdapter: FileSystemAdapter | undefined;
 let activeHandle: ProjectHandle | undefined;
-let persistTimer: ReturnType<typeof setTimeout> | undefined;
+const persistence = new GraphPersistence();
+let loadVersion = 0;
 let lastProjectPersisted = new Map<NodeId, NodePosition>();
 
 function storageKey(projectId: string): string {
@@ -80,7 +83,8 @@ async function readProjectFile(
     if (!isMapping(raw)) continue;
     const x = raw['x'];
     const y = raw['y'];
-    if (typeof x === 'number' && typeof y === 'number') out.set(id as NodeId, { x, y });
+    if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y))
+      out.set(id as NodeId, { x, y });
   }
   return out;
 }
@@ -104,13 +108,10 @@ function scheduleProjectPersist(map: ReadonlyMap<NodeId, NodePosition>): void {
   const adapter = activeAdapter;
   const handle = activeHandle;
   const snapshot = new Map(map);
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = undefined;
-    void writeProjectFile(adapter, handle, snapshot).then(() => {
-      lastProjectPersisted = new Map(snapshot);
-    });
-  }, 1000);
+  persistence.schedule(handle.id, async () => {
+    await writeProjectFile(adapter, handle, snapshot);
+    if (activeHandle === handle) lastProjectPersisted = new Map(snapshot);
+  });
 }
 
 function movedEnough(a: NodePosition | undefined, b: NodePosition, threshold = 8): boolean {
@@ -129,17 +130,19 @@ function hasMeaningfulProjectChange(map: ReadonlyMap<NodeId, NodePosition>): boo
 export const GraphPositions = {
   positions,
   /** プロジェクト切替時に呼ぶ。stored 位置を読み込む。 */
-  switchProject(adapter: FileSystemAdapter, handle: ProjectHandle): void {
+  async switchProject(adapter: FileSystemAdapter, handle: ProjectHandle): Promise<void> {
+    await persistence.flushPending();
+    const version = ++loadVersion;
     activeAdapter = adapter;
     activeHandle = handle;
     setActiveProjectId(handle.id);
     const fallback = readStorage(handle.id);
     setPositions(fallback);
     lastProjectPersisted = new Map(fallback);
-    void (async () => {
+    await (async () => {
       try {
         const loaded = await readProjectFile(adapter, handle);
-        if (activeHandle?.id !== handle.id) return;
+        if (loadVersion !== version) return;
         if (loaded) {
           setPositions(loaded);
           lastProjectPersisted = new Map(loaded);
@@ -155,6 +158,8 @@ export const GraphPositions = {
   },
   /** ドラッグ中の位置を更新する。persist=false なら画面だけ更新する。 */
   setPosition(id: NodeId, p: NodePosition, options: { persist?: boolean } = {}): void {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+    loadVersion += 1;
     const next = new Map(positions());
     const prev = next.get(id);
     if (prev && Math.hypot(prev.x - p.x, prev.y - p.y) < 0.5) return;
@@ -166,10 +171,25 @@ export const GraphPositions = {
     if (hasMeaningfulProjectChange(next)) scheduleProjectPersist(next);
   },
   /** ドラッグ完了時に、意味のある移動だけプロジェクトファイルへ保存する。 */
-  commitPosition(id: NodeId, p: NodePosition): void {
+  commitPosition(id: NodeId, p: NodePosition, from?: NodePosition): void {
     GraphPositions.setPosition(id, p, { persist: false });
     const next = new Map(positions());
-    if (movedEnough(lastProjectPersisted.get(id), p)) scheduleProjectPersist(next);
+    if (from && (from.x !== p.x || from.y !== p.y)) {
+      GlobalHistoryService.recordGraph(
+        'ノードを移動',
+        () =>
+          untrack(() => {
+            GraphPositions.setPosition(id, from, { persist: false });
+            scheduleProjectPersist(positions());
+          }),
+        () =>
+          untrack(() => {
+            GraphPositions.setPosition(id, p, { persist: false });
+            scheduleProjectPersist(positions());
+          }),
+      );
+    }
+    scheduleProjectPersist(next);
   },
   /** 既知の id を引く。無ければ undefined。 */
   get(id: NodeId): NodePosition | undefined {
@@ -177,14 +197,18 @@ export const GraphPositions = {
   },
   /** プロジェクトを閉じた時のクリーンアップ (localStorage は残す)。 */
   clear(): void {
-    if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = undefined;
+    const projectId = activeProjectId();
+    if (projectId) writeStorage(projectId, lastProjectPersisted);
+    persistence.discardPending();
+    loadVersion += 1;
     activeAdapter = undefined;
     activeHandle = undefined;
     lastProjectPersisted = new Map();
     setActiveProjectId(undefined);
     setPositions(new Map());
   },
+  flushPending: () => persistence.flushPending(),
+  hasPending: () => persistence.hasPending(),
 };
 
 function isMapping(v: unknown): v is { [key: string]: YamlValue } {

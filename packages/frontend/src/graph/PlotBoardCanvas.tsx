@@ -6,7 +6,7 @@ import {
   onCleanup,
   onMount,
   Show,
-  Suspense,
+  createUniqueId,
 } from 'solid-js';
 import type { Component } from 'solid-js';
 import type {
@@ -21,7 +21,8 @@ import type {
   PlotBoardPosition,
   ScenarioNode,
 } from '@scenario-studio/core';
-import { NodeThumbnail } from '../global/NodeThumbnail';
+import { fitGraphBounds, plotCardSize, plotNodeAt, PLOT_NODE_KINDS } from './plot-board-model';
+import './editor.css';
 import { StableTextarea, StableTextInput } from '../global/StableTextControl';
 
 export interface PlotBoardCanvasProps {
@@ -29,7 +30,11 @@ export interface PlotBoardCanvasProps {
   dimmed?: ReadonlySet<PlotBoardNodeId> | undefined;
   referenceNodes?: readonly ScenarioNode[] | undefined;
   viewKey?: string | undefined;
-  onAddNode: (kind: PlotBoardNodeKind, position: PlotBoardPosition) => void;
+  onAddNode: (kind: PlotBoardNodeKind, position: PlotBoardPosition) => PlotBoardNodeId | undefined;
+  onDuplicateNode: (id: PlotBoardNodeId) => PlotBoardNodeId | undefined;
+  sceneOptions?: readonly { id: string; label: string }[] | undefined;
+  onOpenScene?: (id: string) => void;
+  onOpenNode?: (id: NodeId) => void;
   onNodeChange: (id: PlotBoardNodeId, patch: Partial<Omit<PlotBoardNode, 'id'>>) => void;
   onNodeCommit: (id: PlotBoardNodeId) => void;
   onNodeMove: (id: PlotBoardNodeId, position: PlotBoardPosition) => void;
@@ -63,12 +68,15 @@ type DragMode =
   | { kind: 'connect'; source: PlotBoardNodeId; toX: number; toY: number };
 
 const VIEW_PREFIX = 'scenario-studio:plot-board-view:';
-const CARD_WIDTH = 220;
-const CARD_HEIGHT = 132;
-const CARD_FULL_HEIGHT = 236;
+const CARD_WIDTH = 250;
+const CARD_HEIGHT = 156;
 
 export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
+  const markerId = createUniqueId();
+  const [selected, setSelected] = createSignal<PlotBoardNodeId>();
+  const [addKind, setAddKind] = createSignal<PlotBoardNodeKind>('memo');
+  const viewStorageKey = createMemo(() => props.viewKey);
   const [view, setViewSignal] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
 
@@ -95,8 +103,21 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
     saveView(props.viewKey, next);
   }
 
+  createEffect(() => {
+    setViewSignal(loadView(viewStorageKey()));
+    setSelected(undefined);
+    setDrag(null);
+  });
+
   onMount(() => {
-    setViewSignal(loadView(props.viewKey));
+    const frame = requestAnimationFrame(() => {
+      try {
+        if (!props.viewKey || !localStorage.getItem(`${VIEW_PREFIX}${props.viewKey}`)) fitAll();
+      } catch {
+        fitAll();
+      }
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   });
@@ -140,12 +161,16 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
 
   function onBackgroundMouseDown(e: MouseEvent): void {
     if (e.button !== 0 && e.button !== 1) return;
+    setSelected(undefined);
+    svg?.focus();
     setDrag({ kind: 'pan', startX: e.clientX, startY: e.clientY, vx: view().x, vy: view().y });
     e.preventDefault();
   }
 
   function onHeaderMouseDown(e: MouseEvent, node: PlotBoardNode): void {
     if (e.button !== 0) return;
+    setSelected(node.id);
+    svg?.focus();
     e.stopPropagation();
     e.preventDefault();
     if (e.shiftKey) {
@@ -205,21 +230,25 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
     point: PlotBoardPosition,
     except: PlotBoardNodeId,
   ): PlotBoardNodeId | undefined {
-    let best: PlotBoardNodeId | undefined;
-    let bestDistance = Infinity;
-    for (const node of props.board.nodes) {
-      if (node.id === except) continue;
-      const center = nodeCenter(node);
-      const distance = Math.hypot(center.x - point.x, center.y - point.y);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = node.id;
-      }
+    return plotNodeAt(props.board.nodes, point, except);
+  }
+
+  function fitAll(): void {
+    const rect = svg?.getBoundingClientRect();
+    if (!rect || props.board.nodes.length === 0) {
+      setView({ x: 0, y: 0, scale: 1 });
+      return;
     }
-    return bestDistance <= 150 ? best : undefined;
+    const nodes = props.board.nodes;
+    const x = Math.min(...nodes.map((node) => node.position.x));
+    const y = Math.min(...nodes.map((node) => node.position.y));
+    const right = Math.max(...nodes.map((node) => node.position.x + cardSize(node).width));
+    const bottom = Math.max(...nodes.map((node) => node.position.y + cardSize(node).height));
+    setView(fitGraphBounds({ x, y, width: right - x, height: bottom - y }, rect));
   }
 
   function onWheel(e: WheelEvent): void {
+    if (e.target instanceof Element && e.target.closest('textarea, select, input')) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
     const nextScale = clampScale(view().scale * factor);
@@ -241,8 +270,14 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
 
   function addAtCenter(kind: PlotBoardNodeKind): void {
     const center = worldViewportCenter();
-    const offset = props.board.nodes.length * 18;
-    props.onAddNode(kind, { x: center.x + offset, y: center.y + offset });
+    let position = center;
+    while (
+      props.board.nodes.some(
+        (node) => Math.hypot(node.position.x - position.x, node.position.y - position.y) < 24,
+      )
+    )
+      position = { x: position.x + 28, y: position.y + 28 };
+    setSelected(props.onAddNode(kind, position));
   }
 
   function isDimmed(id: PlotBoardNodeId): boolean {
@@ -261,16 +296,52 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
   return (
     <div class="plot-board-shell">
       <div class="plot-board-toolbar">
-        <button type="button" onClick={() => addAtCenter('memo')}>
-          ＋ メモ
+        <select
+          aria-label="追加するカードの種類"
+          value={addKind()}
+          onChange={(event) => setAddKind(event.currentTarget.value as PlotBoardNodeKind)}
+        >
+          <For each={PLOT_NODE_KINDS}>
+            {(kind) => <option value={kind.value}>{kind.label}</option>}
+          </For>
+        </select>
+        <button type="button" onClick={() => addAtCenter(addKind())}>
+          ＋ カード
         </button>
-        <span class="plot-board-toolbar-hint">
-          1行目が表題 / 上部をドラッグ / Shift+ドラッグで接続
-        </span>
+        <button type="button" onClick={fitAll}>
+          全体表示
+        </button>
+        <button
+          type="button"
+          onClick={() => setView({ x: 0, y: 0, scale: 1 })}
+          title="表示位置と倍率をリセット"
+        >
+          100%
+        </button>
+        <span class="plot-board-toolbar-hint">上部をドラッグで移動 · 「接続 →」からドラッグ</span>
       </div>
       <svg
         ref={svg}
         class="plot-board-canvas"
+        tabIndex={0}
+        aria-label="プロットボード。Fで全体表示、Deleteで選択カードを削除"
+        onKeyDown={(event) => {
+          if (event.target instanceof Element && event.target.closest('input, textarea, select'))
+            return;
+          if (event.key.toLowerCase() === 'f') {
+            event.preventDefault();
+            fitAll();
+          }
+          if (event.key === 'Escape') {
+            setDrag(null);
+            setSelected(undefined);
+          }
+          if ((event.key === 'Delete' || event.key === 'Backspace') && selected()) {
+            event.preventDefault();
+            props.onNodeDelete(selected()!);
+            setSelected(undefined);
+          }
+        }}
         classList={{ 'plot-board-canvas--dragging': !!drag() }}
         onMouseDown={onBackgroundMouseDown}
         onWheel={onWheel}
@@ -281,7 +352,7 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
       >
         <defs>
           <marker
-            id="plot-board-arrow"
+            id={markerId}
             viewBox="0 0 10 10"
             refX="10"
             refY="5"
@@ -305,7 +376,7 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
                         y1={g().sy}
                         x2={g().tx}
                         y2={g().ty}
-                        marker-end="url(#plot-board-arrow)"
+                        marker-end={`url(#${markerId})`}
                       />
                       {/* 当たり判定 (太い透明線): クリックで編集 / Alt+クリックで削除 */}
                       <line
@@ -377,26 +448,36 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
             }}
           </Show>
 
-          <For each={props.board.nodes}>
-            {(node) => {
-              const size = createMemo(() => cardSize(node));
+          <For each={props.board.nodes.map((node) => node.id)}>
+            {(id) => {
+              const node = () => nodeById().get(id)!;
+              const size = createMemo(() => cardSize(node()));
               return (
                 <foreignObject
-                  x={node.position.x}
-                  y={node.position.y}
+                  x={node().position.x}
+                  y={node().position.y}
                   width={size().width}
                   height={size().height}
-                  classList={{ 'plot-board-card-fo--dimmed': isDimmed(node.id) }}
+                  classList={{ 'plot-board-card-fo--dimmed': isDimmed(id) }}
                 >
                   <PlotBoardMemoCard
-                    node={node}
-                    target={connectTarget() === node.id}
+                    selected={selected() === id}
+                    onSelect={() => setSelected(id)}
+                    onConnect={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setSelected(id);
+                      const center = nodeCenter(node());
+                      setDrag({ kind: 'connect', source: id, toX: center.x, toY: center.y });
+                    }}
+                    node={node()}
+                    target={connectTarget() === id}
                     referenceNodeById={referenceNodeById()}
                     referenceNodes={sortedReferenceNodes()}
-                    onHeaderMouseDown={(e) => onHeaderMouseDown(e, node)}
-                    onNodeChange={(patch) => props.onNodeChange(node.id, patch)}
-                    onNodeCommit={() => props.onNodeCommit(node.id)}
-                    onNodeDelete={() => props.onNodeDelete(node.id)}
+                    onHeaderMouseDown={(e) => onHeaderMouseDown(e, node())}
+                    onNodeChange={(patch) => props.onNodeChange(id, patch)}
+                    onNodeCommit={() => props.onNodeCommit(id)}
+                    onNodeDelete={() => props.onNodeDelete(id)}
                   />
                 </foreignObject>
               );
@@ -404,11 +485,202 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
           </For>
         </g>
       </svg>
+      <Show when={selected() ? nodeById().get(selected()!) : undefined}>
+        {(node) => (
+          <aside class="plot-board-inspector" aria-label="選択カードの詳細">
+            <header>
+              <strong>{node().title || '無題カード'}</strong>
+              <button
+                type="button"
+                onClick={() => setSelected(undefined)}
+                aria-label="カード詳細を閉じる"
+              >
+                ×
+              </button>
+            </header>
+            <label>
+              種類
+              <select
+                value={node().kind}
+                onChange={(event) =>
+                  props.onNodeChange(node().id, {
+                    kind: event.currentTarget.value as PlotBoardNodeKind,
+                  })
+                }
+              >
+                <For each={PLOT_NODE_KINDS}>
+                  {(kind) => <option value={kind.value}>{kind.label}</option>}
+                </For>
+              </select>
+            </label>
+            <label>
+              状態
+              <select
+                value={node().status ?? ''}
+                onChange={(event) =>
+                  props.onNodeChange(node().id, { status: event.currentTarget.value || undefined })
+                }
+              >
+                <option value="">未設定</option>
+                <option value="draft">検討中</option>
+                <option value="ready">構成確定</option>
+                <option value="done">完了</option>
+                <Show when={node().status && !['draft', 'ready', 'done'].includes(node().status!)}>
+                  <option value={node().status}>{node().status}</option>
+                </Show>
+              </select>
+            </label>
+            <Show
+              when={props.board.nodes.some(
+                (other) => other.kind === 'thread' && other.id !== node().id,
+              )}
+            >
+              <fieldset>
+                <legend>所属スレッド</legend>
+                <For
+                  each={props.board.nodes.filter(
+                    (other) => other.kind === 'thread' && other.id !== node().id,
+                  )}
+                >
+                  {(thread) => (
+                    <label class="plot-board-thread-option">
+                      <input
+                        type="checkbox"
+                        checked={node().threadIds?.includes(thread.id) ?? false}
+                        onChange={(event) =>
+                          props.onNodeChange(node().id, {
+                            threadIds: event.currentTarget.checked
+                              ? [...(node().threadIds ?? []), thread.id]
+                              : (node().threadIds ?? []).filter((id) => id !== thread.id),
+                          })
+                        }
+                      />
+                      {thread.title}
+                    </label>
+                  )}
+                </For>
+              </fieldset>
+            </Show>
+            <label>
+              シーンへの参照
+              <select
+                value=""
+                onChange={(event) => {
+                  const id = event.currentTarget.value;
+                  event.currentTarget.value = '';
+                  if (id)
+                    props.onNodeChange(node().id, {
+                      anchors: {
+                        ...node().anchors,
+                        scenes: [...(node().anchors?.scenes ?? []), id],
+                      },
+                    });
+                }}
+              >
+                <option value="">シーンを追加…</option>
+                <For
+                  each={(props.sceneOptions ?? []).filter(
+                    (scene) => !node().anchors?.scenes?.includes(scene.id),
+                  )}
+                >
+                  {(scene) => <option value={scene.id}>{scene.label}</option>}
+                </For>
+              </select>
+            </label>
+            <For each={node().anchors?.scenes ?? []}>
+              {(id) => (
+                <div class="plot-board-anchor">
+                  <button type="button" onClick={() => props.onOpenScene?.(id)}>
+                    {props.sceneOptions?.find((scene) => scene.id === id)?.label ?? id} ↗
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="シーン参照を外す"
+                    onClick={() =>
+                      props.onNodeChange(node().id, {
+                        anchors: {
+                          ...node().anchors,
+                          scenes: node().anchors?.scenes?.filter((scene) => scene !== id),
+                        },
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </For>
+            <label>
+              キャラ・場所への参照
+              <select
+                value=""
+                onChange={(event) => {
+                  const id = event.currentTarget.value as NodeId;
+                  event.currentTarget.value = '';
+                  if (id) props.onNodeChange(node().id, addReferencePatch(node(), id));
+                }}
+              >
+                <option value="">要素を追加…</option>
+                <For
+                  each={groupReferenceNodesByTemplate(
+                    availableReferenceNodes(node(), sortedReferenceNodes()),
+                  )}
+                >
+                  {(group) => (
+                    <optgroup label={group.label}>
+                      <For each={group.nodes}>
+                        {(reference) => (
+                          <option value={reference.id}>{scenarioNodeLabel(reference)}</option>
+                        )}
+                      </For>
+                    </optgroup>
+                  )}
+                </For>
+              </select>
+            </label>
+            <For each={node().anchors?.nodes ?? []}>
+              {(id) => (
+                <div class="plot-board-anchor">
+                  <button type="button" onClick={() => props.onOpenNode?.(id)}>
+                    {referenceNodeById().has(id)
+                      ? scenarioNodeLabel(referenceNodeById().get(id)!)
+                      : id}{' '}
+                    ↗
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="要素参照を外す"
+                    onClick={() => props.onNodeChange(node().id, removeReferencePatch(node(), id))}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </For>
+            <div class="plot-board-inspector-actions">
+              <button type="button" onClick={() => setSelected(props.onDuplicateNode(node().id))}>
+                複製
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onNodeDelete(node().id);
+                  setSelected(undefined);
+                }}
+              >
+                削除
+              </button>
+            </div>
+          </aside>
+        )}
+      </Show>
       <Show when={props.board.nodes.length === 0}>
         <div class="plot-board-empty" aria-hidden="true">
           <p class="plot-board-empty-title">まだカードがありません</p>
-          <p>背景をダブルクリック、または「＋ メモ」でカードを追加できます。</p>
-          <p class="plot-board-empty-hint">カードの上部をドラッグで移動 / Shift+ドラッグで接続</p>
+          <p>背景をダブルクリック、または「＋ カード」で追加できます。</p>
+          <p class="plot-board-empty-hint">
+            上部をドラッグで移動 / 「接続 →」から別カードへドラッグ
+          </p>
         </div>
       </Show>
     </div>
@@ -418,6 +690,9 @@ export const PlotBoardCanvas: Component<PlotBoardCanvasProps> = (props) => {
 interface PlotBoardMemoCardProps {
   node: PlotBoardNode;
   target: boolean;
+  selected: boolean;
+  onSelect: () => void;
+  onConnect: (event: MouseEvent) => void;
   referenceNodeById: ReadonlyMap<NodeId, ScenarioNode>;
   referenceNodes: readonly ScenarioNode[];
   onHeaderMouseDown: (e: MouseEvent) => void;
@@ -427,218 +702,76 @@ interface PlotBoardMemoCardProps {
 }
 
 const PlotBoardMemoCard: Component<PlotBoardMemoCardProps> = (props) => {
-  const [draftText, setDraftText] = createSignal(memoText(props.node));
-  const [editing, setEditing] = createSignal(false);
-
-  createEffect(() => {
-    if (editing()) return;
-    setDraftText(memoText(props.node));
-  });
-
-  const mode = createMemo(() => props.node.viewMode ?? 'summary');
-  const summaryBody = createMemo(() => bodyWithoutTitle(draftText()));
-  const selectedRefs = createMemo(() =>
-    selectedReferenceNodes(props.node, props.referenceNodeById),
-  );
-  const availableRefs = createMemo(() => availableReferenceNodes(props.node, props.referenceNodes));
-  const availableRefGroups = createMemo(() => groupReferenceNodesByTemplate(availableRefs()));
-  const visibleText = createMemo(() => (mode() === 'full' ? draftText() : summaryBody()));
-
-  function commitDraft(immediate = false): void {
-    const next = memoTextPatch(draftText());
-    if (
-      next.title !== props.node.title ||
-      next.body !== props.node.body ||
-      props.node.kind !== 'memo'
-    ) {
-      props.onNodeChange(next);
-    }
-    if (immediate) props.onNodeCommit();
-  }
-
-  function updateVisibleText(value: string): void {
-    setEditing(true);
-    if (mode() === 'full') {
-      setDraftText(value);
-      return;
-    }
-    const head = firstLineTitle(draftText());
-    setDraftText(value === '' ? head : `${head}\n${value}`);
-  }
-
-  // summary モードでは題名 (1行目) をヘッダのインライン入力で直接編集できる。
-  // 旧版は「全文」へ切替えないと改題できなかった。
-  const rawTitle = createMemo(() => draftText().split(/\r?\n/, 1)[0] ?? '');
-
-  function updateTitle(value: string): void {
-    setEditing(true);
-    const head = value.replace(/[\r\n]+/g, ' ');
-    const body = bodyWithoutTitle(draftText());
-    setDraftText(body === '' ? head : `${head}\n${body}`);
-  }
-
-  function onBlur(): void {
-    commitDraft(true);
-    setEditing(false);
-  }
-
-  function onKeyDown(e: KeyboardEvent): void {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      commitDraft(true);
-    }
-  }
-
+  const mode = () => props.node.viewMode ?? 'summary';
   return (
     <div
       class="plot-board-card"
-      classList={{ 'plot-board-card--target': props.target }}
-      data-kind="memo"
+      classList={{
+        'plot-board-card--target': props.target,
+        'plot-board-card--selected': props.selected,
+      }}
+      data-kind={props.node.kind}
       data-mode={mode()}
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        props.onSelect();
+      }}
     >
-      <div
-        class="plot-board-card-header"
-        title="ドラッグで移動 / Shift+ドラッグで接続"
-        onMouseDown={props.onHeaderMouseDown}
-      >
-        <Show
-          when={mode() === 'summary'}
-          fallback={
-            <span class="plot-board-card-kind" title="メモ">
-              メモ
-            </span>
-          }
-        >
-          <StableTextInput
-            class="plot-board-card-kind plot-board-card-kind-edit"
-            value={rawTitle()}
-            placeholder="表題"
-            onInput={updateTitle}
-            onBlur={onBlur}
-            onKeyDown={onKeyDown}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-        </Show>
+      <div class="plot-board-card-header" onMouseDown={(event) => props.onHeaderMouseDown(event)}>
+        <span class="plot-board-drag-grip" aria-hidden="true">
+          ⠇
+        </span>
+        <StableTextInput
+          class="plot-board-card-kind plot-board-card-kind-edit"
+          value={props.node.title}
+          onInput={(title) => props.onNodeChange({ title })}
+          onBlur={props.onNodeCommit}
+          onMouseDown={(event) => event.stopPropagation()}
+        />
         <button
           type="button"
           class="plot-board-mode-toggle"
-          title={mode() === 'full' ? '簡易表示に切り替え' : '全文表示に切り替え'}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            commitDraft(false);
-            props.onNodeChange({
-              viewMode: mode() === 'full' ? 'summary' : 'full',
-            });
-          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => props.onNodeChange({ viewMode: mode() === 'full' ? 'summary' : 'full' })}
         >
-          {mode() === 'full' ? '全文' : '簡易'}
+          {mode() === 'full' ? '折畳' : '展開'}
         </button>
         <button
           type="button"
           title="削除"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onNodeDelete();
-          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => props.onNodeDelete()}
         >
           ×
         </button>
       </div>
-      <Show when={selectedRefs().length > 0 || availableRefs().length > 0}>
-        <div class="plot-board-card-refs" onMouseDown={(e) => e.stopPropagation()}>
-          <For each={selectedRefs()}>
-            {(refNode) => (
-              <button
-                type="button"
-                class="plot-board-ref-chip"
-                title={`${scenarioNodeLabel(refNode)} の参照を外す`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  props.onNodeChange(removeReferencePatch(props.node, refNode.id));
-                }}
-              >
-                <Suspense
-                  fallback={
-                    <span class="plot-board-ref-thumb-fallback">
-                      {scenarioNodeLabel(refNode).slice(0, 2)}
-                    </span>
-                  }
-                >
-                  <NodeThumbnail node={refNode} size={22} />
-                </Suspense>
-                <span>{scenarioNodeLabel(refNode)}</span>
-              </button>
-            )}
-          </For>
-          <select
-            value=""
-            title="キャラ・場所などを参照"
-            onChange={(e) => {
-              const id = e.currentTarget.value as NodeId;
-              e.currentTarget.value = '';
-              if (id) props.onNodeChange(addReferencePatch(props.node, id));
-            }}
-          >
-            <option value="">参照を追加</option>
-            <For each={availableRefGroups()}>
-              {(group) => (
-                <optgroup label={group.label}>
-                  <For each={group.nodes}>
-                    {(refNode) => <option value={refNode.id}>{scenarioNodeLabel(refNode)}</option>}
-                  </For>
-                </optgroup>
-              )}
-            </For>
-          </select>
-        </div>
-      </Show>
       <StableTextarea
         class={`plot-board-card-body plot-board-card-body--${mode()}`}
-        value={visibleText()}
-        placeholder={
-          mode() === 'full'
-            ? '1行目が表題になります。以降にメモ / 台詞案 / 伏線 / 目的を書けます。'
-            : '本文の要点'
-        }
-        onInput={updateVisibleText}
-        onBlur={onBlur}
-        onKeyDown={onKeyDown}
-        onMouseDown={(e) => e.stopPropagation()}
+        value={props.node.body}
+        placeholder="メモ・台詞案・伏線を記入"
+        onInput={(body) => props.onNodeChange({ body })}
+        onBlur={props.onNodeCommit}
+        onMouseDown={(event) => event.stopPropagation()}
       />
+      <div class="plot-board-card-footer">
+        <span>{PLOT_NODE_KINDS.find((kind) => kind.value === props.node.kind)?.label}</span>
+        <span>
+          {(props.node.anchors?.nodes?.length ?? 0) + (props.node.anchors?.scenes?.length ?? 0) > 0
+            ? `参照 ${(props.node.anchors?.nodes?.length ?? 0) + (props.node.anchors?.scenes?.length ?? 0)}`
+            : ''}
+        </span>
+        <button
+          type="button"
+          class="plot-board-connect"
+          title="ここから別カードへドラッグして接続"
+          onMouseDown={(event) => props.onConnect(event)}
+        >
+          接続 →
+        </button>
+      </div>
     </div>
   );
 };
-
-function memoText(node: PlotBoardNode): string {
-  if (node.body.trim() !== '') return node.body;
-  return node.title;
-}
-
-function memoTextPatch(text: string): Partial<Omit<PlotBoardNode, 'id'>> {
-  return {
-    kind: 'memo',
-    title: firstLineTitle(text),
-    body: text,
-  };
-}
-
-function firstLineTitle(text: string): string {
-  return text.split(/\r?\n/, 1)[0]?.trim() || '無題メモ';
-}
-
-function bodyWithoutTitle(text: string): string {
-  const lines = text.split(/\r?\n/);
-  lines.shift();
-  return lines.join('\n');
-}
-
-function selectedReferenceNodes(
-  node: PlotBoardNode,
-  byId: ReadonlyMap<NodeId, ScenarioNode>,
-): readonly ScenarioNode[] {
-  return (node.anchors?.nodes ?? []).map((id) => byId.get(id)).filter(isScenarioNode);
-}
 
 function availableReferenceNodes(
   node: PlotBoardNode,
@@ -669,10 +802,6 @@ function anchorsPatch(
   if (nodes.length > 0) anchors.nodes = nodes;
   else delete anchors.nodes;
   return Object.keys(anchors).length > 0 ? { anchors } : { anchors: undefined };
-}
-
-function isScenarioNode(node: ScenarioNode | undefined): node is ScenarioNode {
-  return node !== undefined;
 }
 
 function scenarioNodeLabel(node: ScenarioNode): string {
@@ -762,18 +891,7 @@ function rectBorderPoint(
 
 // width/height は壊れた YAML 由来で NaN/Infinity になり得る (parseNode は finite を
 // 強制するが、防御を二重化して SVG 座標が NaN で全描画が崩れるのを防ぐ)。
-function finiteOr(value: number | undefined, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-// カードの実描画サイズ。viewMode='full' で背の高いカードになる点も含め、
-// エッジ幾何 (centerOf) とカード描画 (cardSize/nodeCenter) で同一の値を使う。
-function cardSizeOf(node: PlotBoardNode): { width: number; height: number } {
-  return {
-    width: finiteOr(node.width, CARD_WIDTH),
-    height: finiteOr(node.height, node.viewMode === 'full' ? CARD_FULL_HEIGHT : CARD_HEIGHT),
-  };
-}
+const cardSizeOf = plotCardSize;
 
 function centerOf(node: PlotBoardNode): PlotBoardPosition {
   const size = cardSizeOf(node);
@@ -794,8 +912,8 @@ function loadView(key: string | undefined): ViewState {
     if (!raw) return { x: 0, y: 0, scale: 1 };
     const parsed = JSON.parse(raw) as Partial<ViewState>;
     return {
-      x: typeof parsed.x === 'number' ? parsed.x : 0,
-      y: typeof parsed.y === 'number' ? parsed.y : 0,
+      x: typeof parsed.x === 'number' && Number.isFinite(parsed.x) ? parsed.x : 0,
+      y: typeof parsed.y === 'number' && Number.isFinite(parsed.y) ? parsed.y : 0,
       scale: typeof parsed.scale === 'number' ? clampScale(parsed.scale) : 1,
     };
   } catch {

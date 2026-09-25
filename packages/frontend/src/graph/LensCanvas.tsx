@@ -1,6 +1,17 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js';
 import type { Component } from 'solid-js';
 import type { LensEdge, LensPayload, NodeId } from '@scenario-studio/core';
+import { fitGraphBounds } from './plot-board-model';
+import './editor.css';
 import { StableTextarea } from '../global/StableTextControl';
 import { GraphComments, type GraphComment } from './graph-comments';
 
@@ -23,7 +34,11 @@ export interface LensCanvasProps {
   onSelect?: (id: NodeId) => void;
   onActivate?: (id: NodeId) => void;
   onPositionChange?: (id: NodeId, p: { x: number; y: number }) => void;
-  onPositionCommit?: (id: NodeId, p: { x: number; y: number }) => void;
+  onPositionCommit?: (
+    id: NodeId,
+    p: { x: number; y: number },
+    from: { x: number; y: number },
+  ) => void;
   /** Shift+drag で関係作成 (source → target)。event はマウス位置 (picker をその場に出す用)。 */
   onCreateRelation?: (source: NodeId, target: NodeId, event: MouseEvent) => void;
   /**
@@ -76,6 +91,8 @@ type DragMode =
 
 export const LensCanvas: Component<LensCanvasProps> = (props) => {
   let svg: SVGSVGElement | undefined;
+  const canvasId = createUniqueId();
+  let suppressClick = false;
   const [view, setViewSignal] = createSignal<ViewState>({ x: 0, y: 0, scale: 1 });
   const [drag, setDrag] = createSignal<DragMode | null>(null);
   const [hoverNode, setHoverNode] = createSignal<NodeId | undefined>(undefined);
@@ -135,6 +152,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     e.stopPropagation();
     e.preventDefault();
     const p = pos(id);
+    suppressClick = false;
     if (e.shiftKey) {
       setDrag({ kind: 'connect', source: id, toX: p.x, toY: p.y });
     } else {
@@ -156,6 +174,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       const v = view();
       const dx = (e.clientX - d.startX) / v.scale;
       const dy = (e.clientY - d.startY) / v.scale;
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) >= 6) suppressClick = true;
       props.onPositionChange?.(d.id, { x: d.px + dx, y: d.py + dy });
       return;
     }
@@ -197,7 +216,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       if (moved < 6) {
         props.onPositionChange?.(d.id, { x: d.px, y: d.py });
       } else {
-        props.onPositionCommit?.(d.id, p);
+        props.onPositionCommit?.(d.id, p, { x: d.px, y: d.py });
       }
       return;
     }
@@ -207,7 +226,7 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       if (moved < 6) {
         GraphComments.update(d.id, { x: d.cx, y: d.cy }, { persist: false });
       } else {
-        GraphComments.commit(d.id);
+        GraphComments.commit(d.id, { x: d.cx, y: d.cy });
       }
       return;
     }
@@ -219,11 +238,12 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
       if (resized < 6) {
         GraphComments.update(d.id, { width: d.cw, height: d.ch }, { persist: false });
       } else {
-        GraphComments.commit(d.id);
+        GraphComments.commit(d.id, { width: d.cw, height: d.ch });
       }
       return;
     }
     if (d.kind !== 'connect') return;
+    suppressClick = true;
     // ターゲット node の解決: マウス up 位置に最も近いノード
     const w = clientToWorld(e.clientX, e.clientY);
     const target = nearestNodeWithin(w, radius() * 1.5);
@@ -271,6 +291,15 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   }
 
   onMount(() => {
+    const frame = requestAnimationFrame(() => {
+      try {
+        if (!props.viewKey || !localStorage.getItem(`${GRAPH_VIEW_PREFIX}${props.viewKey}`))
+          fitAll();
+      } catch {
+        fitAll();
+      }
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   });
@@ -287,6 +316,17 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
     return props.dimmed?.has(id) ?? false;
   }
 
+  function fitAll(): void {
+    const rect = svg?.getBoundingClientRect();
+    if (!rect || props.payload.nodes.length === 0) return;
+    const points = props.payload.nodes.map((node) => pos(node.id));
+    const x = Math.min(...points.map((point) => point.x)) - 65;
+    const y = Math.min(...points.map((point) => point.y)) - 45;
+    const right = Math.max(...points.map((point) => point.x)) + 65;
+    const bottom = Math.max(...points.map((point) => point.y)) + 45;
+    setView(fitGraphBounds({ x, y, width: right - x, height: bottom - y }, rect));
+  }
+
   function edgeBox(label: string): { w: number; h: number } {
     const ch = label.length;
     // ラベルは scale で割って常に画面 px 一定にするため、box も同じ補正をかける。
@@ -295,265 +335,256 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
   }
 
   return (
-    <svg
-      ref={svg}
-      class="lens-canvas"
-      onMouseDown={onBackgroundMouseDown}
-      onWheel={onWheel}
-      classList={{ 'lens-canvas--dragging': !!drag() }}
-    >
-      <defs>
-        <marker
-          id="arrow-marker"
-          viewBox="0 0 10 10"
-          refX="10"
-          refY="5"
-          markerWidth="8"
-          markerHeight="8"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6068" />
-        </marker>
-        <marker
-          id="arrow-marker-explicit"
-          viewBox="0 0 10 10"
-          refX="10"
-          refY="5"
-          markerWidth="8"
-          markerHeight="8"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#0072b2" />
-        </marker>
-      </defs>
-      <g transform={`translate(${view().x}, ${view().y}) scale(${view().scale})`}>
-        {/* edges */}
-        <For each={props.payload.edges}>
-          {(edge) => {
-            // PR (ux-overhaul-3): pos を memo にしてノード drag に追随する
-            const s = createMemo(() => pos(edge.source));
-            const t = createMemo(() => pos(edge.target));
-            const geom = createMemo(() => {
-              const sp = s();
-              const tp = t();
-              const dx = tp.x - sp.x;
-              const dy = tp.y - sp.y;
-              const len = Math.hypot(dx, dy) || 1;
-              const ux = dx / len;
-              const uy = dy / len;
-              const r = radius();
-              const sx = sp.x + ux * r;
-              const sy = sp.y + uy * r;
-              const tx = tp.x - ux * r;
-              const ty = tp.y - uy * r;
-              const route = edgeRoutes().get(edge.id) ?? { offset: 0, labelT: 0.55 };
-              const px = -uy;
-              const py = ux;
-              const osx = sx + px * route.offset;
-              const osy = sy + py * route.offset;
-              const otx = tx + px * route.offset;
-              const oty = ty + py * route.offset;
-              return {
-                sx: osx,
-                sy: osy,
-                tx: otx,
-                ty: oty,
-                label: {
-                  x: osx + (otx - osx) * route.labelT,
-                  y: osy + (oty - osy) * route.labelT,
-                },
-              };
-            });
-            const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
-            const box = createMemo(() => edgeBox(edge.label));
-            const explicit = edge.kind === 'explicit';
-            const clickable = () =>
-              !!props.onEdgeClick && (explicit || props.implicitEdgesClickable === true);
-            return (
-              <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
-                <line
-                  x1={geom().sx}
-                  y1={geom().sy}
-                  x2={geom().tx}
-                  y2={geom().ty}
-                  stroke={explicit ? '#0072b2' : '#5a6068'}
-                  stroke-width={explicit ? 2 : 1.5}
-                  stroke-dasharray="4 3"
-                  marker-end={`url(#${explicit ? 'arrow-marker-explicit' : 'arrow-marker'})`}
-                />
-                {/* ラベル無しエッジ用の当たり判定 (太い透明線)。
-                    ラベル pill を出さない Plot Flow の暗黙 next でも、線クリックで編集できる。 */}
-                <Show when={clickable()}>
+    <div class="lens-shell">
+      <svg
+        ref={svg}
+        class="lens-canvas"
+        tabIndex={0}
+        aria-label="関係図キャンバス"
+        onKeyDown={(event) => {
+          if (event.target instanceof Element && event.target.closest('input, textarea, select'))
+            return;
+          if (event.key.toLowerCase() === 'f') {
+            event.preventDefault();
+            fitAll();
+          }
+          if (event.key === 'Escape') setDrag(null);
+        }}
+        onMouseDown={onBackgroundMouseDown}
+        onWheel={onWheel}
+        classList={{ 'lens-canvas--dragging': !!drag() }}
+      >
+        <defs>
+          <marker
+            id={`${canvasId}-arrow`}
+            viewBox="0 0 10 10"
+            refX="10"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6068" />
+          </marker>
+          <marker
+            id={`${canvasId}-explicit`}
+            viewBox="0 0 10 10"
+            refX="10"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0072b2" />
+          </marker>
+        </defs>
+        <g transform={`translate(${view().x}, ${view().y}) scale(${view().scale})`}>
+          {/* edges */}
+          <For each={props.payload.edges}>
+            {(edge) => {
+              // PR (ux-overhaul-3): pos を memo にしてノード drag に追随する
+              const s = createMemo(() => pos(edge.source));
+              const t = createMemo(() => pos(edge.target));
+              const geom = createMemo(() => {
+                const sp = s();
+                const tp = t();
+                const dx = tp.x - sp.x;
+                const dy = tp.y - sp.y;
+                const len = Math.hypot(dx, dy) || 1;
+                const ux = dx / len;
+                const uy = dy / len;
+                const r = radius();
+                const sx = sp.x + ux * r;
+                const sy = sp.y + uy * r;
+                const tx = tp.x - ux * r;
+                const ty = tp.y - uy * r;
+                const route = edgeRoutes().get(edge.id) ?? { offset: 0, labelT: 0.55 };
+                const px = -uy;
+                const py = ux;
+                const osx = sx + px * route.offset;
+                const osy = sy + py * route.offset;
+                const otx = tx + px * route.offset;
+                const oty = ty + py * route.offset;
+                return {
+                  sx: osx,
+                  sy: osy,
+                  tx: otx,
+                  ty: oty,
+                  label: {
+                    x: osx + (otx - osx) * route.labelT,
+                    y: osy + (oty - osy) * route.labelT,
+                  },
+                };
+              });
+              const dim = () => isDimmed(edge.source) || isDimmed(edge.target);
+              const box = createMemo(() => edgeBox(edge.label));
+              const explicit = edge.kind === 'explicit';
+              const clickable = () =>
+                !!props.onEdgeClick && (explicit || props.implicitEdgesClickable === true);
+              return (
+                <g class="lens-edge" classList={{ 'lens-edge--dimmed': dim() }}>
                   <line
-                    class="lens-edge-hit"
                     x1={geom().sx}
                     y1={geom().sy}
                     x2={geom().tx}
                     y2={geom().ty}
-                    stroke="transparent"
-                    stroke-width={12 / view().scale}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      props.onEdgeClick?.(edge, e);
-                    }}
+                    stroke={explicit ? '#0072b2' : '#5a6068'}
+                    stroke-width={explicit ? 2 : 1.5}
+                    stroke-dasharray="4 3"
+                    marker-end={`url(#${canvasId}-${explicit ? 'explicit' : 'arrow'})`}
                   />
-                </Show>
-                {/* ラベルが空のエッジは pill 自体を描かない (「次へ」ノイズの廃止) */}
-                <Show when={edge.label !== ''}>
-                  <g
-                    transform={`translate(${geom().label.x}, ${geom().label.y})`}
-                    class="lens-edge-label-group"
-                    classList={{ 'lens-edge-label-group--clickable': clickable() }}
-                    onClick={(e) => {
-                      if (!clickable()) return;
-                      e.stopPropagation();
-                      props.onEdgeClick?.(edge, e);
-                    }}
-                  >
-                    <rect
-                      x={-box().w / 2}
-                      y={-box().h / 2}
-                      width={box().w}
-                      height={box().h}
-                      rx="4"
-                      ry="4"
-                      fill="#ffffff"
-                      stroke={explicit ? '#0072b2' : '#5a6068'}
-                      stroke-width="1"
+                  {/* ラベル無しエッジ用の当たり判定 (太い透明線)。
+                    ラベル pill を出さない Plot Flow の暗黙 next でも、線クリックで編集できる。 */}
+                  <Show when={clickable()}>
+                    <line
+                      class="lens-edge-hit"
+                      x1={geom().sx}
+                      y1={geom().sy}
+                      x2={geom().tx}
+                      y2={geom().ty}
+                      stroke="transparent"
+                      stroke-width={12 / view().scale}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onEdgeClick?.(edge, e);
+                      }}
                     />
-                    <text
-                      class="lens-edge-label"
-                      text-anchor="middle"
-                      dominant-baseline="middle"
-                      fill={explicit ? '#0072b2' : undefined}
-                      style={{ 'font-size': `${10 / view().scale}px` }}
+                  </Show>
+                  {/* ラベルが空のエッジは pill 自体を描かない (「次へ」ノイズの廃止) */}
+                  <Show when={edge.label !== ''}>
+                    <g
+                      transform={`translate(${geom().label.x}, ${geom().label.y})`}
+                      class="lens-edge-label-group"
+                      classList={{ 'lens-edge-label-group--clickable': clickable() }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        if (!clickable()) return;
+                        e.stopPropagation();
+                        props.onEdgeClick?.(edge, e);
+                      }}
                     >
-                      {edge.label}
-                    </text>
-                  </g>
-                </Show>
-              </g>
-            );
-          }}
-        </For>
-
-        {/* connect モード中の rubber-band */}
-        <Show when={drag()?.kind === 'connect'}>
-          {(_) => {
-            // PR (ux-overhaul-3): drag() を memo にして mousemove に追随させる
-            const dm = createMemo(
-              () => drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number },
-            );
-            return (
-              <line
-                x1={pos(dm().source).x}
-                y1={pos(dm().source).y}
-                x2={dm().toX}
-                y2={dm().toY}
-                stroke="#0072b2"
-                stroke-width="2"
-                stroke-dasharray="6 4"
-                opacity="0.7"
-                pointer-events="none"
-              />
-            );
-          }}
-        </Show>
-
-        {/* comments (nodes より下に描画して、ノードを背景色で囲うイメージ) */}
-        <For each={GraphComments.comments()}>
-          {(c) => (
-            <CommentRect
-              comment={c}
-              onMoveStart={(e) => {
-                e.stopPropagation();
-                setDrag({
-                  kind: 'comment-move',
-                  id: c.id,
-                  startX: e.clientX,
-                  startY: e.clientY,
-                  cx: c.x,
-                  cy: c.y,
-                });
-              }}
-              onResizeStart={(e) => {
-                e.stopPropagation();
-                setDrag({
-                  kind: 'comment-resize',
-                  id: c.id,
-                  startX: e.clientX,
-                  startY: e.clientY,
-                  cw: c.width,
-                  ch: c.height,
-                });
-              }}
-            />
-          )}
-        </For>
-
-        {/* nodes */}
-        <For each={props.payload.nodes}>
-          {(node) => {
-            // PR (ux-overhaul-3): pos を memo にして props.positions の変化を tracked。
-            // For 子は 1 回しか走らないので、pos を let const で読むと初期値で固まる。
-            const p = createMemo(() => pos(node.id));
-            const isSelected = () => props.selected === node.id;
-            const dim = () => isDimmed(node.id);
-            const isHover = () => hoverNode() === node.id;
-            const connecting = () => drag()?.kind === 'connect';
-            return (
-              <g
-                class="lens-node"
-                classList={{
-                  'lens-node--selected': isSelected(),
-                  'lens-node--dimmed': dim(),
-                  'lens-node--target-hover': connecting() && isHover(),
-                }}
-                transform={`translate(${p().x}, ${p().y})`}
-                onMouseDown={(e) => onNodeMouseDown(e, node.id)}
-                onMouseEnter={() => setHoverNode(node.id)}
-                onMouseLeave={() => setHoverNode(undefined)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  props.onSelect?.(node.id);
-                }}
-                onDblClick={(e) => {
-                  e.stopPropagation();
-                  props.onActivate?.(node.id);
-                }}
-              >
-                <Show
-                  when={props.thumbnailUrls?.get(node.id)}
-                  fallback={
-                    <circle
-                      r={radius()}
-                      fill={colorForTemplate(node.templateId)}
-                      stroke={
-                        isSelected() ? '#0072b2' : connecting() && isHover() ? '#009e73' : '#1a1d24'
-                      }
-                      stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
-                    />
-                  }
-                >
-                  {(url) => (
-                    <>
-                      <defs>
-                        <clipPath id={`clip-${node.id}`}>
-                          <circle r={radius()} />
-                        </clipPath>
-                      </defs>
-                      <image
-                        href={url()}
-                        x={-radius()}
-                        y={-radius()}
-                        width={radius() * 2}
-                        height={radius() * 2}
-                        clip-path={`url(#clip-${node.id})`}
-                        preserveAspectRatio="xMidYMid slice"
+                      <rect
+                        x={-box().w / 2}
+                        y={-box().h / 2}
+                        width={box().w}
+                        height={box().h}
+                        rx="4"
+                        ry="4"
+                        fill="#ffffff"
+                        stroke={explicit ? '#0072b2' : '#5a6068'}
+                        stroke-width="1"
                       />
+                      <text
+                        class="lens-edge-label"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill={explicit ? '#0072b2' : undefined}
+                        style={{ 'font-size': `${10 / view().scale}px` }}
+                      >
+                        {edge.label}
+                      </text>
+                    </g>
+                  </Show>
+                </g>
+              );
+            }}
+          </For>
+
+          {/* connect モード中の rubber-band */}
+          <Show when={drag()?.kind === 'connect'}>
+            {(_) => {
+              // PR (ux-overhaul-3): drag() を memo にして mousemove に追随させる
+              const dm = createMemo(
+                () => drag() as { kind: 'connect'; source: NodeId; toX: number; toY: number },
+              );
+              return (
+                <line
+                  x1={pos(dm().source).x}
+                  y1={pos(dm().source).y}
+                  x2={dm().toX}
+                  y2={dm().toY}
+                  stroke="#0072b2"
+                  stroke-width="2"
+                  stroke-dasharray="6 4"
+                  opacity="0.7"
+                  pointer-events="none"
+                />
+              );
+            }}
+          </Show>
+
+          {/* comments (nodes より下に描画して、ノードを背景色で囲うイメージ) */}
+          <For each={GraphComments.comments().map((comment) => comment.id)}>
+            {(id) => {
+              const c = () => GraphComments.comments().find((comment) => comment.id === id)!;
+              return (
+                <CommentRect
+                  comment={c()}
+                  onMoveStart={(e) => {
+                    e.stopPropagation();
+                    setDrag({
+                      kind: 'comment-move',
+                      id: c().id,
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      cx: c().x,
+                      cy: c().y,
+                    });
+                  }}
+                  onResizeStart={(e) => {
+                    e.stopPropagation();
+                    setDrag({
+                      kind: 'comment-resize',
+                      id: c().id,
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      cw: c().width,
+                      ch: c().height,
+                    });
+                  }}
+                />
+              );
+            }}
+          </For>
+
+          {/* nodes */}
+          <For each={props.payload.nodes}>
+            {(node) => {
+              // PR (ux-overhaul-3): pos を memo にして props.positions の変化を tracked。
+              // For 子は 1 回しか走らないので、pos を let const で読むと初期値で固まる。
+              const p = createMemo(() => pos(node.id));
+              const isSelected = () => props.selected === node.id;
+              const dim = () => isDimmed(node.id);
+              const isHover = () => hoverNode() === node.id;
+              const connecting = () => drag()?.kind === 'connect';
+              return (
+                <g
+                  class="lens-node"
+                  classList={{
+                    'lens-node--selected': isSelected(),
+                    'lens-node--dimmed': dim(),
+                    'lens-node--target-hover': connecting() && isHover(),
+                  }}
+                  transform={`translate(${p().x}, ${p().y})`}
+                  onMouseDown={(e) => onNodeMouseDown(e, node.id)}
+                  onMouseEnter={() => setHoverNode(node.id)}
+                  onMouseLeave={() => setHoverNode(undefined)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!suppressClick) props.onSelect?.(node.id);
+                  }}
+                  onDblClick={(e) => {
+                    e.stopPropagation();
+                    props.onActivate?.(node.id);
+                  }}
+                >
+                  <Show
+                    when={props.thumbnailUrls?.get(node.id)}
+                    fallback={
                       <circle
                         r={radius()}
-                        fill="none"
+                        fill={colorForTemplate(node.templateId)}
                         stroke={
                           isSelected()
                             ? '#0072b2'
@@ -563,33 +594,84 @@ export const LensCanvas: Component<LensCanvasProps> = (props) => {
                         }
                         stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
                       />
-                    </>
-                  )}
-                </Show>
-                <Show when={!props.thumbnailUrls?.get(node.id)}>
-                  <Show when={shapeForTemplate(node.templateId) === 'square'}>
-                    <rect x={-6} y={-6} width={12} height={12} fill="#1a1d24" opacity="0.55" />
+                    }
+                  >
+                    {(url) => (
+                      <>
+                        <defs>
+                          <clipPath id={`${canvasId}-clip-${node.id}`}>
+                            <circle r={radius()} />
+                          </clipPath>
+                        </defs>
+                        <image
+                          href={url()}
+                          x={-radius()}
+                          y={-radius()}
+                          width={radius() * 2}
+                          height={radius() * 2}
+                          clip-path={`url(#${canvasId}-clip-${node.id})`}
+                          preserveAspectRatio="xMidYMid slice"
+                        />
+                        <circle
+                          r={radius()}
+                          fill="none"
+                          stroke={
+                            isSelected()
+                              ? '#0072b2'
+                              : connecting() && isHover()
+                                ? '#009e73'
+                                : '#1a1d24'
+                          }
+                          stroke-width={isSelected() || (connecting() && isHover()) ? 3 : 1.5}
+                        />
+                      </>
+                    )}
                   </Show>
-                  <Show when={shapeForTemplate(node.templateId) === 'triangle'}>
-                    <polygon points="0,-7 6,5 -6,5" fill="#1a1d24" opacity="0.55" />
+                  <Show when={!props.thumbnailUrls?.get(node.id)}>
+                    <Show when={shapeForTemplate(node.templateId) === 'square'}>
+                      <rect x={-6} y={-6} width={12} height={12} fill="#1a1d24" opacity="0.55" />
+                    </Show>
+                    <Show when={shapeForTemplate(node.templateId) === 'triangle'}>
+                      <polygon points="0,-7 6,5 -6,5" fill="#1a1d24" opacity="0.55" />
+                    </Show>
+                    <Show when={shapeForTemplate(node.templateId) === 'diamond'}>
+                      <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
+                    </Show>
                   </Show>
-                  <Show when={shapeForTemplate(node.templateId) === 'diamond'}>
-                    <polygon points="0,-7 7,0 0,7 -7,0" fill="#1a1d24" opacity="0.55" />
-                  </Show>
-                </Show>
-                <text
-                  class="lens-node-label"
-                  y={radius() + 14 / view().scale}
-                  style={{ 'font-size': `${11 / view().scale}px` }}
-                >
-                  {node.label}
-                </text>
-              </g>
-            );
+                  <text
+                    class="lens-node-label"
+                    y={radius() + 14 / view().scale}
+                    style={{ 'font-size': `${11 / view().scale}px` }}
+                  >
+                    {node.label}
+                  </text>
+                </g>
+              );
+            }}
+          </For>
+        </g>
+      </svg>
+      <div class="lens-view-controls">
+        <button
+          type="button"
+          onClick={() => {
+            const rect = svg?.getBoundingClientRect();
+            if (rect)
+              GraphComments.add(
+                clientToWorld(rect.left + rect.width / 2 - 90, rect.top + rect.height / 2 - 40),
+              );
           }}
-        </For>
-      </g>
-    </svg>
+        >
+          ＋ メモ
+        </button>
+        <button type="button" onClick={fitAll}>
+          全体表示
+        </button>
+        <button type="button" onClick={() => setView({ x: 0, y: 0, scale: 1 })}>
+          100%
+        </button>
+      </div>
+    </div>
   );
 };
 
@@ -622,6 +704,11 @@ const CommentRect: Component<{
           class="lens-comment-body"
           style={{ width: `${props.comment.width}px`, height: `${props.comment.height}px` }}
         >
+          <div
+            class="lens-comment-header"
+            title="ドラッグでメモを移動"
+            onMouseDown={(event) => props.onMoveStart(event)}
+          />
           <StableTextarea
             class="lens-comment-text"
             value={props.comment.text}
@@ -671,8 +758,8 @@ function loadView(key: string | undefined): ViewState {
     const raw = localStorage.getItem(`${GRAPH_VIEW_PREFIX}${key}`);
     if (!raw) return { x: 0, y: 0, scale: 1 };
     const parsed = JSON.parse(raw) as Partial<ViewState>;
-    const x = typeof parsed.x === 'number' ? parsed.x : 0;
-    const y = typeof parsed.y === 'number' ? parsed.y : 0;
+    const x = typeof parsed.x === 'number' && Number.isFinite(parsed.x) ? parsed.x : 0;
+    const y = typeof parsed.y === 'number' && Number.isFinite(parsed.y) ? parsed.y : 0;
     const scale = typeof parsed.scale === 'number' ? clampScale(parsed.scale) : 1;
     return { x, y, scale };
   } catch {

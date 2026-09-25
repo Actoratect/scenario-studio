@@ -10,7 +10,13 @@ type HistoryEntry =
       readonly mergeKey?: string;
       readonly label?: string;
     }
-  | { readonly domain: 'plotBoard'; readonly label?: string };
+  | { readonly domain: 'plotBoard'; readonly label?: string }
+  | {
+      readonly domain: 'graph';
+      readonly label: string;
+      readonly undo: () => void | Promise<void>;
+      readonly redo: () => void | Promise<void>;
+    };
 
 /**
  * undo()/redo() が実際に適用したエントリの情報。Ctrl+Z の結果を Toast で
@@ -18,7 +24,7 @@ type HistoryEntry =
  * 無言で巻き戻る問題への対処)。undefined = 適用できるものが無かった。
  */
 export interface AppliedHistoryInfo {
-  readonly domain: 'project' | 'script' | 'plotBoard';
+  readonly domain: 'project' | 'script' | 'plotBoard' | 'graph';
   readonly label?: string | undefined;
 }
 
@@ -72,6 +78,7 @@ function trim(stack: HistoryEntry[], side: 'undo' | 'redo'): void {
 }
 
 function applyState(entry: HistoryEntry, direction: 'undo' | 'redo'): ApplyState {
+  if (entry.domain === 'graph') return 'apply';
   if (entry.domain === 'project') {
     if (!projectController) return 'blocked';
     return (direction === 'undo' ? projectController.canUndo() : projectController.canRedo())
@@ -123,7 +130,10 @@ async function applyTop(
     applying = true;
     let ok = false;
     try {
-      if (entry.domain === 'project') {
+      if (entry.domain === 'graph') {
+        await entry[direction]();
+        ok = true;
+      } else if (entry.domain === 'project') {
         ok =
           direction === 'undo' ? await projectController!.undo() : await projectController!.redo();
       } else if (entry.domain === 'script') {
@@ -217,6 +227,26 @@ export const GlobalHistoryService = {
 
   recordPlotBoard(label?: string): void {
     record(label !== undefined ? { domain: 'plotBoard', label } : { domain: 'plotBoard' });
+  },
+
+  recordGraph(
+    label: string,
+    undo: () => void | Promise<void>,
+    redo: () => void | Promise<void>,
+  ): void {
+    record({ domain: 'graph', label, undo, redo });
+  },
+
+  remapScriptPath(oldPath: string, newPath?: string): void {
+    for (const stack of [undoStack, redoStack]) {
+      for (let index = stack.length - 1; index >= 0; index -= 1) {
+        const entry = stack[index];
+        if (entry?.domain !== 'script' || entry.path !== oldPath) continue;
+        if (newPath === undefined) stack.splice(index, 1);
+        else stack[index] = { ...entry, path: newPath };
+      }
+    }
+    touch();
   },
 
   canUndo(): boolean {

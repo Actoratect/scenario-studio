@@ -18,7 +18,12 @@ export const Toaster: Component = () => {
     <div class="ss-toaster" role="region" aria-live="polite" aria-label="通知">
       <For each={Toast.toasts()}>
         {(t) => (
-          <div class="ss-toast" data-kind={t.kind} role="status">
+          <div
+            class="ss-toast"
+            classList={{ 'ss-toast--leaving': !!t.leaving }}
+            data-kind={t.kind}
+            role="status"
+          >
             <span class="ss-toast-icon" aria-hidden="true">
               {ICON[t.kind]}
             </span>

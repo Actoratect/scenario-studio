@@ -42,6 +42,9 @@ import { ConflictDetector } from './ConflictDetector.js';
 import { GlobalHistoryService } from './GlobalHistoryService.js';
 import { ScriptHistoryService } from './ScriptHistoryService.js';
 import { PlotBoardService } from './PlotBoardService.js';
+import { RelationsService } from './RelationsService.js';
+import { DirtyTracker } from './DirtyTracker.js';
+import { useSaveScheduler } from './save-scheduler-binding.js';
 import { Toast } from './Toast.js';
 
 // 「現在開いているプロジェクト」を持つ singleton service。
@@ -89,6 +92,7 @@ export class PickedFolderAlreadyProjectError extends Error {
 }
 
 const [currentProject, setCurrentProject] = createSignal<OpenProjectContext | undefined>(undefined);
+const [opening, setOpening] = createSignal(false);
 const [recentProjects, setRecentProjects] = createSignal<readonly RecentProject[]>([]);
 const [lastError, setLastError] = createSignal<Error | undefined>(undefined);
 let disposeGlobalProjectHistory: (() => void) | undefined;
@@ -102,6 +106,7 @@ function resetGlobalProjectHistory(): void {
 
 export const ProjectService = {
   currentProject,
+  opening,
   recentProjects,
   lastError,
 
@@ -169,6 +174,9 @@ export const ProjectService = {
   async openMerosSample(): Promise<OpenProjectContext> {
     setLastError(undefined);
     const picked = await pickProjectDirectory({ name: '走れメロス (sample)' });
+    if ((await picked.adapter.list(picked.handle, '**')).length > 0) {
+      throw new Error('サンプルの展開先には空のフォルダーを選択してください');
+    }
 
     const entries = Object.entries(MEROS_SAMPLE.files);
     if (entries.length === 0) {
@@ -223,6 +231,7 @@ export const ProjectService = {
     const ctx = currentProject();
     resetGlobalProjectHistory();
     PlotBoardService.reset();
+    RelationsService.discardPending();
     if (ctx) {
       ctx.history.destroy();
       ConflictDetector.clear(ctx.handle);
@@ -274,10 +283,42 @@ export const ProjectService = {
     const ctx = currentProject();
     if (!ctx) return;
     setLastError(undefined);
-    await openPicked(
-      { adapter: ctx.adapter, handle: ctx.handle, rawDirectoryHandle: ctx.rawDirectoryHandle },
-      await loadProject(ctx.adapter, ctx.handle),
-    );
+    // 先にloadすると旧ディスク内容がプロット/関係の最新版を置き換えてしまう。
+    const scheduler = useSaveScheduler();
+    const graphServices = [
+      PlotBoardService,
+      RelationsService,
+      GraphPositions,
+      GraphComments,
+      PlotFlowEdges,
+    ];
+    const results = await Promise.all([
+      scheduler.flushAllAsync(),
+      DirtyTracker.flushAll(),
+      ...graphServices.map((service) => service.flushPending()),
+    ]);
+    if (currentProject()?.project !== ctx.project) return;
+    if (
+      results.some((result) => result.failed > 0 || ('skipped' in result && result.skipped > 0)) ||
+      scheduler.pendingCount > 0 ||
+      DirtyTracker.isDirty() ||
+      graphServices.some((service) => service.hasPending())
+    ) {
+      throw new Error('未保存の変更があります。保存を完了してから再読込してください');
+    }
+    // 読込中に旧画面から新たな編集を始めないよう、保存後に作業画面を閉じる。
+    setOpening(true);
+    setCurrentProject(undefined);
+    ctx.history.destroy();
+    ConflictDetector.clear(ctx.handle);
+    try {
+      await openPicked(
+        { adapter: ctx.adapter, handle: ctx.handle, rawDirectoryHandle: ctx.rawDirectoryHandle },
+        await loadProject(ctx.adapter, ctx.handle),
+      );
+    } finally {
+      setOpening(false);
+    }
   },
 };
 
@@ -298,91 +339,101 @@ interface OpenProjectSource {
   rawDirectoryHandle?: FileSystemDirectoryHandle | undefined;
 }
 
-function openPicked(
+async function openPicked(
   picked: OpenProjectSource,
   loaded: LoadProjectResult,
 ): Promise<OpenProjectContext> {
-  // 既に open 中だった場合の history 解放
-  const prev = currentProject();
-  resetGlobalProjectHistory();
-  // 旧プロジェクトのプロットボード保留保存を flush + モジュール状態をクリア
-  // (debounce タイマーが新プロジェクトへ書き込むのを防ぐ)。
-  PlotBoardService.reset();
-  if (prev) {
-    prev.history.destroy();
-    ConflictDetector.clear(prev.handle);
-  }
+  setOpening(true);
+  try {
+    // 既に open 中だった場合の history 解放
+    const prev = currentProject();
+    // 再読込でも旧Workspaceを閉じ、破棄済みhistoryを編集中の画面から参照させない。
+    if (prev) setCurrentProject(undefined);
+    resetGlobalProjectHistory();
+    // 旧プロジェクトのプロットボード保留保存を flush + モジュール状態をクリア
+    // (debounce タイマーが新プロジェクトへ書き込むのを防ぐ)。
+    PlotBoardService.reset();
+    if (prev) {
+      prev.history.destroy();
+      ConflictDetector.clear(prev.handle);
+    }
 
-  const history = new ProjectHistory();
-  for (const node of loaded.project.nodes.values()) {
-    history.register(node);
-  }
-  const unregisterProjectController = GlobalHistoryService.registerProjectController({
-    canUndo: () => history.pendingUndo > 0,
-    canRedo: () => history.pendingRedo > 0,
-    undo: () => history.undo(),
-    redo: () => history.redo(),
-  });
-  const unregisterProjectHistoryObserver = history.observe((event) => {
-    // Undo 通知用に「どのノードの編集か」をラベルとして残す。
-    const node = loaded.project.nodes.get(event.nodeId);
-    const display = node?.fields['display_name'];
-    const name = typeof display === 'string' && display !== '' ? display : (node?.slug ?? 'ノード');
-    GlobalHistoryService.recordProject(`ノード「${name}」の編集`);
-  });
-  disposeGlobalProjectHistory = () => {
-    unregisterProjectHistoryObserver();
-    unregisterProjectController();
-  };
+    const history = new ProjectHistory();
+    for (const node of loaded.project.nodes.values()) {
+      history.register(node);
+    }
+    const unregisterProjectController = GlobalHistoryService.registerProjectController({
+      canUndo: () => history.pendingUndo > 0,
+      canRedo: () => history.pendingRedo > 0,
+      undo: () => history.undo(),
+      redo: () => history.redo(),
+    });
+    const unregisterProjectHistoryObserver = history.observe((event) => {
+      // Undo 通知用に「どのノードの編集か」をラベルとして残す。
+      const node = loaded.project.nodes.get(event.nodeId);
+      const display = node?.fields['display_name'];
+      const name =
+        typeof display === 'string' && display !== '' ? display : (node?.slug ?? 'ノード');
+      GlobalHistoryService.recordProject(`ノード「${name}」の編集`);
+    });
+    disposeGlobalProjectHistory = () => {
+      unregisterProjectHistoryObserver();
+      unregisterProjectController();
+    };
 
-  const ctx: OpenProjectContext = {
-    adapter: picked.adapter,
-    handle: picked.handle,
-    project: loaded.project,
-    nodeRepository: loaded.nodeRepository,
-    eraRepository: loaded.eraRepository,
-    scenarioRepository: loaded.scenarioRepository,
-    glossaryRepository: loaded.glossaryRepository,
-    relationsRepository: loaded.relationsRepository,
-    plotBoardRepository: loaded.plotBoardRepository,
-    templates: loaded.templates,
-    history,
-    rawDirectoryHandle: picked.rawDirectoryHandle,
-  };
-  setCurrentProject(ctx);
-  GraphPositions.switchProject(picked.adapter, picked.handle);
-  GraphComments.switchProject(picked.adapter, picked.handle);
-  PlotFlowEdges.switchProject(picked.adapter, picked.handle);
-  // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
-  // (load 時点の内容 = 我々が知っている内容)
-  void primeConflictBaseline(ctx);
-  // 章単位で発生した非致命的 load エラーを Toast で警告。
-  // (壊れた章は ScenarioStructure.errors に積まれており、他の章は load 済み)
-  const loadErrors = loaded.project.scenario.errors;
-  if (loadErrors.length > 0) {
-    const head = loadErrors.slice(0, 3);
-    const rest = loadErrors.length - head.length;
-    const summary = head.map((e) => `${e.scope}: ${e.message}`).join(' / ');
-    const tail = rest > 0 ? ` … 他 ${rest} 件` : '';
-    Toast.error(
-      `${loadErrors.length} 件の章を読み込めませんでした (skip): ${summary}${tail}`,
-      8000,
-    );
-    console.warn('[ProjectService] chapter load errors:', loadErrors);
+    const ctx: OpenProjectContext = {
+      adapter: picked.adapter,
+      handle: picked.handle,
+      project: loaded.project,
+      nodeRepository: loaded.nodeRepository,
+      eraRepository: loaded.eraRepository,
+      scenarioRepository: loaded.scenarioRepository,
+      glossaryRepository: loaded.glossaryRepository,
+      relationsRepository: loaded.relationsRepository,
+      plotBoardRepository: loaded.plotBoardRepository,
+      templates: loaded.templates,
+      history,
+      rawDirectoryHandle: picked.rawDirectoryHandle,
+    };
+    await Promise.all([
+      GraphPositions.switchProject(picked.adapter, picked.handle),
+      GraphComments.switchProject(picked.adapter, picked.handle),
+      PlotFlowEdges.switchProject(picked.adapter, picked.handle),
+      primeConflictBaseline(ctx),
+    ]);
+    setCurrentProject(ctx);
+    // PR-AH: 各ノードの「現在の disk 内容」を ConflictDetector の baseline に登録
+    // (load 時点の内容 = 我々が知っている内容)
+    // 章単位で発生した非致命的 load エラーを Toast で警告。
+    // (壊れた章は ScenarioStructure.errors に積まれており、他の章は load 済み)
+    const loadErrors = loaded.project.scenario.errors;
+    if (loadErrors.length > 0) {
+      const head = loadErrors.slice(0, 3);
+      const rest = loadErrors.length - head.length;
+      const summary = head.map((e) => `${e.scope}: ${e.message}`).join(' / ');
+      const tail = rest > 0 ? ` … 他 ${rest} 件` : '';
+      Toast.error(
+        `${loadErrors.length} 件の章を読み込めませんでした (skip): ${summary}${tail}`,
+        8000,
+      );
+      console.warn('[ProjectService] chapter load errors:', loadErrors);
+    }
+    const rawHandle = picked.rawDirectoryHandle;
+    if (rawHandle) {
+      void rememberProject({
+        id: picked.handle.id,
+        name: loaded.project.settings.name,
+        directoryHandle: rawHandle,
+      })
+        .then(() => ProjectService.refreshRecent())
+        .catch((e) => {
+          console.warn('[ProjectService] recent project update failed', e);
+        });
+    }
+    return ctx;
+  } finally {
+    setOpening(false);
   }
-  const rawHandle = picked.rawDirectoryHandle;
-  if (rawHandle) {
-    void rememberProject({
-      id: picked.handle.id,
-      name: loaded.project.settings.name,
-      directoryHandle: rawHandle,
-    })
-      .then(() => ProjectService.refreshRecent())
-      .catch((e) => {
-        console.warn('[ProjectService] recent project update failed', e);
-      });
-  }
-  return Promise.resolve(ctx);
 }
 
 async function primeConflictBaseline(ctx: OpenProjectContext): Promise<void> {

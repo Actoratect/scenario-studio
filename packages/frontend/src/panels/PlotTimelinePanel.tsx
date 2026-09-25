@@ -6,6 +6,7 @@ import { PanelFocus } from '../services/PanelFocus';
 import { PlotSelection } from '../services/PlotSelection';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
+import { SceneMutationService } from '../services/SceneMutationService';
 import { Toast } from '../services/Toast';
 import { PlotDetailRail } from '../plot/PlotDetailRail';
 
@@ -36,7 +37,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
   //   scene drag:   application/x-ss-scene   = "<chapterSlug>::<sceneIdx>"
   async function reorderChapters(fromIdx: number, toIdx: number): Promise<void> {
     const c = ctx();
-    if (!c || fromIdx === toIdx) return;
+    if (!c || busy() || fromIdx === toIdx) return;
     setBusy(true);
     try {
       const arr = [...c.project.scenario.chapters];
@@ -45,6 +46,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
       arr.splice(toIdx, 0, moved);
       await c.scenarioRepository.saveProjectIndex(arr.map((ch) => ({ slug: ch.slug })));
       Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: arr } });
+      ProjectService.touch();
     } catch (e) {
       Toast.error(`章の並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -54,7 +56,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
 
   async function reorderScenes(chapterSlug: string, fromIdx: number, toIdx: number): Promise<void> {
     const c = ctx();
-    if (!c || fromIdx === toIdx) return;
+    if (!c || busy() || fromIdx === toIdx) return;
     const chapter = c.project.scenario.chapters.find((ch) => ch.slug === chapterSlug);
     if (!chapter) return;
     setBusy(true);
@@ -71,6 +73,7 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
         ch.slug === chapterSlug ? { ...ch, scenes } : ch,
       );
       Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: next } });
+      ProjectService.touch();
     } catch (e) {
       Toast.error(`シーンの並べ替えに失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -85,13 +88,21 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
     insertAt: number,
   ): Promise<void> {
     const c = ctx();
-    if (!c) return;
+    if (!c || busy()) return;
+    if (fromChapter === toChapter) {
+      await reorderScenes(fromChapter, fromIdx, insertAt);
+      return;
+    }
     const src = c.project.scenario.chapters.find((ch) => ch.slug === fromChapter);
     if (!src) return;
     const moved = src.scenes[fromIdx];
     if (!moved) return;
     setBusy(true);
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(
+        `Scenarios/${fromChapter}/${moved.relativePath}`,
+      );
       await c.scenarioRepository.moveScene({
         fromChapter,
         toChapter,
@@ -110,10 +121,16 @@ export const PlotTimelinePanel: Component<GroupPanelPartInitParameters> = (param
         return ch;
       });
       Object.assign(c.project, { scenario: { ...c.project.scenario, chapters: next } });
+      SceneMutationService.remap(
+        { chapterSlug: fromChapter, sceneSlug: moved.slug },
+        { chapterSlug: toChapter, sceneSlug: moved.slug, label: moved.title },
+      );
+      ProjectService.touch();
       Toast.success(`シーン移動: ${fromChapter} → ${toChapter}`);
     } catch (e) {
       Toast.error(`シーン移動に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }

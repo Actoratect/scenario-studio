@@ -1,4 +1,13 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  untrack,
+} from 'solid-js';
 import { createStore, produce, reconcile, unwrap } from 'solid-js/store';
 import type { Component } from 'solid-js';
 import type { GroupPanelPartInitParameters } from 'dockview-core';
@@ -25,6 +34,8 @@ import { ConflictDetector } from '../services/ConflictDetector';
 import { SceneAppearanceIndex } from '../services/SceneAppearanceIndex';
 import { GlobalHistoryService } from '../services/GlobalHistoryService';
 import { ScriptHistoryService } from '../services/ScriptHistoryService';
+import { ScriptDraftService } from '../services/ScriptDraftService';
+import { SceneMutationService } from '../services/SceneMutationService';
 import { PanelPinService } from '../services/PanelPinService';
 import { PanelFocus } from '../services/PanelFocus';
 
@@ -59,11 +70,6 @@ function loadModePref(): EditorMode {
 //   - これでブロック内の text 変更は textarea の `value` 1 つだけ更新する
 //     (= 他のブロックは無関係、Solid が DOM を再 mount しない)
 // シーン切替えで前 scene の staging は残るので「タブ切替で破棄される」苦情も解消。
-const sceneStaging = new Map<string, ParsedScene>();
-// raw モード (生 YAML) で編集された scene の storageKey。raw は全文が編集対象なので
-// 保存時に full write する。visual 編集のみの scene は blocks だけを disk へマージ書きし、
-// PlotDetailRail 側の plot 編集 (別 DirtyTracker キー) を上書きしないようにする。
-const sceneRawEdited = new Set<string>();
 // Store proxy を unwrap してから JSON-clone する共通 helper。
 const cloneScene = ScriptHistoryService.cloneScene;
 
@@ -85,18 +91,16 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   // 履歴操作中フラグ (undo/redo 中は新規 history を積まない)
   let suppressHistory = false;
   const [saving, setSaving] = createSignal(false);
+  const [loading, setLoading] = createSignal(false);
+  let loadRevision = 0;
+  const editingBlocked = () => loading() || SceneMutationService.isLocked(scene()?.path ?? '');
   // YAML パース失敗の詳細 (undefined = 正常)。値がある間は原本を壊さないよう
-  // 保存対象へ積まず (commitRawText が early return)、visual 切替も封じてバナーで警告する。
+  // 下書きとして保持し、visual 切替と保存を封じてバナーで警告する。
   const [parseError, setParseError] = createSignal<string | undefined>(undefined);
   const [mode, setMode] = createSignal<EditorMode>(loadModePref());
   let host: HTMLDivElement | undefined;
   let view: ReturnType<typeof createScriptEditor> | undefined;
   let suppressRawChange = false;
-
-  function sceneStorageKey(path: string): string {
-    const projectId = ProjectService.currentProject()?.handle.id ?? 'no-project';
-    return `${projectId}\u0000${path}`;
-  }
 
   function replaceEditorDoc(text: string): void {
     if (!view || view.state.doc.toString() === text) return;
@@ -115,6 +119,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   function setModeAndPersist(m: EditorMode): void {
+    if (m === mode()) return;
     // visual → raw 切替時に CodeMirror へ最新の serialized YAML を流し込む
     if (m === 'raw' && view) {
       const text = serializeSceneYaml(unwrap(parsedStore) as ParsedScene);
@@ -195,89 +200,106 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   /** dirty 化 (毎 mutation 後に呼ぶ)。staging を最新の store snapshot で更新。 */
-  function markDirty(target: SceneRef): void {
-    sceneStaging.set(sceneStorageKey(target.path), cloneScene(parsedStore));
+  function markDirty(target: SceneRef, raw?: { text: string; error?: string }): void {
+    const ctx = ProjectService.currentProject();
+    if (!ctx) return;
+    const previous = ScriptDraftService.get(ctx.history, target.path);
+    ScriptDraftService.set(ctx.history, target.path, {
+      scene: cloneScene(parsedStore),
+      rawEdited: raw !== undefined || previous?.rawEdited === true,
+      ...(raw ? { rawText: raw.text, ...(raw.error ? { parseError: raw.error } : {}) } : {}),
+    });
     DirtyTracker.mark({
       key: target.path,
       label: target.label,
-      saveFn: () => saveNow(target),
+      saveFn: () => saveNow(target, ctx),
     });
   }
 
   async function loadScene(ref: SceneRef): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
+    const revision = ++loadRevision;
+    setLoading(true);
     setScene(ref);
     PanelPinService.setCurrentScript(params.api.id, ref);
     ScriptHistoryService.setActivePath(ref.path);
     // staging に既存があればそれを優先 (タブ切替で破棄しないため)
-    const staged = sceneStaging.get(sceneStorageKey(ref.path));
+    const staged = ScriptDraftService.get(ctx.history, ref.path);
     if (staged) {
-      setParseError(undefined);
-      setParsedStore(reconcile(cloneScene(staged)));
-      const text = serializeSceneYaml(staged);
+      setParseError(staged.parseError);
+      if (staged.parseError) setMode('raw');
+      setParsedStore(reconcile(cloneScene(staged.scene)));
+      const text = staged.rawText ?? serializeSceneYaml(staged.scene);
       setDoc(text);
       replaceEditorDoc(text);
+      setLoading(false);
       return;
     }
-    // staging 無し = disk から読み直すので raw 編集フラグもクリーンにする。
-    sceneRawEdited.delete(sceneStorageKey(ref.path));
-    const exists = await ctx.adapter.exists(ctx.handle, ref.path);
-    const text = exists
-      ? await ctx.adapter.read(ctx.handle, ref.path)
-      : starterSceneYaml(ref.sceneSlug);
-    // 競合検知の baseline を「今 disk で見た内容」に設定。外部エージェント (Claude Code 等)
-    // が後からこのシーンを書き換えたら、保存直前の checkBeforeWrite で検知できる。
-    if (exists) ConflictDetector.recordSnapshot(ctx.handle, ref.path, text);
-    let p: ParsedScene;
     try {
-      p = parseSceneYaml(text);
-    } catch (e) {
-      // パース不能。空シーンへ置換すると 1 ブロック編集 + 保存で原本を空で上書きしてしまう。
-      // raw モード固定で disk のテキストをそのまま見せ、markDirty を積まないことで
-      // 保存対象からも外し、バナーで修正を促す (パースが通れば commitRawText で解除)。
-      setParseError(e instanceof Error ? e.message : String(e));
-      setMode('raw');
+      const exists = await ctx.adapter.exists(ctx.handle, ref.path);
+      const text = exists
+        ? await ctx.adapter.read(ctx.handle, ref.path)
+        : starterSceneYaml(ref.sceneSlug);
+      if (revision !== loadRevision || ProjectService.currentProject()?.history !== ctx.history)
+        return;
+      // 競合検知の baseline を「今 disk で見た内容」に設定。外部エージェント (Claude Code 等)
+      // が後からこのシーンを書き換えたら、保存直前の checkBeforeWrite で検知できる。
+      if (exists) ConflictDetector.recordSnapshot(ctx.handle, ref.path, text);
+      let p: ParsedScene;
+      try {
+        p = parseSceneYaml(text);
+      } catch (e) {
+        // パース不能。空シーンへ置換すると 1 ブロック編集 + 保存で原本を空で上書きしてしまう。
+        // raw モード固定で disk のテキストをそのまま見せ、markDirty を積まないことで
+        // 保存対象からも外し、バナーで修正を促す (パースが通れば commitRawText で解除)。
+        setParseError(e instanceof Error ? e.message : String(e));
+        setMode('raw');
+        setParsedStore(reconcile({ meta: {}, title: '', cast: [], blocks: [] }));
+        setDoc(text);
+        replaceEditorDoc(text);
+        return;
+      }
+      setParseError(undefined);
+      setParsedStore(reconcile(p));
       setDoc(text);
       replaceEditorDoc(text);
-      return;
+    } catch (e) {
+      if (revision !== loadRevision) return;
+      setScene(undefined);
+      Toast.error(`脚本の読み込みに失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      if (revision === loadRevision) setLoading(false);
     }
-    setParseError(undefined);
-    setParsedStore(reconcile(p));
-    setDoc(text);
-    replaceEditorDoc(text);
   }
 
   /** raw mode (CodeMirror) で edit された text を staging に反映。 */
   function commitRawText(text: string): void {
     setDoc(text);
     const target = scene();
-    if (!target) return;
+    if (!target || editingBlocked()) return;
     let next: ParsedScene;
     try {
       next = parseSceneYaml(text);
     } catch (e) {
-      // YAML parse 失敗: staging を更新せず、原本を壊さないため保存対象からも外す。
-      // バナーで「壊れている・このままでは保存されない」ことを明示する
-      // (旧実装はコメントに反して無言 return で、ライターは気付けなかった)。
+      // 不正な YAML も下書きに残す。保存は失敗扱いとし、閉じる時の未保存警告も維持する。
       setParseError(e instanceof Error ? e.message : String(e));
+      markDirty(target, { text, error: e instanceof Error ? e.message : String(e) });
       return;
     }
     setParseError(undefined);
-    sceneRawEdited.add(sceneStorageKey(target.path));
     pushHistory(target.path, 'raw');
     setParsedStore(reconcile(next));
-    markDirty(target);
+    markDirty(target, { text });
   }
 
-  async function saveNow(ref: SceneRef): Promise<'skipped' | void> {
-    const ctx = ProjectService.currentProject();
-    if (!ctx) return;
-    const key = sceneStorageKey(ref.path);
-    const staged = sceneStaging.get(key);
-    const current = scene()?.path === ref.path ? (unwrap(parsedStore) as ParsedScene) : undefined;
-    const snapshot = staged ?? current;
-    if (!snapshot) return;
+  async function saveNow(
+    ref: SceneRef,
+    ctx: NonNullable<ReturnType<typeof ProjectService.currentProject>>,
+  ): Promise<'skipped' | void> {
+    const staged = ScriptDraftService.get(ctx.history, ref.path);
+    if (!staged) return;
+    if (staged.parseError) throw new Error(`${ref.label}: YAML を修正してから保存してください`);
     setSaving(true);
     try {
       // 上書き前に外部変更 (AI エージェント等) がないか確認。ユーザが温存を選んだら
@@ -287,12 +309,11 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         Toast.info(`保存スキップ: ${ref.label} (外部変更を温存)`, 4000);
         return 'skipped';
       }
-      const text = await mergedSceneYaml(ctx, ref.path, snapshot, sceneRawEdited.has(key));
+      const text =
+        staged.rawText ?? (await mergedSceneYaml(ctx, ref.path, staged.scene, staged.rawEdited));
       await ctx.adapter.write(ctx.handle, ref.path, text);
       ConflictDetector.recordSnapshot(ctx.handle, ref.path, text);
-      DirtyTracker.clear(ref.path);
-      sceneStaging.delete(key);
-      sceneRawEdited.delete(key);
+      ScriptDraftService.clearSaved(ctx.history, ref.path, staged);
       bumpScriptLintVersion();
       SceneAppearanceIndex.invalidate();
     } catch (e) {
@@ -305,17 +326,21 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
   }
 
   async function ensureSceneLoaded(path: string): Promise<SceneRef | undefined> {
+    if (editingBlocked()) return undefined;
     const current = scene();
     if (current?.path === path) return current;
     const ref = availableScenes().find((s) => s.path === path);
     if (!ref) return undefined;
-    await loadScene(ref);
-    SceneSelection.select({
+    const selection = {
       chapterSlug: ref.chapterSlug,
       sceneSlug: ref.sceneSlug,
       label: ref.label,
-    });
-    return ref;
+    };
+    if (PanelPinService.isScriptPinned(params.api.id))
+      PanelPinService.pinScript(params.api.id, selection);
+    else SceneSelection.select(selection);
+    await loadScene(ref);
+    return scene()?.path === path && !loading() ? ref : undefined;
   }
 
   async function undoPath(path: string): Promise<boolean> {
@@ -326,6 +351,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     suppressHistory = true;
     try {
       setParsedStore(reconcile(prev));
+      setParseError(undefined);
       syncDocFromScene(prev);
       markDirty(target);
     } finally {
@@ -342,6 +368,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
     suppressHistory = true;
     try {
       setParsedStore(reconcile(next));
+      setParseError(undefined);
       syncDocFromScene(next);
       markDirty(target);
     } finally {
@@ -499,13 +526,15 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       cur.sceneSlug,
     );
     if (newSlug === null) return;
-    const trimmedSlug = newSlug.trim();
+    const trimmedSlug = newSlug.trim() || cur.sceneSlug;
     const trimmedTitle = newTitle.trim();
     if (trimmedSlug === '' || !/^[a-z0-9_-]+$/i.test(trimmedSlug)) {
       Toast.error(`不正な slug: ${trimmedSlug}`);
       return;
     }
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(cur.path);
       const result = await ctx.scenarioRepository.renameScene({
         chapterSlug: cur.chapterSlug,
         oldSlug: cur.sceneSlug,
@@ -532,6 +561,11 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       Object.assign(ctx.project, {
         scenario: { ...ctx.project.scenario, chapters: nextChapters },
       });
+      SceneMutationService.remap(cur, {
+        chapterSlug: cur.chapterSlug,
+        sceneSlug: result.slug,
+        label: result.title,
+      });
       ProjectService.touch();
       // 表示中の scene 参照も更新 (新しい path に追従)
       const newRef: SceneRef = {
@@ -540,7 +574,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         path: `Scenarios/${cur.chapterSlug}/${result.slug}.scn.yaml`,
         label: cur.label.split(' / ').slice(0, -1).concat(result.title).join(' / '),
       };
-      setScene(newRef);
+      await loadScene(newRef);
       SceneSelection.select({
         chapterSlug: cur.chapterSlug,
         sceneSlug: result.slug,
@@ -549,6 +583,8 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       Toast.success(`シーン名変更: ${cur.sceneSlug} → ${result.slug}`);
     } catch (e) {
       Toast.error(`シーン名変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      release?.();
     }
   }
 
@@ -602,16 +638,26 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
 
   createEffect(() => {
     const sel = pinnedScene() ?? SceneSelection.selected();
-    if (!sel) return;
-    const cur = scene();
-    if (cur && cur.chapterSlug === sel.chapterSlug && cur.sceneSlug === sel.sceneSlug) return;
     const ref = availableScenes().find(
-      (s) => s.chapterSlug === sel.chapterSlug && s.sceneSlug === sel.sceneSlug,
+      (s) => sel && s.chapterSlug === sel.chapterSlug && s.sceneSlug === sel.sceneSlug,
     );
+    // 読み込み失敗で scene を解除した時に、この effect 自身で無限再試行しない。
+    const cur = untrack(scene);
+    if (!ref) {
+      if (cur) {
+        loadRevision += 1;
+        setScene(undefined);
+        setLoading(false);
+        PanelPinService.clearCurrentScript(params.api.id);
+      }
+      return;
+    }
+    if (cur?.path === ref.path && cur.label === ref.label) return;
     if (ref) void loadScene(ref);
   });
 
   onCleanup(() => {
+    loadRevision += 1;
     unregisterGlobalHistoryController?.();
     PanelPinService.clearCurrentScript(params.api.id);
     view?.destroy();
@@ -659,15 +705,15 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
         <button
           type="button"
           class="panel-script-rename"
-          disabled={!scene()}
+          disabled={!scene() || editingBlocked()}
           onClick={() => void renameCurrentScene()}
           title="シーン名 / slug を変更"
         >
           ✎ 名前変更
         </button>
-        <Show when={saving()}>
+        <Show when={saving() || loading()}>
           <span class="panel-script-saving">
-            <Spinner /> 保存中…
+            <Spinner /> {loading() ? '読み込み中…' : '保存中…'}
           </span>
         </Show>
         <Show when={PanelPinService.isScriptPinned(params.api.id)}>
@@ -693,9 +739,6 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
           >
             {} YAML
           </button>
-        </span>
-        <span class="panel-script-panel-id">
-          · <code>{params.api.id}</code>
         </span>
       </div>
 
@@ -768,7 +811,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       {/* visual モード: ScriptVisualEditor + 右側 rail (PR-AS) */}
       <div
         class="panel-script-content panel-script-content--rail"
-        style={{ display: mode() === 'visual' && scene() ? 'flex' : 'none' }}
+        style={{ display: mode() === 'visual' && scene() && !editingBlocked() ? 'flex' : 'none' }}
       >
         <div class="panel-script-content-main">
           <ScriptVisualEditor
@@ -795,7 +838,7 @@ export const ScriptPanel: Component<GroupPanelPartInitParameters> = (params) => 
       <div
         class="panel-script-host"
         ref={host}
-        style={{ display: mode() === 'raw' && scene() ? 'block' : 'none' }}
+        style={{ display: mode() === 'raw' && scene() && !editingBlocked() ? 'block' : 'none' }}
       />
     </div>
   );

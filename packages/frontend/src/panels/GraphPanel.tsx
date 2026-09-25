@@ -33,7 +33,6 @@ import { LensCanvas } from '../graph/LensCanvas';
 import { PlotBoardCanvas } from '../graph/PlotBoardCanvas';
 import { RelationTypePicker } from '../graph/RelationTypePicker';
 import { PlotEdgeEditor } from '../graph/PlotEdgeEditor';
-import { GraphComments } from '../graph/graph-comments';
 import { GraphPositions } from '../graph/graph-positions';
 import { PlotFlowEdges } from '../graph/plot-flow-edges';
 import { QuickNodeCreator, QuickSceneCreator } from '../graph/QuickCreatePopover';
@@ -110,7 +109,12 @@ interface PlotFlowEdgeEdit {
 
 function loadLensMode(): LensMode {
   if (typeof localStorage === 'undefined') return 'relationship';
-  const v = localStorage.getItem(LENS_MODE_KEY);
+  let v: string | null;
+  try {
+    v = localStorage.getItem(LENS_MODE_KEY);
+  } catch {
+    return 'relationship';
+  }
   if (v === 'plot-flow' || v === 'plot-board') return v;
   return 'relationship';
 }
@@ -138,7 +142,13 @@ function quickNodeSlug(name: string, template: TemplateDefinition): string {
 
 function loadNodeSize(): number {
   if (typeof localStorage === 'undefined') return 22;
-  const v = Number(localStorage.getItem(NODE_SIZE_KEY));
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(NODE_SIZE_KEY);
+  } catch {
+    return 22;
+  }
+  const v = raw === null ? 22 : Number(raw);
   return Number.isFinite(v) ? Math.max(14, Math.min(44, v)) : 22;
 }
 
@@ -151,7 +161,7 @@ function saveNodeSize(size: number): void {
   }
 }
 
-export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
+export const GraphPanel: Component<GroupPanelPartInitParameters> = (_params) => {
   const [eraFilterOn, setEraFilterOn] = createSignal(false);
   const [pending, setPending] = createSignal<PendingPicker | undefined>(undefined);
   const [editing, setEditing] = createSignal<EditingPicker | undefined>(undefined);
@@ -160,7 +170,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
   const [pfEdgeEdit, setPfEdgeEdit] = createSignal<PlotFlowEdgeEdit | undefined>(undefined);
   // P1 dogfood: 空所への Shift+drag で新規ノード / シーンをその場に作る
   const [quickNode, setQuickNode] = createSignal<
-    { source: NodeId; world: { x: number; y: number }; at: PickerAt; caption: string } | undefined
+    { source?: NodeId; world: { x: number; y: number }; at?: PickerAt; caption: string } | undefined
   >(undefined);
   const [quickScene, setQuickScene] = createSignal<
     | {
@@ -263,7 +273,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
     const raw = rawLens();
     if (!raw) return undefined;
     const hidden = hiddenTemplates();
-    const showEdges = edgesVisible();
+    const showEdges = lensMode() === 'plot-flow' || edgesVisible();
     if (hidden.size === 0 && showEdges) return raw;
     const visibleNodes = raw.nodes.filter((n) => !hidden.has(n.templateId));
     const visibleIds = new Set<NodeId>(visibleNodes.map((n) => n.id));
@@ -489,7 +499,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
       Object.assign(ctx.project, { nodes: next });
       ctx.history.register(node);
       GraphPositions.commitPosition(node.id, q.world);
-      if (input.relationText !== '') {
+      if (q.source && input.relationText !== '') {
         await RelationsService.add({ source: q.source, target: node.id, text: input.relationText });
       }
       SelectionContext.selectNode(node.id);
@@ -613,14 +623,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
           <Show when={lensMode() !== 'plot-board' && lens()}>
             {(l) => (
               <span class="panel-graph-stats">
-                {l().nodes.length} nodes · {l().edges.length} edges
+                {l().nodes.length} ノード · {l().edges.length} 接続
               </span>
             )}
           </Show>
           <Show when={lensMode() === 'plot-board' && plotBoard()}>
             {(board) => (
               <span class="panel-graph-stats">
-                {board().nodes.length} cards · {board().edges.length} links
+                {board().nodes.length} カード · {board().edges.length} 接続
               </span>
             )}
           </Show>
@@ -655,7 +665,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               class="panel-graph-hint"
               title="ノードから Shift+ドラッグ: 別ノードへ = 関係作成 / 空所へ = 新規ノード作成。線は Alt+クリックで削除"
             >
-              ⓘ Shift+drag で関係作成 (空所へ = 新規ノード) · Alt+クリックで線を削除
+              Shift+ドラッグで接続
             </span>
             <label class="panel-graph-era-toggle" title="関係 (edge) 線の表示 / 非表示">
               <input
@@ -686,7 +696,7 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               class="panel-graph-hint"
               title="ノードから Shift+ドラッグ: 別シーンへ = 接続追加 / 空所へ = 直後に新シーン作成。線はクリックでラベル編集、Alt+クリックで削除"
             >
-              クリックで脚本へ · Shift+drag で接続 (空所へ = 新シーン) · Alt+クリックで線を削除
+              クリックで脚本 · Shift+ドラッグで接続
             </span>
           </Show>
           <Show when={lensMode() === 'plot-board'}>
@@ -694,23 +704,18 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
               プロットや伏線をカード化し、複数の筋を同じ面で整理します
             </span>
           </Show>
-          <Show when={lensMode() !== 'plot-board'}>
+          <Show when={lensMode() === 'relationship'}>
             <button
               type="button"
               class="panel-graph-add-comment"
-              title="グラフに自由メモ (グループ説明など) を追加"
+              title="関係図にキャラ・場所などを追加"
               onClick={() => {
-                // 画面中央付近に新しいメモを置く (world 座標は単純に 0,0 + ランダム offset)
-                GraphComments.add({
-                  x: 40 + Math.random() * 80,
-                  y: 40 + Math.random() * 80,
-                });
+                setQuickNode({ world: { x: 200, y: 160 }, caption: '関係図' });
               }}
             >
-              ＋ メモ
+              ＋ ノード
             </button>
           </Show>
-          <code class="panel-graph-id">{params.api.id}</code>
         </div>
         {/* PR-AN: 2 段目 — テンプレ別 visibility + ノード検索。
             Plot Flow モードでは relevance が低いので relationship 時のみ表示。 */}
@@ -789,10 +794,12 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
                 payload={lens()!}
                 positions={positions()}
                 thumbnailUrls={thumbnailUrls() ?? new Map()}
-                onSelect={(id) => SelectionContext.selectNode(id)}
+                onSelect={(id) =>
+                  lensMode() === 'plot-flow' ? activate(id) : SelectionContext.selectNode(id)
+                }
                 onActivate={activate}
                 onPositionChange={(id, p) => GraphPositions.setPosition(id, p, { persist: false })}
-                onPositionCommit={(id, p) => GraphPositions.commitPosition(id, p)}
+                onPositionCommit={(id, p, from) => GraphPositions.commitPosition(id, p, from)}
                 onCreateRelation={startCreate}
                 onConnectToEmpty={startCreateAtEmpty}
                 onEdgeClick={startEdit}
@@ -813,6 +820,34 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
                 referenceNodes={plotBoardReferenceNodes()}
                 viewKey={`${ProjectService.currentProject()?.handle.id ?? 'project'}:${board().id}`}
                 onAddNode={(kind, position) => PlotBoardService.addNode(kind, position)}
+                onDuplicateNode={(id) => PlotBoardService.duplicateNode(id)}
+                sceneOptions={
+                  ProjectService.currentProject()?.project.scenario.chapters.flatMap((chapter) =>
+                    chapter.scenes.map((scene) => ({
+                      id: `${chapter.slug}/${scene.slug}`,
+                      label: `${chapter.title} / ${scene.title}`,
+                    })),
+                  ) ?? []
+                }
+                onOpenScene={(id) => {
+                  const chapters = ProjectService.currentProject()?.project.scenario.chapters ?? [];
+                  for (const chapter of chapters) {
+                    const scene = chapter.scenes.find(
+                      (item) => `${chapter.slug}/${item.slug}` === id || item.slug === id,
+                    );
+                    if (scene) {
+                      SceneSelection.select({
+                        chapterSlug: chapter.slug,
+                        sceneSlug: scene.slug,
+                        label: scene.title,
+                      });
+                      PanelFocus.focus('script-1');
+                      return;
+                    }
+                  }
+                  Toast.info('参照先のシーンが見つかりません');
+                }}
+                onOpenNode={(id) => SelectionContext.selectNode(id)}
                 onNodeChange={(id, patch) => PlotBoardService.updateNode(id, patch)}
                 onNodeCommit={(id) => PlotBoardService.commitNode(id)}
                 onNodeMove={(id, position) => PlotBoardService.moveNode(id, position)}
@@ -870,13 +905,14 @@ export const GraphPanel: Component<GroupPanelPartInitParameters> = (params) => {
       />
       <PlotEdgeEditor
         open={!!edgeEdit()}
+        editType
         initial={edgeEdit() ? { type: edgeEdit()!.type, label: edgeEdit()!.label } : undefined}
         caption={edgeEdit()?.caption}
         at={edgeEdit()?.at}
         onClose={() => setEdgeEdit(undefined)}
-        onSubmit={(label) => {
+        onSubmit={(label, type) => {
           const e = edgeEdit();
-          if (e) PlotBoardService.updateEdge(e.edgeId, { label });
+          if (e) PlotBoardService.updateEdge(e.edgeId, { label, ...(type ? { type } : {}) });
         }}
         onDelete={() => {
           const e = edgeEdit();

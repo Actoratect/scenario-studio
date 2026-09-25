@@ -1,0 +1,209 @@
+/* Inspector はドック幅に追従し、未使用の入力欄や空画像に領域を割かない。 */
+.panel-inspector .inspector-navigation,
+.panel-inspector .inspector-image-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.panel-inspector .inspector-navigation {
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ss-border);
+}
+
+.inspector-section-tabs {
+  display: flex;
+  gap: 3px;
+}
+
+.panel-inspector .inspector-section-tabs button {
+  padding: 5px 16px;
+  border: 1px solid var(--ss-border);
+  border-radius: 5px;
+  background: var(--ss-bg-soft);
+  color: var(--ss-text-muted);
+}
+
+.panel-inspector .inspector-section-tabs button.active {
+  border-color: var(--ss-accent-blue);
+  background: var(--ss-bg-info);
+  color: var(--ss-text);
+  box-shadow: inset 0 -2px var(--ss-accent-blue);
+  font-weight: 700;
+}
+
+.inspector-empty-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+}
+
+.inspector-image-summary {
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--ss-text-muted);
+}
+
+.inspector-portrait-editor {
+  align-self: flex-start;
+  padding: 8px;
+  border: 1px solid var(--ss-border);
+  border-radius: 6px;
+}
+
+.inspector-field-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.panel-inspector .panel-inspector-group-header {
+  display: flex;
+  width: 100%;
+  margin: 0;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ss-bg-soft);
+  text-align: left;
+  color: var(--ss-text);
+}
+
+.panel-inspector .panel-inspector-group-title,
+.panel-inspector .panel-inspector-group-toggle,
+.panel-inspector .panel-inspector-group-count {
+  color: inherit;
+}
+
+.panel-inspector .panel-inspector-group-count {
+  margin-left: auto;
+}
+
+.panel-inspector .panel-inspector-field-row .ssf-hint {
+  display: none;
+}
+
+.panel-inspector .panel-inspector-field-row:focus-within .ssf-hint {
+  display: block;
+}
+
+.panel-inspector .panel-inspector-field-row--compact .ssf-field {
+  grid-template-columns: minmax(88px, 30%) minmax(0, 1fr);
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.panel-inspector .panel-inspector-field-row--compact .ssf-label {
+  text-align: left;
+  background: none;
+  overflow-wrap: anywhere;
+}
+
+.panel-inspector .inspector-add-field {
+  width: 100%;
+  padding: 5px 7px;
+  margin-top: 3px;
+  border: 1px dashed var(--ss-border);
+  border-radius: 4px;
+  background: var(--ss-bg);
+  color: var(--ss-text-muted);
+  font: inherit;
+  font-size: 11px;
+}
+
+.panel-inspector .panel-inspector-field-row:has(.inspector-color-swatch) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-inspector .panel-inspector-field-row:has(.inspector-color-swatch) > .ssf-field {
+  flex: 1;
+}
+
+.panel-inspector .inspector-color-swatch {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.inspector-text-map {
+  padding: 6px 0 10px;
+}
+
+.inspector-map-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inspector-map-hint {
+  color: var(--ss-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 4px 0 8px;
+}
+
+.inspector-map-entry {
+  border: 1px solid var(--ss-border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  margin-bottom: 7px;
+  background: var(--ss-bg);
+}
+
+.inspector-map-entry-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inspector-map-entry-title > span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.inspector-map-line-count {
+  margin-left: auto;
+  color: var(--ss-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.panel-inspector .inspector-map-entry .ssf-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.inspector-map-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspector-map-add > select,
+.inspector-map-add > form {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.inspector-map-add > form {
+  display: flex;
+  gap: 4px;
+}
+
+.inspector-map-add input {
+  min-width: 0;
+  flex: 1;
+}

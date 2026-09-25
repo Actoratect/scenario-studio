@@ -24,7 +24,8 @@ export type FieldType =
   | 'bool'
   | 'node_ref'
   | 'markdown'
-  | 'media_ref';
+  | 'media_ref'
+  | 'text_map';
 
 interface BaseFieldSchema {
   id: string;
@@ -42,6 +43,8 @@ interface BaseFieldSchema {
    * multiline_string / markdown は false。明示的に compact=false でフルワイドにできる。
    */
   compact?: boolean;
+  /** 空欄は「項目を追加」から開く。既存データのある項目は常に表示する。 */
+  hiddenWhenEmpty?: boolean;
 }
 
 export interface StringFieldSchema extends BaseFieldSchema {
@@ -49,6 +52,17 @@ export interface StringFieldSchema extends BaseFieldSchema {
   defaultValue?: string;
   /** 表示時の最大文字数バッジ用 (M6 Script 編集の超過警告などにも転用予定)。 */
   maxLength?: number;
+  /** 文字列として保持しながらカラー選択を補助する。 */
+  input?: 'color';
+}
+
+/** 場面・相手などのキーごとに複数行のテキストを保持する。null は継承項目の削除。 */
+export interface TextMapFieldSchema extends BaseFieldSchema {
+  type: 'text_map';
+  keyLabel: string;
+  keyKind?: 'text' | 'node_ref';
+  referencesTemplateId?: TemplateId;
+  suggestions?: readonly string[];
 }
 
 export interface NumericFieldSchema extends BaseFieldSchema {
@@ -87,7 +101,8 @@ export type FieldSchema =
   | EnumFieldSchema
   | BoolFieldSchema
   | NodeRefFieldSchema
-  | MediaRefFieldSchema;
+  | MediaRefFieldSchema
+  | TextMapFieldSchema;
 
 export interface TemplateDefinition {
   id: TemplateId;
