@@ -15,7 +15,7 @@
 
 ## 🟡 中 (UX 改善)
 
-- [ ] **タブ増加を抑える UX 方針の反映** — 新機能は既定タブ追加ではなく、既存パネル内 rail / drawer / overlay / 右クリック / Cmd+K action を優先する
+- [x] **タブ増加を抑える UX 方針の反映** — 2026-09-26: 初期配置を3列・中央4タブへ整理。補助パネルは必要時に追加。上部はツールメニューへ集約し、集中表示を追加。キャラの任意項目は必要なものだけ開く。
 - [ ] **AI 連携の2軸整理** — Developer Local Agent (Codex / IDE / ChatGPT UI handoff) と General External API (課金あり自動生成) を UI / docs で分ける
 - [ ] **画像欄 right-click AI 画像生成** — ChatGPT / Gemini 用 prompt copy と、外部APIでの3案生成 (課金あり) を分けて提供
 - [ ] **テキスト欄 right-click AI 提案** — 選択テキスト / フィールド文脈から 3 案を生成し、差分確認後に置換 / 追記 / コピー
