@@ -19,6 +19,7 @@ import { PanelFocus } from '../services/PanelFocus';
 import { PlotSelection } from '../services/PlotSelection';
 import { ProjectService } from '../services/ProjectService';
 import { SceneSelection } from '../services/SceneSelection';
+import { SceneMutationService } from '../services/SceneMutationService';
 import { SelectionContext } from '../services/SelectionContext';
 import { ThumbnailService } from '../services/ThumbnailService';
 import { Toast } from '../services/Toast';
@@ -233,7 +234,9 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     const trimmed = next.trim();
     if (trimmed === '' || trimmed === currentTitle) return;
     setBusy(true);
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(`Scenarios/${chapterSlug}/_index.yaml`);
       await ctx.scenarioRepository.renameChapter(chapterSlug, trimmed);
       const nextChapters = ctx.project.scenario.chapters.map((c) =>
         c.slug === chapterSlug ? { ...c, title: trimmed } : c,
@@ -245,6 +248,7 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     } catch (e) {
       Toast.error(`章タイトル変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }
@@ -263,15 +267,19 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       sceneSlug,
     );
     if (newSlug === null) return;
-    const trimmedSlug = newSlug.trim();
+    const trimmedSlug = newSlug.trim() || sceneSlug;
     const trimmedTitle = newTitle.trim();
-    if (trimmedSlug === '' || (trimmedSlug === sceneSlug && trimmedTitle === currentTitle)) return;
+    if (trimmedSlug === sceneSlug && trimmedTitle === currentTitle) return;
     if (!/^[a-z0-9_-]+$/i.test(trimmedSlug)) {
       Toast.error(`不正な slug: ${trimmedSlug}`);
       return;
     }
     setBusy(true);
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(
+        `Scenarios/${chapterSlug}/${sceneSlug}.scn.yaml`,
+      );
       const result = await ctx.scenarioRepository.renameScene({
         chapterSlug,
         oldSlug: sceneSlug,
@@ -298,11 +306,16 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       Object.assign(ctx.project, {
         scenario: { ...ctx.project.scenario, chapters: nextChapters },
       });
+      SceneMutationService.remap(
+        { chapterSlug, sceneSlug },
+        { chapterSlug, sceneSlug: result.slug, label: result.title },
+      );
       commitProjectUpdate();
       Toast.success(`シーンを変更: ${sceneSlug} → ${result.slug}`);
     } catch (e) {
       Toast.error(`シーン変更に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }
@@ -317,7 +330,11 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
     )
       return;
     setBusy(true);
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(
+        `Scenarios/${chapterSlug}/${sceneSlug}.scn.yaml`,
+      );
       // 物理削除の前に .editor/trash へ退避 (ソフトデリート)
       const chapter = ctx.project.scenario.chapters.find((c) => c.slug === chapterSlug);
       const sceneEntry = chapter?.scenes.find((s) => s.slug === sceneSlug);
@@ -336,11 +353,13 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       Object.assign(ctx.project, {
         scenario: { ...ctx.project.scenario, chapters: nextChapters },
       });
+      SceneMutationService.remap({ chapterSlug, sceneSlug });
       commitProjectUpdate();
       Toast.success(`シーンを削除: ${sceneSlug}`);
     } catch (e) {
       Toast.error(`シーンの削除に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }
@@ -404,12 +423,20 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
   ): Promise<void> {
     const ctx = ProjectService.currentProject();
     if (!ctx) return;
+    if (fromChapter === toChapter) {
+      await reorderScenes(fromChapter, fromIdx, insertAt);
+      return;
+    }
     const src = ctx.project.scenario.chapters.find((c) => c.slug === fromChapter);
     if (!src) return;
     const moved = src.scenes[fromIdx];
     if (!moved) return;
     setBusy(true);
+    let release: (() => void) | undefined;
     try {
+      release = await SceneMutationService.prepare(
+        `Scenarios/${fromChapter}/${moved.relativePath}`,
+      );
       await ctx.scenarioRepository.moveScene({
         fromChapter,
         toChapter,
@@ -430,11 +457,16 @@ export const OutlinePanel: Component<GroupPanelPartInitParameters> = (params) =>
       Object.assign(ctx.project, {
         scenario: { ...ctx.project.scenario, chapters: nextChapters },
       });
+      SceneMutationService.remap(
+        { chapterSlug: fromChapter, sceneSlug: moved.slug },
+        { chapterSlug: toChapter, sceneSlug: moved.slug, label: moved.title },
+      );
       commitProjectUpdate();
       Toast.success(`シーン移動: ${fromChapter} → ${toChapter}`);
     } catch (e) {
       Toast.error(`シーン移動に失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }

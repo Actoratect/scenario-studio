@@ -58,4 +58,15 @@ describe('ScriptHistoryService', () => {
     expect(undo?.title).toBe('before typing');
     expect(ScriptHistoryService.canUndo(path)).toBe(false);
   });
+
+  it('moves history with renamed scenes and removes it with deleted scenes', () => {
+    ScriptHistoryService.push('old', scene('before'));
+    ScriptHistoryService.remapPath('old', 'new');
+    expect(ScriptHistoryService.activePath()).toBe('new');
+    expect(ScriptHistoryService.canUndo('old')).toBe(false);
+    expect(ScriptHistoryService.takeUndo('new', scene('after'))?.title).toBe('before');
+    ScriptHistoryService.remapPath('new');
+    expect(ScriptHistoryService.canRedo('new')).toBe(false);
+    expect(ScriptHistoryService.activePath()).toBeUndefined();
+  });
 });

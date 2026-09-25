@@ -144,6 +144,15 @@ export const ScriptHistoryService = {
     return true;
   },
 
+  remapPath(path: string, nextPath?: string): void {
+    if (path === nextPath) return;
+    const history = sceneHistory.get(path);
+    sceneHistory.delete(path);
+    if (nextPath && history) sceneHistory.set(nextPath, history);
+    if (activePath() === path) setActivePathSignal(nextPath);
+    touch();
+  },
+
   clear(): void {
     sceneHistory.clear();
     setActivePathSignal(undefined);
