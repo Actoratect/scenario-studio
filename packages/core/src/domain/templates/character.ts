@@ -1,5 +1,5 @@
 import { NAME_FIELDS, templateId } from './types.js';
-import type { TemplateDefinition } from './types.js';
+import type { FieldSchema, TemplateDefinition } from './types.js';
 
 // Character テンプレ。フィールドは Inspector の見やすさのため group 付きで宣言。
 export const CHARACTER_TEMPLATE: TemplateDefinition = {
@@ -8,106 +8,191 @@ export const CHARACTER_TEMPLATE: TemplateDefinition = {
   displayName: 'キャラクター',
   icon: 'builtin:user',
   defaultThumbnailColor: '#88aacc',
-  fields: [
-    ...NAME_FIELDS,
-    {
-      // ユーザ要望によりマイナス表記廃止 (PR: ux-overhaul)。素直に「年齢」として書く。
-      id: 'birth_year',
-      label: '年齢',
-      type: 'int',
-      description: '見た目の年齢 (歳)',
-      group: '基本情報',
-    },
-    {
-      // 性別は作品によって表現幅が広いため自由入力。
-      // 旧 enum (male / female / nonbinary / unknown) も書けるが、独自値も許容。
-      id: 'gender',
-      label: '性別',
-      type: 'string',
-      description: '自由入力 (例: male / female / 中性 / 不明)',
-      group: '基本情報',
-    },
-    {
-      id: 'height',
-      label: '身長',
-      type: 'number',
-      unit: 'cm',
-      min: 0,
-      group: '基本情報',
-    },
-    {
-      id: 'first_person',
-      label: '一人称',
-      type: 'string',
-      maxLength: 8,
-      group: '話し方',
-    },
-    {
-      // 口調は作品ごとの語感差が大きいため自由入力。
-      // 旧 enum (casual / polite / formal / rough / archaic) も書けるが、独自値も許容。
-      id: 'tone',
-      label: '口調',
-      type: 'string',
-      description: '自由入力 (例: casual / 丁寧 / 武人風 / 古風)',
-      group: '話し方',
-    },
-    {
-      id: 'tagline',
-      label: '一言でいえば...',
-      type: 'string',
-      description: 'キャラを一言で要約 (例: 厳しく育った剣士従者、しかし年頃の少女)',
-      group: '描写',
-    },
-    {
-      id: 'personality',
-      label: '性格',
-      type: 'multiline_string',
-      description: '性格・気質・行動原理の説明',
-      group: '描写',
-    },
-    {
-      id: 'keywords',
-      label: 'キーワード',
-      type: 'multiline_string',
-      description: '読点 / カンマ区切りでキャラを表すキーワード (例: 天然、好奇心、真剣)',
-      group: '描写',
-    },
-    {
-      id: 'dialogue_sample',
-      label: 'セリフイメージ',
-      type: 'multiline_string',
-      description: '口調がわかるサンプルセリフ。1 行 1 セリフ',
-      group: '描写',
-    },
-    {
-      id: 'possessions',
-      label: '所持品',
-      type: 'multiline_string',
-      description: '・ で始める箇条書きが見やすい',
-      group: '描写',
-    },
-    {
-      // PR-AC 以前に書かれた既存データの保護用。新規入力は「描写」群を使う想定。
-      // データが入っていなければ Inspector では空表示。
-      id: 'appearance',
-      label: '外見 (旧)',
-      type: 'multiline_string',
-      description: 'PR 旧版で使っていた外見欄。互換のため残置',
-      group: '補足',
-    },
-    {
-      id: 'faction',
-      label: '所属',
-      type: 'node_ref',
-      referencesTemplateId: templateId('template.faction'),
-      group: '関係',
-    },
-    {
-      id: 'memo',
-      label: 'メモ',
-      type: 'multiline_string',
-      description: '自由記入欄。打合せメモ / 設定の TODO / 仮置きアイデアなど',
-      group: 'メモ',
-    },
-  ],
+  fields: (
+    [
+      ...NAME_FIELDS,
+      {
+        id: 'short_name',
+        label: '呼び名',
+        type: 'string',
+        description: '会話や一覧で使う短い名前',
+        group: '名前',
+      },
+      { id: 'school_year', label: '学年', type: 'string', group: '基本情報' },
+      { id: 'club', label: '部活・戦い方', type: 'string', group: '基本情報' },
+      { id: 'spawn_location', label: '登場する場所', type: 'string', group: '基本情報' },
+      {
+        // ユーザ要望によりマイナス表記廃止 (PR: ux-overhaul)。素直に「年齢」として書く。
+        id: 'birth_year',
+        label: '年齢',
+        type: 'int',
+        description: '見た目の年齢 (歳)',
+        group: '基本情報',
+      },
+      {
+        // 性別は作品によって表現幅が広いため自由入力。
+        // 旧 enum (male / female / nonbinary / unknown) も書けるが、独自値も許容。
+        id: 'gender',
+        label: '性別・見た目',
+        type: 'string',
+        description: '自由入力 (例: male / female / 中性 / 不明)',
+        group: '基本情報',
+      },
+      {
+        id: 'enemy_name',
+        label: '敵の呼び方',
+        type: 'string',
+        description: '台詞中の置換語など (例: {M} → オバケ)',
+        group: '話し方',
+      },
+      {
+        id: 'height',
+        label: '身長',
+        type: 'number',
+        unit: 'cm',
+        min: 0,
+        group: '基本情報',
+      },
+      {
+        id: 'first_person',
+        label: '一人称',
+        type: 'string',
+        maxLength: 8,
+        group: '話し方',
+      },
+      {
+        // 口調は作品ごとの語感差が大きいため自由入力。
+        // 旧 enum (casual / polite / formal / rough / archaic) も書けるが、独自値も許容。
+        id: 'tone',
+        label: '口調',
+        type: 'string',
+        description: '自由入力 (例: casual / 丁寧 / 武人風 / 古風)',
+        group: '話し方',
+      },
+      {
+        id: 'tagline',
+        label: '肩書き',
+        type: 'string',
+        description: 'キャラを一言で要約 (例: 厳しく育った剣士従者、しかし年頃の少女)',
+        group: '人物',
+      },
+      {
+        id: 'personality',
+        label: '性格',
+        type: 'multiline_string',
+        description: '性格・気質・行動原理の説明',
+        group: '人物',
+      },
+      { id: 'profile', label: 'プロフィール', type: 'multiline_string', group: '人物' },
+      { id: 'background', label: '経緯・ここに来た理由', type: 'multiline_string', group: '人物' },
+      { id: 'secret', label: '秘密', type: 'multiline_string', group: '人物' },
+      {
+        id: 'secret_flag',
+        label: '秘密の公開フラグ',
+        type: 'string',
+        description: '公開条件に使うフラグ名 (例: sec_hiyori)',
+        group: '人物',
+      },
+      { id: 'skin_color', label: '肌の色', type: 'string', input: 'color', group: '見た目' },
+      { id: 'hair_color', label: '髪の色', type: 'string', input: 'color', group: '見た目' },
+      { id: 'hair_style', label: '髪型', type: 'string', group: '見た目' },
+      {
+        id: 'outfit',
+        label: '服装',
+        type: 'string',
+        description: '空欄なら作品側の既定の服装',
+        group: '見た目',
+      },
+      { id: 'ribbon', label: 'リボン・装飾', type: 'string', group: '見た目' },
+      { id: 'holding_doll', label: '人形を抱えている', type: 'bool', group: '見た目' },
+      { id: 'pale', label: '少し青白い', type: 'bool', group: '見た目' },
+      {
+        id: 'keywords',
+        label: 'キーワード',
+        type: 'multiline_string',
+        description: '読点 / カンマ区切りでキャラを表すキーワード (例: 天然、好奇心、真剣)',
+        group: '人物',
+      },
+      {
+        id: 'dialogue_sample',
+        label: 'セリフイメージ',
+        type: 'multiline_string',
+        description: '口調がわかるサンプルセリフ。1 行 1 セリフ',
+        group: '台詞',
+      },
+      {
+        id: 'dialogue_by_scene',
+        label: '場面別の台詞',
+        type: 'text_map',
+        keyLabel: '場面',
+        group: '台詞',
+        description: '1行に1つ。必要な場面だけ追加できます。場面名も自由に作れます。',
+        suggestions: [
+          '仲間になった時',
+          '先頭になった時',
+          'ふとした時',
+          '傷を負った時',
+          '瀕死の時',
+          '倒れる時（最期の言葉）',
+          '呼び戻された時',
+          '必殺技',
+          '部室での独り言',
+          '禍が深まった時',
+          '蝋燭が尽きかけた時',
+          '休憩部屋',
+          '何かが襲ってきた時',
+          '仲間が倒れた時（汎用）',
+        ],
+      },
+      {
+        id: 'dialogue_on_ally_down',
+        label: '仲間が倒れた時の台詞',
+        type: 'text_map',
+        keyLabel: '相手',
+        keyKind: 'node_ref',
+        referencesTemplateId: templateId('template.character'),
+        group: '台詞',
+        description: '相手別の台詞。未登録なら作品側の汎用台詞を使えます。1行に1つ。',
+      },
+      {
+        id: 'possessions',
+        label: '所持品',
+        type: 'multiline_string',
+        description: '・ で始める箇条書きが見やすい',
+        group: '見た目',
+      },
+      {
+        // 既存の外見メモのIDを維持し、構造化した見た目の項目と併用する。
+        id: 'appearance',
+        label: '外見の補足',
+        type: 'multiline_string',
+        description: '見た目の特徴やデザインのメモ',
+        group: '見た目',
+      },
+      {
+        id: 'faction',
+        label: '所属',
+        type: 'node_ref',
+        referencesTemplateId: templateId('template.faction'),
+        group: '関係',
+      },
+      {
+        id: 'memo',
+        label: 'メモ',
+        type: 'multiline_string',
+        description: '自由記入欄。打合せメモ / 設定の TODO / 仮置きアイデアなど',
+        group: 'メモ',
+      },
+    ] satisfies FieldSchema[]
+  ).map((field) => ({
+    ...field,
+    hiddenWhenEmpty: ![
+      'display_name',
+      'dev_name',
+      'reading',
+      'short_name',
+      'dialogue_by_scene',
+      'dialogue_on_ally_down',
+    ].includes(field.id),
+  })),
 };

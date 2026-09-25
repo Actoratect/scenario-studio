@@ -2,7 +2,7 @@ import { ulid } from 'ulid';
 import type { FileSystemAdapter, ProjectHandle } from '../platform.js';
 import { parseYaml, sanitizeYamlTree, stringifyYaml } from '../yaml/index.js';
 import type { YamlValue } from '../yaml/index.js';
-import { nodeId, type NodeId } from './era.js';
+import { eraId, nodeId, type NodeId } from './era.js';
 import type { ScenarioNode, NodeVariant } from './node.js';
 import type { TemplateId, TemplateRegistry } from './templates/index.js';
 import { defaultFields } from './template-engine.js';
@@ -149,6 +149,32 @@ export class FsNodeRepository implements NodeRepository {
       fields,
     };
     let result: ScenarioNode = node;
+    if (typeof v['isAlive'] === 'boolean' || v['isAlive'] === null) {
+      result = { ...result, isAlive: v['isAlive'] };
+    }
+    if (Array.isArray(v['variants'])) {
+      const variants: NodeVariant[] = [];
+      for (const raw of v['variants']) {
+        if (
+          !raw ||
+          typeof raw !== 'object' ||
+          Array.isArray(raw) ||
+          typeof raw['eraId'] !== 'string'
+        )
+          continue;
+        const variant: NodeVariant = { eraId: eraId(raw['eraId']) };
+        const overrides = raw['fieldsOverride'];
+        if (overrides && typeof overrides === 'object' && !Array.isArray(overrides)) {
+          variant.fieldsOverride = overrides as { [key: string]: import('./node.js').FieldValue };
+        }
+        if (typeof raw['thumbnailOverride'] === 'string')
+          variant.thumbnailOverride = raw['thumbnailOverride'];
+        if (typeof raw['isAlive'] === 'boolean' || raw['isAlive'] === null)
+          variant.isAlive = raw['isAlive'];
+        variants.push(variant);
+      }
+      if (variants.length > 0) result = { ...result, variants };
+    }
     if (typeof v['thumbnail'] === 'string') {
       result = Object.assign({}, result, { thumbnail: v['thumbnail'] });
     }
@@ -176,6 +202,7 @@ export class FsNodeRepository implements NodeRepository {
       slug: node.slug,
     };
     if (node.thumbnail !== undefined) out['thumbnail'] = node.thumbnail;
+    if (node.isAlive !== undefined) out['isAlive'] = node.isAlive;
     // PR-AC: thumbnailRect (clamp 0..1)
     if (node.thumbnailRect !== undefined) {
       const r = node.thumbnailRect;
@@ -194,7 +221,7 @@ export class FsNodeRepository implements NodeRepository {
         if (v.fieldsOverride !== undefined)
           obj['fieldsOverride'] = { ...v.fieldsOverride } as YamlValue;
         if (v.thumbnailOverride !== undefined) obj['thumbnailOverride'] = v.thumbnailOverride;
-        if (v.isAlive !== undefined && v.isAlive !== null) obj['isAlive'] = v.isAlive;
+        if (v.isAlive !== undefined) obj['isAlive'] = v.isAlive;
         return obj;
       });
     }

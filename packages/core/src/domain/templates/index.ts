@@ -8,6 +8,7 @@ export type {
   NodeRefFieldSchema,
   NumericFieldSchema,
   StringFieldSchema,
+  TextMapFieldSchema,
   TemplateDefinition,
   TemplateId,
 } from './types.js';

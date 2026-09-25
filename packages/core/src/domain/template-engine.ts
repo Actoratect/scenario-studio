@@ -71,6 +71,18 @@ export function defaultFields(template: TemplateDefinition): { [key: string]: Fi
 
 function checkType(field: FieldSchema, value: FieldValue): ValidationIssue | undefined {
   switch (field.type) {
+    case 'text_map':
+      if (
+        typeof value !== 'object' ||
+        value === null ||
+        Array.isArray(value) ||
+        Object.entries(value).some(
+          ([key, text]) => key.trim() === '' || (text !== null && typeof text !== 'string'),
+        )
+      ) {
+        return typeIssue(field, 'map of text or null', value);
+      }
+      return undefined;
     case 'string':
     case 'multiline_string':
     case 'markdown':
